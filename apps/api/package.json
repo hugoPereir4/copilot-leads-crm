@@ -1,0 +1,14 @@
+{
+  "name": "@copilot-leads/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {},
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@copilot-leads/shared": "0.0.0"
+  }
+}
