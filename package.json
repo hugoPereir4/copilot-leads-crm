@@ -16,7 +16,10 @@
   "scripts": {
     "build": "npm run build --workspaces",
     "typecheck": "npm run build --workspace=@copilot-leads/shared && npm run typecheck --workspaces",
-    "check": "npm run typecheck && npm run build"
+    "check": "npm run typecheck && npm run build && npm run test --workspace=@copilot-leads/api",
+    "test": "npm run build --workspace=@copilot-leads/api && npm run test --workspace=@copilot-leads/api",
+    "db:check": "npm run build --workspace=@copilot-leads/api && npm run db:check --workspace=@copilot-leads/api",
+    "db:migrate": "npm run build --workspace=@copilot-leads/api && npm run db:migrate --workspace=@copilot-leads/api"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

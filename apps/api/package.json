@@ -6,7 +6,10 @@
   "exports": {},
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test dist/config/database.test.js",
+    "db:check": "node --env-file=../../.env dist/scripts/check-database.js",
+    "db:migrate": "node --env-file=../../.env dist/scripts/migrate-database.js"
   },
   "dependencies": {
     "@copilot-leads/shared": "0.0.0",
