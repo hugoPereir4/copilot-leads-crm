@@ -43,7 +43,7 @@ A base de organização está definida: monólito modular, monorepo com npm work
 | Entrega | Decisão a resolver antes dela |
 |---|---|
 | Preparação da base | Versões compatíveis, scripts e ferramentas mínimas de qualidade |
-| Persistência | Acesso ao banco e migrações |
+| Persistência | `pg` e `node-pg-migrate` confirmados na D22; detalhar cada migração antes de implementar |
 | Menu e perfil da clínica | Armazenamento da configuração, serviços, valores, horários e textos fictícios |
 | Integração de IA | Provedor, modelo, orçamento, limites e critérios de revisão |
 | Login do painel | Sessão e autenticação |
@@ -54,3 +54,5 @@ A base de organização está definida: monólito modular, monorepo com npm work
 **Revisão da etapa 3 concluída pelo autor em 29/10/2026.** A integração na `main` continua pendente e separada da próxima entrega.
 
 **Etapa 4.1 concluída em 30/10/2026:** configuração do PostgreSQL local na branch `chore/postgres-local`, criada sobre a base revisada da etapa 3. O [documento 9](09-etapa-4-postgres-local.md) explica os arquivos e os comandos. O autor confirmou o container `healthy`, publicado em `127.0.0.1:15432`, e a consulta SQL dentro do container retornou o banco e o usuário esperados. Também confirmou a persistência do marcador após recriar o container e a remoção da tabela de verificação. A próxima entrega deve definir o acesso ao banco e as migrações, implementar e validar a conexão usada pela aplicação. A etapa 4 de recebimento e persistência de mensagens continua em desenvolvimento.
+
+**Etapa 4.2 implementada, pronta para revisão:** branch `chore/api-database`, criada sobre a entrega 4.1 enviada ao remoto. A D22 registra a escolha de `pg` e `node-pg-migrate`. A conexão pelo Node fora do container e a inicialização do controle de migrações foram verificadas; não há migrações de negócio nesta entrega. O [documento 10](10-etapa-4-acesso-ao-banco.md) apresenta instalações, arquivos, comandos e evidências. A revisão individual e a integração na `main` seguem separadas. A próxima entrega implementará a primeira migração de negócio após revisar o modelo necessário.

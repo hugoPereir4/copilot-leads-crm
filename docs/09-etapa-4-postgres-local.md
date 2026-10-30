@@ -2,7 +2,7 @@
 
 Configuração preparada em 29/10/2026 na branch `chore/postgres-local`, a partir da base revisada da etapa 3. A integração da etapa 3 na `main` permanece uma operação separada.
 
-**Estado desta entrega:** preparação do PostgreSQL local concluída e validada pelo autor. Em 29/10/2026, a saída compartilhada de `docker compose ps` confirmou o container `healthy` e o mapeamento `127.0.0.1:15432->5432/tcp`; a consulta SQL dentro do container retornou o banco `copilot_leads` e o usuário `copilot_dev`. Em 30/10/2026, o autor confirmou a gravação do marcador `1`, recriou o container com `--force-recreate`, consultou novamente o mesmo valor e removeu a tabela de verificação, recebendo `DROP TABLE`. O acesso da aplicação pela porta do Windows será implementado e validado na próxima entrega de persistência. Esta preparação de infraestrutura não conclui a etapa 4 de recebimento e persistência de mensagens.
+**Estado desta entrega:** preparação do PostgreSQL local concluída e validada pelo autor. Em 29/10/2026, a saída compartilhada de `docker compose ps` confirmou o container `healthy` e o mapeamento `127.0.0.1:15432->5432/tcp`; a consulta SQL dentro do container retornou o banco `copilot_leads` e o usuário `copilot_dev`. Em 30/10/2026, o autor confirmou a gravação do marcador `1`, recriou o container com `--force-recreate`, consultou novamente o mesmo valor e removeu a tabela de verificação, recebendo `DROP TABLE`. O acesso pelo Node fora do container foi implementado e validado na entrega seguinte, descrita no [documento 10](10-etapa-4-acesso-ao-banco.md). Esta preparação de infraestrutura não conclui a etapa 4 de recebimento e persistência de mensagens.
 
 ## 1. O que cada parte faz
 
@@ -109,7 +109,7 @@ docker compose exec postgres psql -U copilot_dev -d copilot_leads -c "SELECT cur
 
 O comando usa os nomes de usuário e banco de `.env.example`; caso tenha escolhido outros, ajuste os argumentos `-U` e `-d`. `exec` executa um comando no container em execução. `psql` é o cliente de terminal já incluído na imagem; `-c` executa a consulta e encerra o cliente. O container continua em execução.
 
-O autor confirmou uma linha com `copilot_leads` e `copilot_dev`. A consulta apenas lê informações da sessão. Esta verificação usa uma conexão local dentro do container; não valida a senha nem o acesso pela porta `15432` do Windows. Essa conexão será verificada ao preparar o acesso da aplicação ao banco. O teste de persistência do volume está registrado nos passos F e G.
+O autor confirmou uma linha com `copilot_leads` e `copilot_dev`. A consulta apenas lê informações da sessão. Esta verificação usa uma conexão local dentro do container; não valida a senha nem o acesso pela porta `15432` do Windows. A verificação pelo Node fora do container foi feita na etapa 4.2 e está no documento 10. O teste de persistência do volume está registrado nos passos F e G.
 
 ### Passo F — Preparar um dado para verificar o volume
 

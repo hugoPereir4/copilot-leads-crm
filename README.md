@@ -6,7 +6,7 @@ O backend seguirá um monólito modular. O código está organizado em um monore
 
 ## Estado atual
 
-A etapa 3 preparou os pacotes, a tipagem estrita e os scripts de verificação. Os pontos de entrada dos pacotes ainda estão vazios; as funcionalidades serão construídas em entregas pequenas, com revisão individual. A etapa 4.1 preparou o PostgreSQL local com Docker Compose, publicado em `127.0.0.1:15432` nesta máquina. Foram confirmados o estado `healthy`, uma consulta SQL dentro do container, a persistência de um dado após recriar o container e a remoção da tabela de verificação. A próxima entrega tratará do acesso ao banco e das migrações, incluindo a conexão da aplicação.
+A etapa 3 preparou os pacotes, a tipagem estrita e os scripts de verificação. A etapa 4.1 preparou o PostgreSQL local com Docker Compose e validou a persistência após recriar o container. A etapa 4.2 configurou o acesso com `pg`, a validação de ambiente com Zod e o controle de migrações com `node-pg-migrate`. A conexão pelo Node fora do container foi verificada. Os pontos de entrada HTTP continuam vazios; ainda não há tabelas de negócio. As funcionalidades serão construídas em entregas pequenas, com revisão individual.
 
 ## Ambiente
 
@@ -23,13 +23,16 @@ npm ci
 npm run check
 ```
 
-`npm ci` instala as dependências registradas no `package-lock.json`. O script `check` verifica os tipos dos três pacotes e compila a base.
+`npm ci` instala as dependências registradas no `package-lock.json`. O script `check` verifica os tipos dos três pacotes, compila a base e executa os testes de configuração da API, que não precisam de banco nem de `.env`.
 
 | Script | Finalidade |
 |---|---|
 | `npm run typecheck` | Compila a interface pública de `shared` e verifica os tipos de todos os pacotes, sem emitir os arquivos das aplicações |
 | `npm run build` | Compila primeiro `shared`, depois API e web, gerando arquivos em seus diretórios `dist` |
-| `npm run check` | Executa a verificação de tipos e a compilação |
+| `npm run check` | Executa a verificação de tipos, a compilação e os testes da API |
+| `npm run test` | Compila a API e executa os testes sem precisar de banco |
+| `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
+| `npm run db:migrate` | Compila a API e aplica migrações pendentes; pode alterar a estrutura do banco |
 
 ## Estrutura e dependências
 
@@ -44,6 +47,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Acesso ao banco e migrações](docs/10-etapa-4-acesso-ao-banco.md): entrega da etapa 4.2, dependências, configuração e validação.
 - [PostgreSQL local com Docker Compose](docs/09-etapa-4-postgres-local.md): configuração e primeira execução explicadas passo a passo.
 - [Guia da entrega da etapa 3](docs/08-etapa-3-base-do-monorepo.md): instalações, configurações e roteiro de revisão.
 - [Decisões de arquitetura](docs/02-decisoes-de-arquitetura.md).

@@ -251,6 +251,24 @@ Referências: [rotas](https://expressjs.com/en/guide/routing.html), [middlewares
 
 Referências: [schemas e tipos derivados](https://zod.dev/basics), [restrições dos schemas](https://zod.dev/api) e [conversão para JSON Schema](https://zod.dev/json-schema).
 
+## D22. SQL explícito com pg e migrações com node-pg-migrate
+
+**Decisão confirmada em 30/10/2026.**
+
+**Como funciona:** o backend usa `pg` (node-postgres) diretamente para consultas SQL parametrizadas. `node-pg-migrate` mantém o histórico de alterações da estrutura do banco; as próximas migrações serão arquivos SQL versionados em `apps/api/migrations`. A aplicação e o migrador reutilizam uma configuração validada com Zod, carregada das variáveis `POSTGRES_*`.
+
+**Fronteiras:** a configuração do servidor e o pool pertencem ao backend. As consultas de negócio ficarão nas implementações de repositório de cada módulo. Os casos de uso dependerão de contratos próprios, sem importar `pg`, Zod ou a ferramenta de migrações. A composição conecta contratos e implementações. Os tipos internos do banco não pertencem a `packages/shared`.
+
+**Por quê:** SQL explícito permite estudar consultas, restrições, índices e transações ao implementar o fluxo. Ao gravar mensagem e job juntos, todos os comandos da transação deverão usar o mesmo cliente reservado do pool, incluindo `BEGIN`, `COMMIT` e eventual `ROLLBACK`. Chamadas independentes a `pool.query` não garantem o uso da mesma conexão.
+
+**Alternativas consideradas:** Kysely oferece construção de consultas com tipagem TypeScript; Drizzle oferece declarações de tabelas em TypeScript e geração de migrações SQL; Prisma oferece uma camada de consultas e modelos própria. São opções viáveis. A escolha atual prioriza praticar SQL e tornar o controle das transações visível durante o estudo.
+
+**Trade-off:** `pg` não infere os resultados a partir das tabelas e consultas SQL. Precisaremos manter os tipos dos resultados, revisar SQL e verificar consultas e restrições com testes de integração nas entregas de persistência. Informar um tipo ao `pool.query` não valida os dados em execução. Migrações também exigem revisão antes de serem aplicadas.
+
+**Primeira entrega:** configurar e validar a conexão fora do container e inicializar o controle de migrações, sem tabelas de negócio. O migrador é um comando separado; não é executado automaticamente ao importar o pool. As migrações são escritas pelo projeto e executadas por uma ferramenta existente, sem criar um migrador próprio.
+
+Referências: [consultas parametrizadas](https://node-postgres.com/features/queries), [pool](https://node-postgres.com/apis/pool), [transações](https://node-postgres.com/features/transactions) e [node-pg-migrate](https://salsita.github.io/node-pg-migrate/). As versões instaladas e a validação estão no [documento 10](10-etapa-4-acesso-ao-banco.md).
+
 ## Forma de trabalho para estudar arquitetura
 
 O objetivo é aprender arquitetura durante o desenvolvimento, com uma entrega pequena por vez e revisão individual do autor. Em cada entrega, explicar com exemplos do próprio projeto:

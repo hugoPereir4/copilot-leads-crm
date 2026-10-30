@@ -28,10 +28,10 @@ Inventário de tudo de que o projeto depende: ambiente, bibliotecas, ferramentas
 | Biblioteca | Para que serve | Classificação | Alternativas / observação |
 |---|---|---|---|
 | Framework HTTP: **Express** | Rotas e middlewares do webhook e da API do painel | Núcleo, confirmado na D20 | Escolhido para acompanhar as aulas da faculdade. Validação e tratamento de erros serão configurados explicitamente; regras de negócio permanecem nos casos de uso. |
-| **Zod** | Validação em execução e tipos derivados dos contratos | Núcleo, confirmado na D21 | Schemas compartilhados de API e eventos em `packages/shared`; schemas específicos de integrações e configuração do servidor permanecem no backend. |
-| Driver **pg** (node-postgres) | Conectar ao PostgreSQL | Núcleo | Usado diretamente ou por baixo do ORM. |
-| Camada de acesso a dados | Consultas tipadas e migrações | Núcleo (a decidir) | **Drizzle ORM** ou **Kysely** (mais próximos do SQL, facilitam o `FOR UPDATE SKIP LOCKED` do worker). **Prisma** também serve, mas exige consultas cruas para a fila. |
-| Ferramenta de migrações | Versionar o schema do banco | Núcleo | Vem junto do Drizzle (drizzle-kit) ou do Prisma. Com Kysely, use node-pg-migrate ou similar. |
+| **Zod** | Validação em execução e tipos derivados dos contratos | Núcleo, confirmado na D21 | `4.6.7` instalado na API na etapa 4.2 para validar a configuração do banco. Schemas compartilhados de API e eventos entrarão em `packages/shared` quando necessários; configuração do servidor permanece no backend. |
+| Driver **pg** (node-postgres) | Conectar ao PostgreSQL e executar SQL parametrizado | Núcleo, confirmado na D22 | `8.23.1` instalado no workspace da API na etapa 4.2; tipos com `@types/pg` `8.23.1` em desenvolvimento. |
+| Camada de acesso a dados | Repositórios com SQL explícito | Núcleo, confirmado na D22 | Usar `pg` diretamente; Kysely, Drizzle e Prisma foram considerados. Os tipos dos resultados são mantidos pelo projeto, sem inferência a partir do SQL. |
+| **node-pg-migrate** | Versionar e aplicar alterações na estrutura do banco | Núcleo, confirmado na D22 | `9.0.0` instalado como dependência de desenvolvimento da API. Migrações SQL ficam em `apps/api/migrations`; o documento 10 explica a execução. |
 | **pino** | Logs estruturados com correlation id | Recomendado | Integração com o backend Express a definir na entrega de observabilidade. |
 | Hash de senha: **argon2** | Guardar senhas dos atendentes | Núcleo | Alternativa: bcrypt. Nunca armazenar senha em texto. |
 | Sessão / autenticação | Login do painel | Núcleo (a decidir) | Cookie de sessão `httpOnly` ou JWT (biblioteca **jose**). Para um painel único, cookie de sessão é mais simples e seguro. |
@@ -195,7 +195,8 @@ Instalar só o que a fase pede evita carregar bibliotecas que você ainda não e
 
 ## 11. Decisões em aberto sobre dependências
 
-- Drizzle, Kysely ou Prisma?
+Acesso ao banco e migrações já foram resolvidos na D22: `pg` direto e `node-pg-migrate`. Permanecem em aberto:
+
 - Sessão por cookie ou JWT?
 - Qual provedor de IA?
 - Qual provedor de WhatsApp para a etapa posterior com número real? A demonstração inicial usa o simulador (D14).
