@@ -6,7 +6,7 @@ O backend seguirá um monólito modular. O código está organizado em um monore
 
 ## Estado atual
 
-A etapa 3 prepara os pacotes, a tipagem estrita e os scripts de verificação. Os pontos de entrada dos pacotes ainda estão vazios; as funcionalidades serão construídas em entregas pequenas, com revisão individual.
+A etapa 3 preparou os pacotes, a tipagem estrita e os scripts de verificação. Os pontos de entrada dos pacotes ainda estão vazios; as funcionalidades serão construídas em entregas pequenas, com revisão individual. A etapa 4.1 preparou o PostgreSQL local com Docker Compose, publicado em `127.0.0.1:15432` nesta máquina. Foram confirmados o estado `healthy`, uma consulta SQL dentro do container, a persistência de um dado após recriar o container e a remoção da tabela de verificação. A próxima entrega tratará do acesso ao banco e das migrações, incluindo a conexão da aplicação.
 
 ## Ambiente
 
@@ -44,6 +44,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [PostgreSQL local com Docker Compose](docs/09-etapa-4-postgres-local.md): configuração e primeira execução explicadas passo a passo.
 - [Guia da entrega da etapa 3](docs/08-etapa-3-base-do-monorepo.md): instalações, configurações e roteiro de revisão.
 - [Decisões de arquitetura](docs/02-decisoes-de-arquitetura.md).
 - [Fluxo de desenvolvimento e revisão](docs/07-fluxo-de-desenvolvimento.md).
