@@ -24,10 +24,12 @@ Modelo relacional mínimo para sustentar o fluxo do documento 3. Pensado para Po
 
 | Campo | Tipo | Observação |
 |---|---|---|
-| id | identificador | Chave primária |
-| phone | texto | Único; guardar em formato internacional padronizado |
+| id | uuid | Chave primária; padrão `gen_random_uuid()` |
+| phone | texto | Obrigatório e único; `+` seguido de 2 a 15 dígitos, sem zero inicial |
 | display_name | texto, opcional | Nome que o WhatsApp informa ou que a IA extrai |
-| created_at | data e hora | |
+| created_at | timestamptz | Obrigatório; padrão `now()` |
+
+A migração de `contacts` foi verificada na etapa 4.3 com oito cenários em banco descartável. Uma conferência de leitura encontrou a tabela, suas definições e o registro da migração em `copilot_leads`. A restrição de telefone confere apenas a representação de armazenamento; não normaliza entradas nem valida se o número existe ou pertence a um plano de numeração válido. A normalização será implementada na entrada do futuro caso de uso. O [documento 11](11-etapa-4-migracao-de-contatos.md) explica a implementação e as verificações.
 
 ### conversations
 
@@ -211,9 +213,9 @@ Table users {
 }
 
 Table contacts {
-  id uuid [pk]
-  phone varchar [not null, unique, note: 'Formato internacional padronizado']
-  display_name varchar
+  id uuid [pk, default: `gen_random_uuid()`]
+  phone text [not null, unique, note: '+ seguido de 2 a 15 dígitos, sem zero inicial; CHECK na migração SQL']
+  display_name text
   created_at timestamptz [not null, default: `now()`]
 }
 

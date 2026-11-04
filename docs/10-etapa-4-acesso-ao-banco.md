@@ -2,7 +2,9 @@
 
 Implementada em 30/10/2026 na branch `chore/api-database`, criada sobre a entrega 4.1 enviada ao remoto. A revisão individual e a integração na `main` continuam separadas. A escolha de ferramentas foi confirmada pelo autor e registrada na D22.
 
-**Estado:** implementação pronta para revisão. Tipagem, compilação e seis testes passaram. A consulta pelo Node fora do container retornou o banco e o usuário esperados. O migrador inicializou seu controle e terminou sem migrações pendentes. Não há arquivos de migração de negócio nesta entrega; executar uma migração com alterações em tabelas será validado na próxima entrega.
+**Estado:** implementação revisada pelo autor em 04/11/2026. Tipagem, compilação e seis testes passaram. A consulta pelo Node fora do container retornou o banco e o usuário esperados. O migrador inicializou seu controle e terminou sem migrações pendentes. Não havia arquivos de migração de negócio nessa entrega.
+
+**Etapa 4.3:** a migração de contatos foi revisada e verificada em banco descartável, e uma conferência de leitura encontrou seu registro no banco do projeto. O resultado de zero migrações abaixo é o registro histórico da etapa 4.2. O [documento 11](11-etapa-4-migracao-de-contatos.md) apresenta o SQL, os testes de integração e os resultados posteriores.
 
 ## 1. O que foi instalado
 
