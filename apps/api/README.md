@@ -18,6 +18,8 @@ A aplicação pode depender dos contratos públicos de `@copilot-leads/shared`. 
 - `src/infrastructure/database/conversations-migration.integration.test.ts`: nove cenários de conversas verificados em banco descartável em 05/11/2026.
 - `migrations/1793750402000_create_messages.sql`: etapa 4.5, com referência a conversas, tipo de conteúdo e unicidade por provedor e ID externo; aguardando revisão antes da aplicação ao projeto.
 - `src/infrastructure/database/messages-migration.integration.test.ts`: dez cenários de mensagens, incluindo duplicatas concorrentes e reversão que preserva contatos e conversas.
+- `migrations/1793750403000_create_jobs.sql`: etapa 4.6, com referência a mensagens, unicidade por tipo e mensagem, estados, tentativas e índice de busca; aguardando revisão antes de aplicar ao projeto.
+- `src/infrastructure/database/jobs-migration.integration.test.ts`: onze cenários de jobs em banco descartável.
 
 Na raiz do monorepo, execute `npm run db:check` para testar a conexão, `npm run db:migrate` para aplicar migrações pendentes e `npm run check` para verificar tipos, compilação e testes. Os comandos de banco compilam a API e carregam o `.env` da raiz com a opção nativa `--env-file` do Node. Eles exigem o PostgreSQL em execução. O migrador cria sua tabela de histórico mesmo quando não há arquivos de migração.
 
@@ -30,3 +32,5 @@ Na etapa 4.4, `test:integration` passou a incluir os arquivos de contatos e de c
 O campo `exports: {}` declara que esta aplicação não oferece uma interface de pacote para importação pelo dashboard. As fronteiras entre os futuros módulos também precisarão ser respeitadas no código e na revisão.
 
 Na etapa 4.5, `test:integration` inclui também mensagens: oito cenários de contatos, nove de conversas e dez de mensagens, mais três agrupadores, totalizando 30 registros aprovados. Cada suíte usa seu próprio banco descartável; o SQL novo não foi aplicado ao banco do projeto. Nenhuma dependência foi instalada. O [guia de mensagens](../../docs/13-etapa-4-migracao-de-mensagens.md) explica as restrições e por que o tratamento de reenvios no caso de uso ainda fica para outra entrega.
+
+Na etapa 4.6, o comando inclui onze cenários de jobs. A execução conjunta passou em 42 registros, incluindo quatro agrupadores. As quatro suítes agora fornecem um `dbClient` ao migrador e aguardam `migrationClient.end()` em `finally`, antes de remover o banco descartável. Isso corrige uma falha observada na limpeza da suíte de contatos: a versão instalada do migrador iniciava o encerramento de sua conexão sem aguardar a conclusão. O SQL das migrações anteriores e os cenários existentes não foram alterados. O [guia de jobs](../../docs/14-etapa-4-migracao-de-jobs.md) explica a correção, as restrições e o processamento ainda pendente. Nenhuma dependência foi instalada nem executado `db:migrate` no banco do projeto.

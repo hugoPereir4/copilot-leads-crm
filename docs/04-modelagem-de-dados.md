@@ -103,15 +103,20 @@ O caminho direto à recepção (opção 3) cria o lead em `novo`, com `needs_rev
 
 | Campo | Tipo | Observação |
 |---|---|---|
-| id | identificador | |
-| type | texto | Ex.: processar_mensagem |
-| message_id | referência | |
-| status | enum | pendente, processando, concluido, falhou |
-| attempts, max_attempts | número | Controle de novas tentativas |
-| run_at | data e hora | Quando pode ser tentado de novo |
-| locked_at | data e hora, opcional | Quando um worker o reivindicou |
-| last_error | texto, opcional | |
-| created_at | data e hora | |
+| id | uuid | Obrigatório, chave primária; padrão `gen_random_uuid()` |
+| type | texto | Obrigatório e não vazio após `btrim`; ex.: processar_mensagem |
+| message_id | uuid | Obrigatório; referência a `messages`, com `ON DELETE RESTRICT` |
+| status | texto com CHECK | Obrigatório; pendente, processando, concluido ou falhou; padrão pendente |
+| attempts | integer | Obrigatório; padrão 0, entre zero e `max_attempts` |
+| max_attempts | integer | Obrigatório e positivo; padrão 3, total de tentativas permitidas |
+| run_at | timestamptz | Obrigatório; padrão `now()`, quando pode ser executado |
+| locked_at | timestamptz, opcional | Obrigatório em processando e nulo nos demais estados; registro da reivindicação |
+| last_error | texto, opcional | Último erro; a futura implementação deve guardar uma descrição sanitizada |
+| created_at | timestamptz | Obrigatório; padrão `now()` |
+
+A migração 4.6 está preparada para revisão e passou em onze cenários em banco descartável. A unicidade de `(type, message_id)` mantém um job por tarefa e mensagem, inclusive depois de concluído; novas tentativas atualizam o mesmo job. Outro tipo de tarefa pode referenciar a mesma mensagem. O índice em `(status, run_at)` apoia a busca por trabalhos disponíveis.
+
+Essas restrições não implementam worker, agendamento, backoff ou recuperação de jobs interrompidos. `locked_at` é metadado persistido, não um bloqueio de linha. A reivindicação transacional com `FOR UPDATE SKIP LOCKED` e a gravação atômica de mensagem e job serão implementadas nos fluxos correspondentes. O [documento 14](14-etapa-4-migracao-de-jobs.md) explica as garantias e a validação; a migração não foi aplicada ao banco do projeto nesta entrega.
 
 ### business_profile e users
 
@@ -130,6 +135,7 @@ Tipo do evento (mudança de estágio, assunção, revisão), estágio de origem 
 | messages | Índice em (conversation_id, created_at) | Consultar o histórico de uma conversa |
 | contacts | Único em phone | Um registro por número |
 | jobs | Índice em (status, run_at) | O worker acha o próximo job rápido |
+| jobs | Único em (type, message_id) | Um job por tarefa e mensagem; reutilizar o mesmo registro nas tentativas |
 | leads | Índice em (stage, position) | Montar as colunas do Kanban |
 | leads | Único em conversation_id | Um lead por conversa |
 | conversations | Índice em (contact_id, status) | Achar a conversa ativa de um contato |
@@ -308,12 +314,12 @@ Table ai_extractions {
 }
 
 Table jobs {
-  id uuid [pk]
-  type varchar [not null, note: 'Ex.: processar_mensagem']
+  id uuid [pk, default: `gen_random_uuid()`]
+  type text [not null, note: 'Ex.: processar_mensagem; não vazio após btrim']
   message_id uuid [not null]
-  status job_status [not null, default: 'pendente']
-  attempts integer [not null, default: 0]
-  max_attempts integer [not null, default: 3]
+  status job_status [not null, default: 'pendente', note: 'SQL 4.6 usa text com CHECK']
+  attempts integer [not null, default: 0, note: 'Entre zero e max_attempts']
+  max_attempts integer [not null, default: 3, note: 'Positivo; total de tentativas']
   run_at timestamptz [not null, default: `now()`]
   locked_at timestamptz
   last_error text
@@ -321,9 +327,10 @@ Table jobs {
 
   indexes {
     (status, run_at)
+    (type, message_id) [unique]
   }
 
-  Note: 'Fila transacional de jobs persistida no banco (D4)'
+  Note: 'Etapa 4.6 em revisão. FK com ON DELETE RESTRICT. locked_at preenchido apenas em processando. Worker e gravação conjunta com mensagem ainda pendentes (D4).'
 }
 
 Table lead_events {

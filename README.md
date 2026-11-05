@@ -12,7 +12,9 @@ A etapa 4.3 foi revisada e verificada: os oito cenários de integração da migr
 
 A etapa 4.4 foi revisada e enviada ao remoto: migração de `conversations`, com vínculo ao contato e unicidade da conversa aberta. Em 05/11/2026, a execução conjunta dos testes de integração de contatos e conversas passou após corrigir uma expectativa de erro no teste de exclusão restrita. O [documento 12](docs/12-etapa-4-migracao-de-conversas.md) registra essa validação em bancos descartáveis.
 
-A etapa 4.5 está preparada para revisão na branch `feat/messages-migration`: migração de `messages`, com vínculo à conversa, identificação do tipo de conteúdo e unicidade por provedor e ID externo. Tipagem, compilação, seis testes de configuração e os 30 registros de integração passaram. A nova migração não foi aplicada ao banco do projeto. O [documento 13](docs/13-etapa-4-migracao-de-mensagens.md) apresenta a ordem de revisão e os limites desta entrega.
+A etapa 4.5 foi revisada e enviada ao remoto na branch `feat/messages-migration`, commit `f4c7795`: migração de `messages`, com vínculo à conversa, identificação do tipo de conteúdo e unicidade por provedor e ID externo. Tipagem, compilação, seis testes de configuração e os 30 registros de integração passaram nessa entrega. O [documento 13](docs/13-etapa-4-migracao-de-mensagens.md) apresenta a implementação e seus limites.
+
+A etapa 4.6 está preparada para revisão na branch `feat/jobs-migration`: migração de `jobs`, com vínculo à mensagem, controle de tentativas e unicidade por tipo e mensagem. Tipagem, compilação, seis testes de configuração e 42 registros de integração passaram após corrigir o encerramento das conexões do migrador nos testes. A nova migração não foi aplicada ao banco do projeto. O [documento 14](docs/14-etapa-4-migracao-de-jobs.md) apresenta a ordem de revisão.
 
 ## Ambiente
 
@@ -37,7 +39,7 @@ npm run check
 | `npm run build` | Compila primeiro `shared`, depois API e web, gerando arquivos em seus diretórios `dist` |
 | `npm run check` | Executa a verificação de tipos, a compilação e os testes da API |
 | `npm run test` | Compila a API e executa os testes sem precisar de banco |
-| `npm run test:integration` | Executa as suítes de contatos, conversas e mensagens, cada uma em seu próprio banco descartável |
+| `npm run test:integration` | Executa as suítes de contatos, conversas, mensagens e jobs, cada uma em seu próprio banco descartável |
 | `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
 | `npm run db:migrate` | Compila a API e aplica migrações pendentes; pode alterar a estrutura do banco |
 
@@ -54,7 +56,8 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
-- [Migração de mensagens](docs/13-etapa-4-migracao-de-mensagens.md): etapa 4.5, preparada para revisão antes de aplicar.
+- [Migração de jobs](docs/14-etapa-4-migracao-de-jobs.md): etapa 4.6, preparada para revisão antes de aplicar.
+- [Migração de mensagens](docs/13-etapa-4-migracao-de-mensagens.md): SQL, testes e resultados da etapa 4.5.
 - [Migração de conversas](docs/12-etapa-4-migracao-de-conversas.md): SQL, testes e resultados da etapa 4.4.
 - [Primeira migração de contatos](docs/11-etapa-4-migracao-de-contatos.md): SQL, testes de integração e resultados da etapa 4.3.
 - [Acesso ao banco e migrações](docs/10-etapa-4-acesso-ao-banco.md): entrega da etapa 4.2, dependências, configuração e validação.
