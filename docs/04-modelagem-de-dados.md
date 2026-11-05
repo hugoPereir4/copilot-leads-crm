@@ -35,12 +35,15 @@ A migração de `contacts` foi verificada na etapa 4.3 com oito cenários em ban
 
 | Campo | Tipo | Observação |
 |---|---|---|
-| id | identificador | |
-| contact_id | referência | Aponta para contacts |
-| status | enum | aguardando_menu, aguardando_detalhes, qualificando, aguardando_humano, em_atendimento_humano, encerrada |
-| assigned_user_id | referência, opcional | Atendente responsável |
-| last_message_at | data e hora | Registra a última atividade para consulta no painel; não dispara lembretes nem encerramento por inatividade na v1 (D18) |
-| created_at, closed_at | data e hora | |
+| id | uuid | Proposta 4.4: chave primária com padrão `gen_random_uuid()` |
+| contact_id | uuid | Obrigatório; referência a `contacts`, com exclusão do contato restringida enquanto houver conversas |
+| status | texto com CHECK | Proposta 4.4: seis estados previstos na D7; padrão `aguardando_menu` |
+| assigned_user_id | referência, opcional, planejada | Será acrescentado junto da tabela `users`; não integra a migração 4.4 |
+| last_message_at | timestamptz, opcional | Inicialmente nulo; registra a última atividade para consulta, sem disparar lembretes nem encerramento por inatividade (D18) |
+| created_at | timestamptz | Obrigatório, com padrão `now()` |
+| closed_at | timestamptz, opcional | Proposta 4.4: obrigatório em `encerrada` e nulo nos demais estados |
+
+A migração de `conversations` está preparada para revisão e foi verificada em banco descartável, sem aplicação no banco do projeto nesta correção. Um índice único parcial em `contact_id` para os estados diferentes de `encerrada` protege a parte da D16 referente a conversas; as encerradas permanecem no histórico. Há também um índice em `(contact_id, status)` para consulta. A atribuição a um atendente dependerá da futura tabela `users`. O [documento 12](12-etapa-4-migracao-de-conversas.md) detalha o SQL, os testes executados e os limites desta etapa.
 
 ### messages
 
@@ -220,10 +223,10 @@ Table contacts {
 }
 
 Table conversations {
-  id uuid [pk]
+  id uuid [pk, default: `gen_random_uuid()`]
   contact_id uuid [not null]
-  status conversation_status [not null]
-  assigned_user_id uuid
+  status conversation_status [not null, default: 'aguardando_menu', note: 'Enum conceitual; proposta SQL 4.4 usa text com CHECK']
+  assigned_user_id uuid [note: 'Planejado para a entrega de users; ausente na migração 4.4']
   last_message_at timestamptz
   created_at timestamptz [not null, default: `now()`]
   closed_at timestamptz
@@ -232,7 +235,7 @@ Table conversations {
     (contact_id, status)
   }
 
-  Note: 'Estado técnico da conversa. D16: no máximo uma aberta por contato; unicidade parcial definida na migração.'
+  Note: 'Proposta 4.4 em revisão. D16: no máximo uma aberta por contato; índice parcial e coerência de closed_at definidos no SQL. assigned_user_id é futuro.'
 }
 
 Table messages {

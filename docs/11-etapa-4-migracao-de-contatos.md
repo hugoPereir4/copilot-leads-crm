@@ -77,7 +77,7 @@ Após a revisão do código, foi executado o teste no banco descartável:
 npm run test:integration
 ```
 
-Esse comando compila a API e executa somente o novo arquivo de integração. Ele cria, altera e remove um banco de teste. Não faz parte de `npm run check` nem de `npm run test`, que continuam sem depender de PostgreSQL ou Docker.
+Na validação da etapa 4.3, esse comando compilava a API e executava somente o arquivo de contatos, criando e removendo um banco de teste. Na etapa 4.4, passou a incluir também o arquivo de conversas, em outro banco descartável; a execução conjunta foi verificada com sucesso em 05/11/2026, conforme o [documento 12](12-etapa-4-migracao-de-conversas.md). Os testes de integração não fazem parte de `npm run check` nem de `npm run test`, que continuam sem depender de PostgreSQL ou Docker.
 
 O comando existente para aplicar migrações no banco do projeto é:
 

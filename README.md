@@ -10,6 +10,8 @@ A etapa 3 preparou os pacotes, a tipagem estrita e os scripts de verificação. 
 
 A etapa 4.3 foi revisada e verificada: os oito cenários de integração da migração de `contacts` passaram em banco descartável, e sua limpeza foi confirmada. Uma consulta de leitura também encontrou a migração registrada e a tabela correspondente em `copilot_leads`. O [documento 11](docs/11-etapa-4-migracao-de-contatos.md) registra os resultados e os comandos.
 
+A etapa 4.4 está preparada para revisão: migração de `conversations`, com vínculo ao contato e unicidade da conversa aberta. Em 05/11/2026, a execução conjunta dos testes de integração de contatos e conversas passou após corrigir uma expectativa de erro no teste de exclusão restrita. A aplicação no banco do projeto continua para depois da revisão; o [documento 12](docs/12-etapa-4-migracao-de-conversas.md) registra os resultados.
+
 ## Ambiente
 
 - Node.js `24.14.1`, registrado em `.nvmrc`.
@@ -33,7 +35,7 @@ npm run check
 | `npm run build` | Compila primeiro `shared`, depois API e web, gerando arquivos em seus diretórios `dist` |
 | `npm run check` | Executa a verificação de tipos, a compilação e os testes da API |
 | `npm run test` | Compila a API e executa os testes sem precisar de banco |
-| `npm run test:integration` | Cria um banco local descartável, aplica e reverte a migração de contatos e remove esse banco |
+| `npm run test:integration` | Executa as suítes de contatos e conversas, cada uma em seu próprio banco descartável |
 | `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
 | `npm run db:migrate` | Compila a API e aplica migrações pendentes; pode alterar a estrutura do banco |
 
@@ -50,6 +52,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Migração de conversas](docs/12-etapa-4-migracao-de-conversas.md): proposta da etapa 4.4, aguardando revisão antes de aplicar.
 - [Primeira migração de contatos](docs/11-etapa-4-migracao-de-contatos.md): SQL, testes de integração e resultados da etapa 4.3.
 - [Acesso ao banco e migrações](docs/10-etapa-4-acesso-ao-banco.md): entrega da etapa 4.2, dependências, configuração e validação.
 - [PostgreSQL local com Docker Compose](docs/09-etapa-4-postgres-local.md): configuração e primeira execução explicadas passo a passo.

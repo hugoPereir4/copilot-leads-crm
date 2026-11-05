@@ -14,11 +14,15 @@ A aplicação pode depender dos contratos públicos de `@copilot-leads/shared`. 
 - `src/scripts/migrate-database.ts`: aplica migrações SQL com `node-pg-migrate` e mantém o histórico em `public.pgmigrations`.
 - `migrations/1793750400000_create_contacts.sql`: primeira migração SQL de negócio, verificada em banco descartável e encontrada registrada no banco do projeto. `.gitkeep` permanece ignorado pelo carregador.
 - `src/infrastructure/database/contacts-migration.integration.test.ts`: teste separado que cria um banco descartável para validar essa migração; oito cenários verificados.
+- `migrations/1793750401000_create_conversations.sql`: migração da etapa 4.4, com referência a contatos e índice único parcial para conversa aberta; verificada em banco descartável e aguardando aplicação acompanhada no projeto.
+- `src/infrastructure/database/conversations-migration.integration.test.ts`: nove cenários de conversas verificados em banco descartável em 05/11/2026.
 
 Na raiz do monorepo, execute `npm run db:check` para testar a conexão, `npm run db:migrate` para aplicar migrações pendentes e `npm run check` para verificar tipos, compilação e testes. Os comandos de banco compilam a API e carregam o `.env` da raiz com a opção nativa `--env-file` do Node. Eles exigem o PostgreSQL em execução. O migrador cria sua tabela de histórico mesmo quando não há arquivos de migração.
 
 Os tipos do banco e as consultas permanecerão no backend. Os contratos consumidos pelo painel continuam em `packages/shared`. Consulte o [guia da etapa 4.2](../../docs/10-etapa-4-acesso-ao-banco.md) para revisar a entrega.
 
 Na etapa 4.3, `npm run test:integration` aplica e reverte a migração em um banco descartável, separado das tabelas do projeto. `npm run check` continua executando apenas os testes de configuração, sem aplicar SQL nem abrir conexão com o banco. O [guia da migração de contatos](../../docs/11-etapa-4-migracao-de-contatos.md) explica os arquivos e os resultados. Na revisão, não foi necessário executar `db:migrate`: a conferência de leitura encontrou a migração já registrada em `copilot_leads`.
+
+Na etapa 4.4, `test:integration` passou a incluir os arquivos de contatos e de conversas, com bancos descartáveis independentes. Essa execução conjunta passou após a correção da expectativa de `restrict_violation` no teste de exclusão de contato com histórico. `npm run check` permanece sem acesso ao banco; `db:migrate` no banco do projeto continua para depois da revisão. O [guia da migração de conversas](../../docs/12-etapa-4-migracao-de-conversas.md) explica a dependência de contatos e o adiamento de `assigned_user_id` até existir `users`.
 
 O campo `exports: {}` declara que esta aplicação não oferece uma interface de pacote para importação pelo dashboard. As fronteiras entre os futuros módulos também precisarão ser respeitadas no código e na revisão.
