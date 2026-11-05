@@ -23,21 +23,30 @@ test("migração de contatos em banco descartável", { timeout: 60000 }, async (
   const pool = createDatabasePool(testConfig);
   let databaseCreated = false;
 
-  const migrate = (direction: "up" | "down") => runner({
-    databaseUrl: { ...testConfig, connectionTimeoutMillis: 5000 },
-    dir: fileURLToPath(new URL("../../../migrations/", import.meta.url)),
-    file: migrationName,
-    direction,
-    schema: "public",
-    migrationsTable: "pgmigrations",
-    checkOrder: true,
-    singleTransaction: true,
-    logger: {
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-    },
-  });
+  const migrate = async (direction: "up" | "down") => {
+    const migrationClient = new Client({ ...testConfig, connectionTimeoutMillis: 5000 });
+    try {
+      await migrationClient.connect();
+      return await runner({
+        dbClient: migrationClient,
+        dir: fileURLToPath(new URL("../../../migrations/", import.meta.url)),
+        file: migrationName,
+        direction,
+        schema: "public",
+        migrationsTable: "pgmigrations",
+        checkOrder: true,
+        singleTransaction: true,
+        logger: {
+          info: () => {},
+          warn: () => {},
+          error: () => {},
+        },
+      });
+    } finally {
+      // Aguarda o encerramento antes de permitir a remoção do banco descartável.
+      await migrationClient.end();
+    }
+  };
 
   try {
     await admin.connect();

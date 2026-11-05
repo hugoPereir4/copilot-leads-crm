@@ -24,21 +24,30 @@ test("migração de mensagens em banco descartável", { timeout: 60000 }, async 
   let databaseCreated = false;
   let contactSequence = 0;
 
-  const migrate = (direction: "up" | "down", file = messagesMigration) => runner({
-    databaseUrl: { ...testConfig, connectionTimeoutMillis: 5000 },
-    dir: fileURLToPath(new URL("../../../migrations/", import.meta.url)),
-    file,
-    direction,
-    schema: "public",
-    migrationsTable: "pgmigrations",
-    checkOrder: true,
-    singleTransaction: true,
-    logger: {
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-    },
-  });
+  const migrate = async (direction: "up" | "down", file = messagesMigration) => {
+    const migrationClient = new Client({ ...testConfig, connectionTimeoutMillis: 5000 });
+    try {
+      await migrationClient.connect();
+      return await runner({
+        dbClient: migrationClient,
+        dir: fileURLToPath(new URL("../../../migrations/", import.meta.url)),
+        file,
+        direction,
+        schema: "public",
+        migrationsTable: "pgmigrations",
+        checkOrder: true,
+        singleTransaction: true,
+        logger: {
+          info: () => {},
+          warn: () => {},
+          error: () => {},
+        },
+      });
+    } finally {
+      // Aguarda o encerramento antes de permitir a remoção do banco descartável.
+      await migrationClient.end();
+    }
+  };
 
   // Fixtures sintéticas, independentes dos futuros repositórios da aplicação.
   async function createConversation(): Promise<string> {
