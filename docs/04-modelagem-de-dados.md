@@ -49,17 +49,20 @@ A migração de `conversations` está preparada para revisão e foi verificada e
 
 | Campo | Tipo | Observação |
 |---|---|---|
-| id | identificador | |
-| conversation_id | referência | |
-| provider | texto | Ex.: simulador, evolution |
-| external_id | texto | ID da mensagem no provedor |
-| direction | enum | entrada ou saída |
-| sender_type | enum | contato, bot, atendente |
-| body | texto | Conteúdo de texto |
-| raw_payload | jsonb | Payload original, para depuração |
-| created_at | data e hora | |
+| id | uuid | Etapa 4.5: obrigatório, chave primária; padrão `gen_random_uuid()` |
+| conversation_id | uuid | Obrigatório; referência a `conversations` com `ON DELETE RESTRICT` |
+| provider | texto | Obrigatório e não vazio após `btrim`; ex.: simulador, evolution |
+| external_id | texto | Obrigatório e não vazio após `btrim`; ID da mensagem no provedor |
+| direction | texto com CHECK | Obrigatório; entrada ou saída |
+| sender_type | texto com CHECK | Obrigatório; contato, bot ou atendente |
+| kind | texto com CHECK | Obrigatório; texto, audio ou outro, conforme o contrato normalizado |
+| body | texto, opcional | Conteúdo textual quando disponível; validação do texto processável pertence à entrada |
+| raw_payload | jsonb, opcional | Payload original quando disponível, para depuração |
+| created_at | timestamptz | Obrigatório; padrão `now()`, instante de registro no sistema |
 
-**Restrição importante:** unicidade em (provider, external_id). É ela que garante a idempotência (D5).
+**Restrição importante:** unicidade em (provider, external_id), inclusive entre conversas diferentes. Essa é a garantia estrutural da D5; o futuro caso de uso ainda precisará reconhecer o reenvio e evitar efeitos duplicados, inclusive jobs. O banco não ignora a violação automaticamente.
+
+A migração da etapa 4.5 está preparada para revisão e passou em dez cenários de integração em banco descartável. `kind` explicita a distinção já prevista no contrato normalizado: mídias podem ser registradas sem serem processadas na V1. Não há inferência do tipo a partir de `body`. O índice em `(conversation_id, created_at)` apoia a consulta do histórico; o campo de data não representa necessariamente o horário informado pelo provedor. O [documento 13](13-etapa-4-migracao-de-mensagens.md) detalha a revisão. A aplicação ao banco do projeto não foi executada nesta entrega.
 
 ### leads
 
@@ -124,6 +127,7 @@ Tipo do evento (mudança de estágio, assunção, revisão), estágio de origem 
 | Onde | O quê | Para quê |
 |---|---|---|
 | messages | Único em (provider, external_id) | Idempotência |
+| messages | Índice em (conversation_id, created_at) | Consultar o histórico de uma conversa |
 | contacts | Único em phone | Um registro por número |
 | jobs | Índice em (status, run_at) | O worker acha o próximo job rápido |
 | leads | Índice em (stage, position) | Montar as colunas do Kanban |
@@ -184,6 +188,12 @@ Enum sender_type {
   atendente
 }
 
+Enum message_kind {
+  texto
+  audio
+  outro
+}
+
 Enum job_status {
   pendente
   processando
@@ -239,12 +249,13 @@ Table conversations {
 }
 
 Table messages {
-  id uuid [pk]
+  id uuid [pk, default: `gen_random_uuid()`]
   conversation_id uuid [not null]
   provider varchar [not null, note: 'Ex.: simulador, evolution']
   external_id varchar [not null, note: 'ID da mensagem no provedor']
   direction message_direction [not null]
   sender_type sender_type [not null]
+  kind message_kind [not null, note: 'Etapa 4.5 usa text com CHECK para tipo, direção e remetente']
   body text
   raw_payload jsonb
   created_at timestamptz [not null, default: `now()`]
@@ -253,6 +264,8 @@ Table messages {
     (provider, external_id) [unique, note: 'Garante a idempotência']
     (conversation_id, created_at)
   }
+
+  Note: 'Etapa 4.5 em revisão. FK com ON DELETE RESTRICT; provider e external_id não vazios após btrim. created_at registra a persistência, não o horário do provedor.'
 }
 
 Table leads {
