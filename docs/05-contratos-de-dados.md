@@ -59,6 +59,12 @@ O adapter converte o payload do provedor para este formato. O restante do sistem
 
 **Por que uma união discriminada em `kind`:** o tipo da mensagem decide quais outros campos existem. Com a união, o compilador obriga você a tratar cada caso, e quando o áudio entrar na v1.1 ele aponta todo lugar que precisa mudar.
 
+**Implementação inicial — etapa 4.7:** o schema está em `apps/api/src/modules/messaging/contracts/normalized-message.ts`, no backend. `kind` aceita `texto`, `audio` e `outro`; texto é obrigatório e não vazio após verificar espaços apenas na variante `texto`. `phone` exige a representação canônica de armazenamento, sem tentar adivinhar DDI ou remover máscaras. `receivedAt` exige um objeto `Date` válido: converter o campo original do provedor será responsabilidade do adapter. O schema rejeita identificadores vazios, preserva o valor dos identificadores opacos e o texto, e remove campos extras da representação normalizada.
+
+O payload bruto é transportado separadamente como `unknown`, sem interpretação no caso de uso. Sua forma e serialização serão tratadas pela integração e pela persistência futuras; o schema normalizado não valida o original nem implementa o schema de um provedor. A entrada interna retorna apenas caminhos dos campos inválidos, sem valores ou conteúdo da mensagem.
+
+O caso de uso de recepção solicita registro de todos os três tipos válidos; somente texto solicita criação do job. A porta de persistência deverá reconhecer duplicatas, reutilizar contato e conversa aberta e gravar mensagem e eventual job na mesma transação. Na etapa 4.7 existe apenas o contrato dessa porta; os testes sem banco não comprovam essas garantias no PostgreSQL. O [documento 15](15-etapa-4-contrato-de-recepcao.md) detalha o fluxo e a revisão.
+
 ## 5. Resultado da qualificação pela IA
 
 Este é o contrato mais importante do projeto. O schema é enviado ao LLM e depois usado para validar a resposta.

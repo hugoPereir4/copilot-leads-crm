@@ -14,7 +14,9 @@ A etapa 4.4 foi revisada e enviada ao remoto: migração de `conversations`, com
 
 A etapa 4.5 foi revisada e enviada ao remoto na branch `feat/messages-migration`, commit `f4c7795`: migração de `messages`, com vínculo à conversa, identificação do tipo de conteúdo e unicidade por provedor e ID externo. Tipagem, compilação, seis testes de configuração e os 30 registros de integração passaram nessa entrega. O [documento 13](docs/13-etapa-4-migracao-de-mensagens.md) apresenta a implementação e seus limites.
 
-A etapa 4.6 está preparada para revisão na branch `feat/jobs-migration`: migração de `jobs`, com vínculo à mensagem, controle de tentativas e unicidade por tipo e mensagem. Tipagem, compilação, seis testes de configuração e 42 registros de integração passaram após corrigir o encerramento das conexões do migrador nos testes. A nova migração não foi aplicada ao banco do projeto. O [documento 14](docs/14-etapa-4-migracao-de-jobs.md) apresenta a ordem de revisão.
+A etapa 4.6 foi revisada e enviada ao remoto na branch `feat/jobs-migration`: commits `c8f1be3` (encerramento de conexões nos testes) e `b4a5f8f` (migração de `jobs`, testes e documentação). Tipagem, compilação, seis testes de configuração e 42 registros de integração passaram nessa entrega. O [documento 14](docs/14-etapa-4-migracao-de-jobs.md) apresenta a implementação.
+
+A etapa 4.7 foi revisada pelo autor em 09/11/2026 na branch `feat/message-reception-contract`: primeiro bloco do módulo de mensageria, com contrato de mensagem normalizada, validação de entrada e caso de uso dependente de uma porta de persistência. `npm run check` foi executado novamente e passou com 16 testes sem banco. A implementação PostgreSQL dessa porta e o webhook HTTP ficam para entregas seguintes. O [documento 15](docs/15-etapa-4-contrato-de-recepcao.md) apresenta o fluxo e a ordem de revisão.
 
 ## Ambiente
 
@@ -31,7 +33,7 @@ npm ci
 npm run check
 ```
 
-`npm ci` instala as dependências registradas no `package-lock.json`. O script `check` verifica os tipos dos três pacotes, compila a base e executa os testes de configuração da API, que não precisam de banco nem de `.env`.
+`npm ci` instala as dependências registradas no `package-lock.json`. O script `check` verifica os tipos dos três pacotes, compila a base e executa os testes de configuração e recepção da API, que não precisam de banco nem de `.env`.
 
 | Script | Finalidade |
 |---|---|
@@ -56,7 +58,8 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
-- [Migração de jobs](docs/14-etapa-4-migracao-de-jobs.md): etapa 4.6, preparada para revisão antes de aplicar.
+- [Contrato de recepção](docs/15-etapa-4-contrato-de-recepcao.md): etapa 4.7, com validação, caso de uso e fluxo de revisão.
+- [Migração de jobs](docs/14-etapa-4-migracao-de-jobs.md): SQL, testes e resultados da etapa 4.6.
 - [Migração de mensagens](docs/13-etapa-4-migracao-de-mensagens.md): SQL, testes e resultados da etapa 4.5.
 - [Migração de conversas](docs/12-etapa-4-migracao-de-conversas.md): SQL, testes e resultados da etapa 4.4.
 - [Primeira migração de contatos](docs/11-etapa-4-migracao-de-contatos.md): SQL, testes de integração e resultados da etapa 4.3.
