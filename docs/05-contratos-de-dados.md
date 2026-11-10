@@ -63,7 +63,9 @@ O adapter converte o payload do provedor para este formato. O restante do sistem
 
 O payload bruto é transportado separadamente como `unknown`, sem interpretação no caso de uso. Sua forma e serialização serão tratadas pela integração e pela persistência futuras; o schema normalizado não valida o original nem implementa o schema de um provedor. A entrada interna retorna apenas caminhos dos campos inválidos, sem valores ou conteúdo da mensagem.
 
-O caso de uso de recepção solicita registro de todos os três tipos válidos; somente texto solicita criação do job. A porta de persistência deverá reconhecer duplicatas, reutilizar contato e conversa aberta e gravar mensagem e eventual job na mesma transação. Na etapa 4.7 existe apenas o contrato dessa porta; os testes sem banco não comprovam essas garantias no PostgreSQL. O [documento 15](15-etapa-4-contrato-de-recepcao.md) detalha o fluxo e a revisão.
+O caso de uso de recepção solicita registro de todos os três tipos válidos; somente texto solicita criação do job. A porta de persistência exige reconhecimento de duplicatas, reutilização de contato e conversa aberta e gravação de mensagem e eventual job na mesma transação. A etapa 4.7 definiu esse contrato e o verificou com substitutos sem banco. O [documento 15](15-etapa-4-contrato-de-recepcao.md) detalha essa parte.
+
+Na etapa 4.8, `PostgresIncomingMessageInbox` implementa a porta com SQL parametrizado, um cliente reservado por transação e bloqueio do contato enquanto resolve a conversa. A implementação retorna o ID original para duplicatas, inclusive em conflito concorrente, sem repetir efeitos. `rawPayload` precisa ser um valor JSON válido; conteúdo incompatível gera `MessagePayloadSerializationError` sem incluir valores no erro e antes de abrir a transação. As garantias reais de gravação, concorrência e rollback foram verificadas em banco descartável, conforme o [documento 16](16-etapa-4-recepcao-postgresql.md). A entrada HTTP e o adapter do provedor continuam pendentes.
 
 ## 5. Resultado da qualificação pela IA
 

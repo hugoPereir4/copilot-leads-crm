@@ -40,10 +40,21 @@ Na etapa 4.6, o comando inclui onze cenários de jobs. A execução conjunta pas
 O primeiro bloco está em `src/modules/messaging`:
 
 - `contracts/normalized-message.ts`: schema Zod e tipo derivado da mensagem normalizada, separados do payload específico de um provedor.
-- `application/incoming-message-inbox.ts`: porta de persistência e tipos do comando e resultado. Ainda não há implementação PostgreSQL dessa porta.
+- `application/incoming-message-inbox.ts`: porta de persistência e tipos do comando e resultado. A etapa 4.8 acrescenta sua implementação PostgreSQL em `infrastructure`.
 - `application/receive-message.ts`: caso de uso; solicita processamento somente para texto e depende da porta, sem importar `pg`, Express ou Zod em execução.
 - `input/receive-message.ts`: entrada interna que valida `unknown`, retorna apenas nomes de campos inválidos e chama o caso de uso para dados válidos. Ainda não é uma rota HTTP.
 
 Os testes do caso de uso e da entrada usam substitutos da porta para observar comandos, resultados e erros, sem abrir banco ou servidor. `npm run check` e `npm test` agora incluem esses testes: 16 aprovados no total, junto dos seis de configuração. Os 42 registros de integração da etapa anterior não foram repetidos nesta preparação, pois não houve alteração de SQL, acesso a banco ou infraestrutura dos testes de integração.
 
 O [guia da etapa 4.7](../../docs/15-etapa-4-contrato-de-recepcao.md) apresenta a ordem de revisão, as dependências e o que falta para receber e persistir um webhook real. Não foram instaladas dependências nem aplicadas migrações nesta etapa.
+
+## Recepção PostgreSQL — etapa 4.8
+
+- `modules/messaging/infrastructure/serialize-message-payload.ts`: valida o original como valor JSON com Zod e o serializa antes de reservar uma conexão; erros não incluem seu conteúdo.
+- `modules/messaging/infrastructure/postgres-incoming-message-inbox.ts`: implementa `IncomingMessageInbox`, recebendo o pool por construtor. Reserva um cliente e usa a mesma conexão para toda a transação, incluindo rollback e liberação.
+- `modules/messaging/infrastructure/serialize-message-payload.test.ts`: quatro testes sem banco para serialização, valores incompatíveis e erro seguro.
+- `modules/messaging/infrastructure/postgres-incoming-message-inbox.integration.test.ts`: doze cenários em banco descartável para gravação, reutilização, histórico, mídia, concorrência e rollback.
+
+A aplicação continua sem servidor HTTP ou worker. O teste de integração conecta a entrada existente ao adaptador PostgreSQL real, aplicando as quatro migrações existentes apenas no banco criado pela própria suíte. Não foi necessário alterar a porta nem as camadas de entrada e aplicação.
+
+`npm run check` passou em tipos, compilação e 20 testes sem banco. `npm run test:integration` passou em 55 registros: os 42 anteriores e os doze cenários novos com seu agrupador. A primeira tentativa encontrou o PostgreSQL desligado; após iniciar Docker Desktop e o serviço do Compose, a execução completa e a limpeza passaram. Nenhuma dependência, variável de ambiente ou migração foi alterada. Consulte o [guia da etapa 4.8](../../docs/16-etapa-4-recepcao-postgresql.md).

@@ -6,13 +6,15 @@ Documento de planejamento · rascunho de 22/10/2026
 
 O diagrama abaixo mostra o caminho de uma mensagem, do webhook até o card no Kanban, incluindo o desvio para o atendimento humano quando a IA falha. A IA só entra depois que a mensagem está gravada, e qualquer falha nela termina no painel com o indicador Revisar.
 
+O diagrama representa o processamento de texto. Mídias são registradas, mas não geram job na V1. **Ajuste da etapa 4.8:** o vínculo com contato e conversa é resolvido na transação de recepção, pois `messages.conversation_id` é obrigatório. O worker continua responsável por enviar a abertura do ciclo; o controle desse envio único será detalhado na entrega do worker. Nesta etapa, o fluxo HTTP e o worker ainda não estão implementados.
+
 ```mermaid
 flowchart TD
     A["Provedor WhatsApp ou simulador"] --> B["Webhook recebe a requisição"]
     B --> C["Adapter normaliza o payload"]
     C --> D{"Payload válido?"}
     D -- não --> E["Rejeita com erro e registra em log"]
-    D -- sim --> F["Transação: tenta gravar mensagem bruta + job pendente"]
+    D -- sim --> F["Transação: resolve contato e conversa; grava mensagem + job de texto"]
     F --> G{"ID externo já existe?"}
     G -- sim --> H["Ignora a duplicata e responde 200"]
     G -- não --> I["Responde 200 ao provedor"]
@@ -21,7 +23,7 @@ flowchart TD
     J --> K["Carrega conversa e estado atual"]
     K --> L{"Estado da conversa"}
 
-    L -- "Sem conversa aberta: primeiro contato ou retorno após encerramento" --> M["Inicia nova conversa no mesmo contato e envia saudação"]
+    L -- "Novo ciclo com abertura ainda pendente" --> M["Envia saudação do novo ciclo preparado na recepção"]
     M --> MH{"Fora do expediente no fuso da clínica?"}
     MH -- sim --> MA["Envia aviso predefinido com o horário da clínica"]
     MA --> MM["Envia menu normalmente"]
@@ -67,12 +69,12 @@ flowchart TD
 1. **Chegada.** O provedor de WhatsApp (ou o simulador) envia um webhook ao backend.
 2. **Normalização.** O adapter do provedor converte o payload para o formato interno do sistema (decisão D6).
 3. **Validação.** Se o payload não tem o formato esperado, a requisição é rejeitada com erro e registrada em log. Nada é gravado.
-4. **Gravação em uma única transação.** A mensagem bruta e um job "pendente" são gravados juntos. Se o ID externo da mensagem já existe, a duplicata é ignorada (D5).
+4. **Gravação em uma única transação.** A recepção reutiliza o contato e sua conversa aberta ou prepara um novo ciclo quando não há conversa aberta. A mensagem bruta e, para texto, um job "pendente" são gravados juntos. Se o par de provedor e ID externo já existe, retorna o identificador original sem repetir gravações (D5). Em conflito concorrente, os registros provisórios da recepção perdedora são desfeitos.
 5. **Resposta rápida.** O webhook responde 200 ao provedor (D3).
 6. **Reivindicação.** O worker pega o próximo job pendente (D4).
-7. **Carga de contexto.** O worker carrega a conversa e o estado atual dela. Mensagens do mesmo contato durante um atendimento são vinculadas à única conversa aberta e reutilizam o lead existente; não criam cards adicionais (D16).
+7. **Carga de contexto.** O futuro worker carrega a conversa já vinculada à mensagem e o estado atual dela. A recepção vincula mensagens do mesmo contato à única conversa aberta; os fluxos de leads reutilizarão o lead existente sem criar cards adicionais (D16).
 8. **Decisão por estado** (veja a tabela da seção 3):
-   - Primeiro contato ou retorno sem conversa aberta: inicia uma nova conversa vinculada ao contato e envia saudação e menu predefinidos. Fora do expediente, inclui um aviso com o horário da clínica, calculado no fuso do perfil; o menu e a qualificação continuam normalmente (D17). As conversas anteriores permanecem encerradas no histórico (D16).
+   - Novo ciclo preparado na recepção: envia saudação e menu predefinidos. Fora do expediente, inclui um aviso com o horário da clínica, calculado no fuso do perfil; o menu e a qualificação continuam normalmente (D17). As conversas anteriores permanecem encerradas no histórico (D16).
    - Atendente já assumiu: apenas registra a mensagem; o bot não responde.
    - Aguardando menu: opções 1 e 2 enviam informações e uma pergunta predefinidas, passando para Aguardando detalhes. A opção 3 cria o lead em Novo, sem indicador Revisar e sem chamar a IA, passando diretamente para Aguardando humano e notificando o painel (passo 12). Opção inválida reenvia o menu; texto livre vai para a qualificação.
    - Aguardando detalhes: a resposta em texto livre alimenta a qualificação.
@@ -105,7 +107,7 @@ O tempo sem resposta do cliente não é um evento de transição na v1: a conver
 | Falha | O que acontece | Resultado |
 |---|---|---|
 | Payload inválido | Rejeitado e registrado em log; nenhum dado gravado | Nada entra no sistema |
-| Mensagem duplicada | A restrição de unicidade ignora a segunda inserção; responde 200 | Nenhum lead duplicado |
+| Mensagem duplicada | A recepção reconhece o conflito no par de provedor e ID externo, retorna a mensagem original e não cria outro job; o futuro webhook responde 200 | Nenhum processamento adicional por esse reenvio |
 | Banco indisponível no webhook | Responde erro ao provedor, que reenvia depois | A idempotência protege o reenvio |
 | Timeout ou erro da IA | Uma nova tentativa; se falhar de novo, aciona o fallback | Lead vai para revisão humana |
 | Saída da IA inválida | Mesmo tratamento do timeout | Lead vai para revisão humana |

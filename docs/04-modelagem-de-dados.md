@@ -64,6 +64,8 @@ A migração de `conversations` está preparada para revisão e foi verificada e
 
 A migração da etapa 4.5 está preparada para revisão e passou em dez cenários de integração em banco descartável. `kind` explicita a distinção já prevista no contrato normalizado: mídias podem ser registradas sem serem processadas na V1. Não há inferência do tipo a partir de `body`. O índice em `(conversation_id, created_at)` apoia a consulta do histórico; o campo de data não representa necessariamente o horário informado pelo provedor. O [documento 13](13-etapa-4-migracao-de-mensagens.md) detalha a revisão. A aplicação ao banco do projeto não foi executada nesta entrega.
 
+**Recepção PostgreSQL — etapa 4.8:** o adaptador de persistência resolve contato e conversa na mesma transação da mensagem e de seu eventual job. O payload original é validado como valor JSON antes da conexão e passado como JSON serializado ao JSONB. `messages.created_at` mantém o instante de persistência; `receivedAt`, do contrato interno, atualiza `conversations.last_message_at` apenas quando for mais recente. A data de origem por mensagem continua sem coluna própria. O [documento 16](16-etapa-4-recepcao-postgresql.md) detalha os testes de concorrência e rollback.
+
 ### leads
 
 | Campo | Tipo | Observação |
@@ -117,6 +119,8 @@ O caminho direto à recepção (opção 3) cria o lead em `novo`, com `needs_rev
 A migração 4.6 está preparada para revisão e passou em onze cenários em banco descartável. A unicidade de `(type, message_id)` mantém um job por tarefa e mensagem, inclusive depois de concluído; novas tentativas atualizam o mesmo job. Outro tipo de tarefa pode referenciar a mesma mensagem. O índice em `(status, run_at)` apoia a busca por trabalhos disponíveis.
 
 Essas restrições não implementam worker, agendamento, backoff ou recuperação de jobs interrompidos. `locked_at` é metadado persistido, não um bloqueio de linha. A reivindicação transacional com `FOR UPDATE SKIP LOCKED` e a gravação atômica de mensagem e job serão implementadas nos fluxos correspondentes. O [documento 14](14-etapa-4-migracao-de-jobs.md) explica as garantias e a validação; a migração não foi aplicada ao banco do projeto nesta entrega.
+
+A etapa 4.8 implementa a gravação atômica: a decisão `enqueueProcessing` vem do caso de uso; quando verdadeira, a infraestrutura insere `processar_mensagem` antes do commit da mensagem. Os testes provocam falha nessa inserção e verificam rollback das quatro tabelas e da última atividade de conversa já existente. O job permanece pendente; o worker e a reivindicação ainda não foram implementados.
 
 ### business_profile e users
 

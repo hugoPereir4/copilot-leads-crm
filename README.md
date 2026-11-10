@@ -16,7 +16,9 @@ A etapa 4.5 foi revisada e enviada ao remoto na branch `feat/messages-migration`
 
 A etapa 4.6 foi revisada e enviada ao remoto na branch `feat/jobs-migration`: commits `c8f1be3` (encerramento de conexões nos testes) e `b4a5f8f` (migração de `jobs`, testes e documentação). Tipagem, compilação, seis testes de configuração e 42 registros de integração passaram nessa entrega. O [documento 14](docs/14-etapa-4-migracao-de-jobs.md) apresenta a implementação.
 
-A etapa 4.7 foi revisada pelo autor em 09/11/2026 na branch `feat/message-reception-contract`: primeiro bloco do módulo de mensageria, com contrato de mensagem normalizada, validação de entrada e caso de uso dependente de uma porta de persistência. `npm run check` foi executado novamente e passou com 16 testes sem banco. A implementação PostgreSQL dessa porta e o webhook HTTP ficam para entregas seguintes. O [documento 15](docs/15-etapa-4-contrato-de-recepcao.md) apresenta o fluxo e a ordem de revisão.
+A etapa 4.7 foi revisada e enviada ao remoto na branch `feat/message-reception-contract`: primeiro bloco do módulo de mensageria, com contrato de mensagem normalizada, validação de entrada e caso de uso dependente de uma porta de persistência. `npm run check` passou com 16 testes sem banco nessa entrega. O [documento 15](docs/15-etapa-4-contrato-de-recepcao.md) apresenta o fluxo e a ordem de revisão.
+
+A etapa 4.8 está preparada para revisão na branch `feat/postgres-message-reception`: implementação PostgreSQL da porta de recepção, com mensagem e eventual job na mesma transação, reutilização de contato e conversa aberta e reconhecimento de duplicatas. Tipagem, compilação, 20 testes sem banco e 55 registros de integração passaram. Nenhuma migração nova foi necessária ou aplicada ao banco do projeto. A implementação foi exercitada em banco descartável; webhook e worker continuam para outras entregas. O [documento 16](docs/16-etapa-4-recepcao-postgresql.md) apresenta a ordem de revisão e as garantias verificadas.
 
 ## Ambiente
 
@@ -41,7 +43,7 @@ npm run check
 | `npm run build` | Compila primeiro `shared`, depois API e web, gerando arquivos em seus diretórios `dist` |
 | `npm run check` | Executa a verificação de tipos, a compilação e os testes da API |
 | `npm run test` | Compila a API e executa os testes sem precisar de banco |
-| `npm run test:integration` | Executa as suítes de contatos, conversas, mensagens e jobs, cada uma em seu próprio banco descartável |
+| `npm run test:integration` | Executa as suítes de migrações e recepção PostgreSQL, cada uma em seu próprio banco descartável |
 | `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
 | `npm run db:migrate` | Compila a API e aplica migrações pendentes; pode alterar a estrutura do banco |
 
@@ -58,7 +60,8 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
-- [Contrato de recepção](docs/15-etapa-4-contrato-de-recepcao.md): etapa 4.7, com validação, caso de uso e fluxo de revisão.
+- [Recepção PostgreSQL](docs/16-etapa-4-recepcao-postgresql.md): etapa 4.8, com transação, concorrência, rollback e fluxo de revisão.
+- [Contrato de recepção](docs/15-etapa-4-contrato-de-recepcao.md): etapa 4.7, com validação, caso de uso e porta de persistência.
 - [Migração de jobs](docs/14-etapa-4-migracao-de-jobs.md): SQL, testes e resultados da etapa 4.6.
 - [Migração de mensagens](docs/13-etapa-4-migracao-de-mensagens.md): SQL, testes e resultados da etapa 4.5.
 - [Migração de conversas](docs/12-etapa-4-migracao-de-conversas.md): SQL, testes e resultados da etapa 4.4.
