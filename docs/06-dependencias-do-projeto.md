@@ -27,7 +27,7 @@ Inventário de tudo de que o projeto depende: ambiente, bibliotecas, ferramentas
 
 | Biblioteca | Para que serve | Classificação | Alternativas / observação |
 |---|---|---|---|
-| Framework HTTP: **Express** | Rotas e middlewares do webhook e da API do painel | Núcleo, confirmado na D20 | Escolhido para acompanhar as aulas da faculdade. Validação e tratamento de erros serão configurados explicitamente; regras de negócio permanecem nos casos de uso. |
+| Framework HTTP: **Express** | Rotas e middlewares do webhook e da API do painel | Núcleo, confirmado na D20 | `5.3.0` instalado na etapa 4.9, com `@types/express` `5.0.6` em desenvolvimento. Escolhido para acompanhar as aulas da faculdade; regras de negócio permanecem nos casos de uso. |
 | **Zod** | Validação em execução e tipos derivados dos contratos | Núcleo, confirmado na D21 | `4.6.7` instalado na API na etapa 4.2 para validar a configuração do banco. Schemas compartilhados de API e eventos entrarão em `packages/shared` quando necessários; configuração do servidor permanece no backend. |
 | Driver **pg** (node-postgres) | Conectar ao PostgreSQL e executar SQL parametrizado | Núcleo, confirmado na D22 | `8.23.1` instalado no workspace da API na etapa 4.2; tipos com `@types/pg` `8.23.1` em desenvolvimento. |
 | Camada de acesso a dados | Repositórios com SQL explícito | Núcleo, confirmado na D22 | Usar `pg` diretamente; Kysely, Drizzle e Prisma foram considerados. Os tipos dos resultados são mantidos pelo projeto, sem inferência a partir do SQL. |
@@ -42,6 +42,8 @@ Inventário de tudo de que o projeto depende: ambiente, bibliotecas, ferramentas
 | p-retry (ou lógica própria) | Novas tentativas com intervalo crescente | Opcional | Também dá para escrever à mão; é um bom exercício. |
 
 **O que não precisa de biblioteca:** requisições HTTP (o `fetch` nativo do Node basta), geração de UUID (`crypto.randomUUID`), SSE (é só HTTP com um cabeçalho específico) e o worker de jobs (um laço com consulta ao banco).
+
+**Auditoria da etapa 4.9, em 10/11/2026:** `npm audit --omit=dev --json` não apontou vulnerabilidades. O relatório completo apontou três avisos moderados na cadeia de desenvolvimento `node-pg-migrate → glob → minimatch`. Esses pacotes já estavam no lockfile com as mesmas versões antes da instalação de Express. Nenhum `audit fix` foi aplicado; a sugestão automática envolvia trocar a versão principal do migrador e fica para uma revisão própria de dependências. O [documento 17](17-etapa-4-webhook-simulador.md) registra as verificações.
 
 ## 3. Frontend (painel Kanban)
 

@@ -6,7 +6,7 @@ O backend seguirá um monólito modular. O código está organizado em um monore
 
 ## Estado atual
 
-A etapa 3 preparou os pacotes, a tipagem estrita e os scripts de verificação. A etapa 4.1 preparou o PostgreSQL local com Docker Compose e validou a persistência após recriar o container. A etapa 4.2 configurou o acesso com `pg`, a validação de ambiente com Zod e o controle de migrações com `node-pg-migrate`. A conexão pelo Node fora do container foi verificada. Os pontos de entrada HTTP continuam vazios. As funcionalidades serão construídas em entregas pequenas, com revisão individual.
+A etapa 3 preparou os pacotes, a tipagem estrita e os scripts de verificação. A etapa 4.1 preparou o PostgreSQL local com Docker Compose e validou a persistência após recriar o container. A etapa 4.2 configurou o acesso com `pg`, a validação de ambiente com Zod e o controle de migrações com `node-pg-migrate`. A conexão pelo Node fora do container foi verificada. A API agora tem a entrada HTTP local descrita na etapa 4.9; as demais funcionalidades continuam em entregas pequenas, com revisão individual.
 
 A etapa 4.3 foi revisada e verificada: os oito cenários de integração da migração de `contacts` passaram em banco descartável, e sua limpeza foi confirmada. Uma consulta de leitura também encontrou a migração registrada e a tabela correspondente em `copilot_leads`. O [documento 11](docs/11-etapa-4-migracao-de-contatos.md) registra os resultados e os comandos.
 
@@ -18,7 +18,9 @@ A etapa 4.6 foi revisada e enviada ao remoto na branch `feat/jobs-migration`: co
 
 A etapa 4.7 foi revisada e enviada ao remoto na branch `feat/message-reception-contract`: primeiro bloco do módulo de mensageria, com contrato de mensagem normalizada, validação de entrada e caso de uso dependente de uma porta de persistência. `npm run check` passou com 16 testes sem banco nessa entrega. O [documento 15](docs/15-etapa-4-contrato-de-recepcao.md) apresenta o fluxo e a ordem de revisão.
 
-A etapa 4.8 está preparada para revisão na branch `feat/postgres-message-reception`: implementação PostgreSQL da porta de recepção, com mensagem e eventual job na mesma transação, reutilização de contato e conversa aberta e reconhecimento de duplicatas. Tipagem, compilação, 20 testes sem banco e 55 registros de integração passaram. Nenhuma migração nova foi necessária ou aplicada ao banco do projeto. A implementação foi exercitada em banco descartável; webhook e worker continuam para outras entregas. O [documento 16](docs/16-etapa-4-recepcao-postgresql.md) apresenta a ordem de revisão e as garantias verificadas.
+A etapa 4.8 foi revisada e enviada ao remoto na branch `feat/postgres-message-reception`, com os commits `8f49d0d` e `d75bf3e`: persistência transacional e documentação. Tipagem, compilação, 20 testes sem banco e 55 registros de integração passaram nessa entrega. O [documento 16](docs/16-etapa-4-recepcao-postgresql.md) registra as garantias verificadas.
+
+A etapa 4.9 foi revisada e validada na branch `feat/simulator-webhook`: webhook Express local, adapter do simulador e comando para enviar um exemplo sintético. Tipagem, compilação, 43 registros de testes sem banco e 56 de integração passaram. O autor também aprovou os dez cenários manuais no Postman, com persistência conferida por consultas de leitura. Worker, respostas automáticas e painel ainda não estão implementados. O [documento 17](docs/17-etapa-4-webhook-simulador.md) apresenta a ordem de revisão, a execução manual e seus resultados.
 
 ## Ambiente
 
@@ -44,6 +46,8 @@ npm run check
 | `npm run check` | Executa a verificação de tipos, a compilação e os testes da API |
 | `npm run test` | Compila a API e executa os testes sem precisar de banco |
 | `npm run test:integration` | Executa as suítes de migrações e recepção PostgreSQL, cada uma em seu próprio banco descartável |
+| `npm run start:api` | Compila a API e inicia o servidor em `127.0.0.1`, usando `.env`; exige PostgreSQL disponível |
+| `npm run simulate:message` | Envia o exemplo versionado ao webhook local; a API precisa estar em outro terminal |
 | `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
 | `npm run db:migrate` | Compila a API e aplica migrações pendentes; pode alterar a estrutura do banco |
 
@@ -60,7 +64,8 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
-- [Recepção PostgreSQL](docs/16-etapa-4-recepcao-postgresql.md): etapa 4.8, com transação, concorrência, rollback e fluxo de revisão.
+- [Webhook do simulador](docs/17-etapa-4-webhook-simulador.md): etapa 4.9, Express, formato externo e roteiro de revisão e execução.
+- [Recepção PostgreSQL](docs/16-etapa-4-recepcao-postgresql.md): etapa 4.8, com transação, concorrência e rollback.
 - [Contrato de recepção](docs/15-etapa-4-contrato-de-recepcao.md): etapa 4.7, com validação, caso de uso e porta de persistência.
 - [Migração de jobs](docs/14-etapa-4-migracao-de-jobs.md): SQL, testes e resultados da etapa 4.6.
 - [Migração de mensagens](docs/13-etapa-4-migracao-de-mensagens.md): SQL, testes e resultados da etapa 4.5.

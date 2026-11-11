@@ -1,10 +1,10 @@
 # Backend
 
-Esta aplicação conterá o servidor Express e os módulos do monólito modular. O worker também executará no backend na v1.
+Esta aplicação contém o servidor Express e o módulo de mensageria do monólito modular. Os demais módulos e o worker serão implementados nas próximas entregas; o worker executará no backend na v1.
 
 A aplicação pode depender dos contratos públicos de `@copilot-leads/shared`. Os contratos não dependem desta aplicação. Os tipos do Node estão habilitados apenas neste ambiente.
 
-`src/index.ts` continua como ponto de entrada vazio; o servidor HTTP e as regras de negócio serão construídos nas próximas entregas. A etapa 4.2 acrescentou configuração e comandos de infraestrutura executáveis separadamente.
+`src/index.ts` compõe configuração, pool PostgreSQL, persistência e aplicação HTTP. A aplicação HTTP também pode ser construída separadamente nos testes, sem abrir banco. Os comandos de infraestrutura continuam executáveis separadamente.
 
 ## Banco de dados
 
@@ -55,6 +55,18 @@ O [guia da etapa 4.7](../../docs/15-etapa-4-contrato-de-recepcao.md) apresenta a
 - `modules/messaging/infrastructure/serialize-message-payload.test.ts`: quatro testes sem banco para serialização, valores incompatíveis e erro seguro.
 - `modules/messaging/infrastructure/postgres-incoming-message-inbox.integration.test.ts`: doze cenários em banco descartável para gravação, reutilização, histórico, mídia, concorrência e rollback.
 
-A aplicação continua sem servidor HTTP ou worker. O teste de integração conecta a entrada existente ao adaptador PostgreSQL real, aplicando as quatro migrações existentes apenas no banco criado pela própria suíte. Não foi necessário alterar a porta nem as camadas de entrada e aplicação.
+Na etapa 4.8, a aplicação ainda não tinha servidor HTTP ou worker. O teste de integração conecta a entrada existente ao adaptador PostgreSQL real, aplicando as quatro migrações existentes apenas no banco criado pela própria suíte. Não foi necessário alterar a porta nem as camadas de entrada e aplicação.
 
 `npm run check` passou em tipos, compilação e 20 testes sem banco. `npm run test:integration` passou em 55 registros: os 42 anteriores e os doze cenários novos com seu agrupador. A primeira tentativa encontrou o PostgreSQL desligado; após iniciar Docker Desktop e o serviço do Compose, a execução completa e a limpeza passaram. Nenhuma dependência, variável de ambiente ou migração foi alterada. Consulte o [guia da etapa 4.8](../../docs/16-etapa-4-recepcao-postgresql.md).
+
+## Webhook local e simulador — etapa 4.9
+
+`POST /webhooks/simulator` recebe JSON do simulador, traduz para a mensagem normalizada e aguarda a confirmação da persistência antes de responder `200`. Mensagens próprias são ignoradas e não chegam ao caso de uso. Os erros usam `code`, `message`, `correlationId` e, na validação, `details.fields`, sem conteúdo original ou detalhes do PostgreSQL.
+
+A composição principal está em `src/http/app.ts`. O router do módulo fica em `modules/messaging/http/simulator-webhook-router.ts`, o adapter em `modules/messaging/adapters/simulator-message.ts` e o tratamento comum de erros em `http/http-errors.ts`. `http/listen-http.ts` abre o servidor em `127.0.0.1`; `config/http.ts` valida `API_PORT`, opcional, padrão 3000. A variável foi acrescentada somente ao `.env.example`.
+
+Na raiz, use `npm run start:api` e, em outro terminal, `npm run simulate:message`. O comando do simulador lê `examples/simulator/text-message.json` nesta aplicação, mantendo seu ID fixo para demonstrar reenvio. Antes da execução manual, as quatro migrações anteriores precisam estar aplicadas no banco configurado pelo autor. A API verifica a conexão ao iniciar, mas não aplica migrações automaticamente.
+
+Foram instalados Express `5.3.0` e os tipos `@types/express` `5.0.6`, com versões exatas e lockfile atualizado. `npm run check` passou em tipos, compilação e 43 registros sem banco, incluindo testes HTTP em porta aleatória e o cliente executável do simulador. A integração passou em 56 registros, incluindo o webhook conectado ao PostgreSQL descartável. Não foram criadas migrações nem gravados exemplos no banco do projeto durante os testes automatizados.
+
+Em 11/11/2026, o autor executou e aprovou os dez cenários manuais no Postman, incluindo três variações de payload inválido e uma verificação adicional após o erro 413. Esses envios persistiram dados sintéticos no banco do projeto; o Codex conferiu os resultados com `SELECT`, sem modificar diretamente os dados ou executar migrações nesse banco. Consulte o [guia da etapa 4.9](../../docs/17-etapa-4-webhook-simulador.md) para os resultados, a revisão e os avisos de auditoria das dependências de desenvolvimento.

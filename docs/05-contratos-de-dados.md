@@ -44,6 +44,23 @@ O formato exato depende do provedor escolhido. **Confirme os nomes de campos na 
 
 O schema deve ser **tolerante a campos extras** (provedores adicionam campos) e **estrito nos campos que você usa**.
 
+### Simulador implementado na etapa 4.9
+
+O formato é próprio desta demonstração e não representa uma API real de WhatsApp:
+
+| Campo externo | Regra | Destino interno |
+|---|---|---|
+| `fromMe` | Booleano obrigatório; `true` ignora o evento sem persistir | Filtro do adapter |
+| `id` | Texto não vazio; preservado sem alteração | `externalId` |
+| `from` | Telefone já canônico, com `+` e dígitos | `phone` |
+| `timestamp` | ISO 8601 válido com `Z` ou offset explícito | `receivedAt` como `Date` |
+| `type` | `text`, `audio` ou `other` | `texto`, `audio` ou `outro` |
+| `body` | Obrigatório e não vazio somente para `text` | `text` |
+
+Após validar `fromMe`, eventos próprios podem ser reconhecidos sem os campos de entrada. Nos demais eventos, todos os campos da variante são validados. Campos extras são tolerados e o corpo JSON original inteiro é entregue à persistência; `provider` interno é fixado pelo adapter como `simulador`, nunca aceito do cliente. Não há inferência de DDI nem conversão de um telefone local.
+
+O endpoint local exige `Content-Type: application/json`, limita o corpo a 64 KiB e responde `200` para registro confirmado, duplicata confirmada ou evento próprio ignorado. Erros de validação ou JSON recebem `400`, tamanho excessivo `413`, formato/codificação incompatível `415` e falhas inesperadas `500` sem detalhes internos. Um `X-Correlation-ID` gerado pelo servidor acompanha todas as respostas. O [documento 17](17-etapa-4-webhook-simulador.md) apresenta exemplos e testes.
+
 ## 4. Mensagem normalizada (interna)
 
 O adapter converte o payload do provedor para este formato. O restante do sistema só conhece este.
