@@ -1,6 +1,6 @@
 # Backend
 
-Esta aplicação contém o servidor Express e o módulo de mensageria do monólito modular. Os demais módulos e o worker serão implementados nas próximas entregas; o worker executará no backend na v1.
+Esta aplicação contém o servidor Express e os módulos de mensageria e jobs do monólito modular. Os demais módulos e o worker serão implementados nas próximas entregas; o worker executará no backend na v1.
 
 A aplicação pode depender dos contratos públicos de `@copilot-leads/shared`. Os contratos não dependem desta aplicação. Os tipos do Node estão habilitados apenas neste ambiente.
 
@@ -70,3 +70,11 @@ Na raiz, use `npm run start:api` e, em outro terminal, `npm run simulate:message
 Foram instalados Express `5.3.0` e os tipos `@types/express` `5.0.6`, com versões exatas e lockfile atualizado. `npm run check` passou em tipos, compilação e 43 registros sem banco, incluindo testes HTTP em porta aleatória e o cliente executável do simulador. A integração passou em 56 registros, incluindo o webhook conectado ao PostgreSQL descartável. Não foram criadas migrações nem gravados exemplos no banco do projeto durante os testes automatizados.
 
 Em 11/11/2026, o autor executou e aprovou os dez cenários manuais no Postman, incluindo três variações de payload inválido e uma verificação adicional após o erro 413. Esses envios persistiram dados sintéticos no banco do projeto; o Codex conferiu os resultados com `SELECT`, sem modificar diretamente os dados ou executar migrações nesse banco. Consulte o [guia da etapa 4.9](../../docs/17-etapa-4-webhook-simulador.md) para os resultados, a revisão e os avisos de auditoria das dependências de desenvolvimento.
+
+## Reivindicação de jobs — etapa 4.10
+
+`modules/jobs/application/job-queue.ts` define a porta de reserva e o resultado interno. O caso de uso `claim-next-job.ts` solicita apenas `processar_mensagem`; não conhece PostgreSQL ou HTTP. `modules/jobs/infrastructure/postgres-job-queue.ts` implementa a reserva com uma única instrução SQL, usando `FOR UPDATE SKIP LOCKED` e `UPDATE ... RETURNING` na mesma transação implícita.
+
+A consulta considera somente jobs pendentes, com agendamento atingido e tentativas disponíveis, e reserva no máximo um por chamada. A reserva muda o estado para `processando`, incrementa `attempts` e preenche `locked_at`. Jobs indisponíveis retornam ausência de trabalho; falhas continuam sendo propagadas. O processamento, a conclusão, as novas tentativas e a recuperação permanecem para as próximas entregas.
+
+O módulo ainda não está conectado ao ponto de entrada da API e não consome os jobs existentes. Não foram adicionadas dependências ou migrações. `npm run check` passou com 46 registros sem banco e `npm run test:integration` com 66 registros em bancos descartáveis. As contagens e os hashes dos registros do banco do projeto permaneceram iguais antes e depois. Consulte o [guia da etapa 4.10](../../docs/18-etapa-4-reivindicacao-de-jobs.md) para a ordem de revisão e os comandos.

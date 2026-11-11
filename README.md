@@ -22,6 +22,8 @@ A etapa 4.8 foi revisada e enviada ao remoto na branch `feat/postgres-message-re
 
 A etapa 4.9 foi revisada e validada na branch `feat/simulator-webhook`: webhook Express local, adapter do simulador e comando para enviar um exemplo sintético. Tipagem, compilação, 43 registros de testes sem banco e 56 de integração passaram. O autor também aprovou os dez cenários manuais no Postman, com persistência conferida por consultas de leitura. Worker, respostas automáticas e painel ainda não estão implementados. O [documento 17](docs/17-etapa-4-webhook-simulador.md) apresenta a ordem de revisão, a execução manual e seus resultados.
 
+A etapa 4.10 está preparada para revisão na branch `feat/job-claim`: módulo de jobs com contrato de fila, caso de uso e reserva PostgreSQL atômica. A reserva respeita tipo, estado, agendamento e tentativas, usando `FOR UPDATE SKIP LOCKED`. Passaram tipos, compilação, 46 registros sem banco e 66 de integração. O consumo automático continua pendente; os jobs do banco do projeto não foram reivindicados. Não foram instaladas dependências ou criadas migrações. O [documento 18](docs/18-etapa-4-reivindicacao-de-jobs.md) apresenta a ordem de revisão e as garantias verificadas.
+
 ## Ambiente
 
 - Node.js `24.14.1`, registrado em `.nvmrc`.
@@ -45,7 +47,7 @@ npm run check
 | `npm run build` | Compila primeiro `shared`, depois API e web, gerando arquivos em seus diretórios `dist` |
 | `npm run check` | Executa a verificação de tipos, a compilação e os testes da API |
 | `npm run test` | Compila a API e executa os testes sem precisar de banco |
-| `npm run test:integration` | Executa as suítes de migrações e recepção PostgreSQL, cada uma em seu próprio banco descartável |
+| `npm run test:integration` | Executa as suítes de migrações, recepção PostgreSQL e reserva de jobs, cada uma em seu próprio banco descartável |
 | `npm run start:api` | Compila a API e inicia o servidor em `127.0.0.1`, usando `.env`; exige PostgreSQL disponível |
 | `npm run simulate:message` | Envia o exemplo versionado ao webhook local; a API precisa estar em outro terminal |
 | `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
@@ -64,6 +66,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Reivindicação de jobs](docs/18-etapa-4-reivindicacao-de-jobs.md): etapa 4.10, reserva atômica, concorrência e roteiro de revisão.
 - [Webhook do simulador](docs/17-etapa-4-webhook-simulador.md): etapa 4.9, Express, formato externo e roteiro de revisão e execução.
 - [Recepção PostgreSQL](docs/16-etapa-4-recepcao-postgresql.md): etapa 4.8, com transação, concorrência e rollback.
 - [Contrato de recepção](docs/15-etapa-4-contrato-de-recepcao.md): etapa 4.7, com validação, caso de uso e porta de persistência.

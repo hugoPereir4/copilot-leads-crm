@@ -6,7 +6,7 @@ Documento de planejamento · rascunho de 22/10/2026
 
 O diagrama abaixo mostra o caminho de uma mensagem, do webhook até o card no Kanban, incluindo o desvio para o atendimento humano quando a IA falha. A IA só entra depois que a mensagem está gravada, e qualquer falha nela termina no painel com o indicador Revisar.
 
-O diagrama representa o processamento de texto. Mídias são registradas, mas não geram job na V1. **Ajuste da etapa 4.8:** o vínculo com contato e conversa é resolvido na transação de recepção, pois `messages.conversation_id` é obrigatório. O worker continua responsável por enviar a abertura do ciclo; o controle desse envio único será detalhado na entrega do worker. Nesta etapa, o fluxo HTTP e o worker ainda não estão implementados.
+O diagrama representa o processamento de texto. Mídias são registradas, mas não geram job na V1. **Ajuste da etapa 4.8:** o vínculo com contato e conversa é resolvido na transação de recepção, pois `messages.conversation_id` é obrigatório. O fluxo HTTP foi implementado na etapa 4.9. A etapa 4.10 acrescenta a reserva transacional de jobs, ainda sem consumo automático. O futuro worker enviará a abertura do ciclo; o controle desse envio único e o processamento por estado continuam pendentes.
 
 ```mermaid
 flowchart TD
@@ -71,7 +71,7 @@ flowchart TD
 3. **Validação.** Se o payload não tem o formato esperado, a requisição é rejeitada com erro e registrada em log. Nada é gravado.
 4. **Gravação em uma única transação.** A recepção reutiliza o contato e sua conversa aberta ou prepara um novo ciclo quando não há conversa aberta. A mensagem bruta e, para texto, um job "pendente" são gravados juntos. Se o par de provedor e ID externo já existe, retorna o identificador original sem repetir gravações (D5). Em conflito concorrente, os registros provisórios da recepção perdedora são desfeitos.
 5. **Resposta rápida.** O webhook responde 200 ao provedor (D3).
-6. **Reivindicação.** O worker pega o próximo job pendente (D4).
+6. **Reivindicação.** A etapa 4.10 implementa a reserva de um job pendente disponível, respeitando tipo, agendamento e tentativas, com atualização atômica para `processando` (D4). O loop do worker ainda será conectado a essa operação. O [documento 18](18-etapa-4-reivindicacao-de-jobs.md) apresenta as garantias verificadas.
 7. **Carga de contexto.** O futuro worker carrega a conversa já vinculada à mensagem e o estado atual dela. A recepção vincula mensagens do mesmo contato à única conversa aberta; os fluxos de leads reutilizarão o lead existente sem criar cards adicionais (D16).
 8. **Decisão por estado** (veja a tabela da seção 3):
    - Novo ciclo preparado na recepção: envia saudação e menu predefinidos. Fora do expediente, inclui um aviso com o horário da clínica, calculado no fuso do perfil; o menu e a qualificação continuam normalmente (D17). As conversas anteriores permanecem encerradas no histórico (D16).
