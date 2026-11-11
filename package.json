@@ -14,6 +14,8 @@
     "apps/web"
   ],
   "scripts": {
+    "start:api": "npm run build --workspace=@copilot-leads/api && npm run start --workspace=@copilot-leads/api",
+    "simulate:message": "npm run build --workspace=@copilot-leads/api && npm run simulate:message --workspace=@copilot-leads/api",
     "build": "npm run build --workspaces",
     "typecheck": "npm run build --workspace=@copilot-leads/shared && npm run typecheck --workspaces",
     "check": "npm run typecheck && npm run build && npm run test --workspace=@copilot-leads/api",

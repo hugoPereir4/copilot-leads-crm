@@ -6,6 +6,8 @@ import { runner } from "node-pg-migrate";
 import { Client } from "pg";
 import { readDatabaseConfig } from "../../../config/database.js";
 import { createDatabasePool } from "../../../infrastructure/database/pool.js";
+import { createHttpApp } from "../../../http/app.js";
+import { listenHttp } from "../../../http/listen-http.js";
 import type { MessageReceipt } from "../application/incoming-message-inbox.js";
 import type { NormalizedMessage } from "../contracts/normalized-message.js";
 import { receiveMessageInput } from "../input/receive-message.js";
@@ -288,6 +290,40 @@ test("recepção PostgreSQL em banco descartável", { timeout: 60000 }, async (t
         await rejects(receiveMessageInput(text(), payload, inbox), MessagePayloadSerializationError);
       }
       deepEqual(await counts(), before);
+    });
+
+    await t.test("webhook HTTP conecta adapter e transação real, reconhecendo reenvio e ignorando eco", async () => {
+      const server = await listenHttp(createHttpApp(inbox, () => {}), 0);
+      try {
+        const address = server.address();
+        ok(address !== null && typeof address !== "string");
+        const url = `http://127.0.0.1:${address.port}/webhooks/simulator`;
+        const original = { id: randomUUID(), from: nextPhone(), fromMe: false, type: "text",
+          body: "Olá! Exemplo HTTP sintético.", timestamp: "2026-11-10T12:00:00Z", extra: { preserved: true } };
+        const post = (body: unknown) => fetch(url, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+        });
+        const before = await counts();
+        const first = await post(original);
+        equal(first.status, 200);
+        const receipt: unknown = await first.json();
+        ok(receipt !== null && typeof receipt === "object" && "status" in receipt && "messageId" in receipt);
+        equal(receipt.status, "registrada");
+        ok(typeof receipt.messageId === "string");
+        const stored = await pool.query<{ body: string; raw_payload: unknown }>(
+          "SELECT body, raw_payload FROM public.messages WHERE id = $1;", [receipt.messageId]);
+        deepEqual(stored.rows[0], { body: original.body, raw_payload: original });
+        const duplicate = await post(original);
+        equal(duplicate.status, 200);
+        deepEqual(await duplicate.json(), { status: "duplicada", messageId: receipt.messageId });
+        const ignored = await post({ fromMe: true });
+        equal(ignored.status, 200);
+        deepEqual(await ignored.json(), { status: "ignorada", reason: "mensagem_propria" });
+        deepEqual(await counts(), { contacts: before.contacts + 1, conversations: before.conversations + 1,
+          messages: before.messages + 1, jobs: before.jobs + 1 });
+      } finally {
+        await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      }
     });
   } finally {
     try {

@@ -5,19 +5,23 @@
   "type": "module",
   "exports": {},
   "scripts": {
+    "start": "node --env-file=../../.env dist/index.js",
+    "simulate:message": "node --env-file=../../.env dist/scripts/simulate-message.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test dist/config/database.test.js dist/modules/messaging/application/receive-message.test.js dist/modules/messaging/input/receive-message.test.js dist/modules/messaging/infrastructure/serialize-message-payload.test.js",
+    "test": "node --test dist/config/database.test.js dist/config/http.test.js dist/modules/messaging/application/receive-message.test.js dist/modules/messaging/input/receive-message.test.js dist/modules/messaging/infrastructure/serialize-message-payload.test.js dist/modules/messaging/adapters/simulator-message.test.js dist/http/app.test.js",
     "test:integration": "node --env-file=../../.env --test dist/infrastructure/database/contacts-migration.integration.test.js dist/infrastructure/database/conversations-migration.integration.test.js dist/infrastructure/database/messages-migration.integration.test.js dist/infrastructure/database/jobs-migration.integration.test.js dist/modules/messaging/infrastructure/postgres-incoming-message-inbox.integration.test.js",
     "db:check": "node --env-file=../../.env dist/scripts/check-database.js",
     "db:migrate": "node --env-file=../../.env dist/scripts/migrate-database.js"
   },
   "dependencies": {
     "@copilot-leads/shared": "0.0.0",
+    "express": "5.3.0",
     "pg": "8.23.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@types/express": "5.0.6",
     "@types/pg": "8.23.1",
     "node-pg-migrate": "9.0.0"
   }
