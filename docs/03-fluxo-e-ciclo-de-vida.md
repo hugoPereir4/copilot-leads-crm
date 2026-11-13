@@ -8,6 +8,8 @@ O diagrama abaixo mostra o caminho de uma mensagem, do webhook até o card no Ka
 
 O diagrama representa o processamento de texto. Mídias são registradas, mas não geram job na V1. **Ajuste da etapa 4.8:** o vínculo com contato e conversa é resolvido na transação de recepção, pois `messages.conversation_id` é obrigatório. O fluxo HTTP foi implementado na etapa 4.9. A etapa 4.10 acrescenta a reserva transacional de jobs, ainda sem consumo automático. O futuro worker enviará a abertura do ciclo; o controle desse envio único e o processamento por estado continuam pendentes.
 
+A etapa 4.11 acrescenta operações internas para concluir a tentativa atual, reagendar falhas transitórias e registrar falha definitiva, protegendo o contador da reserva. O diagrama continua representando o fluxo completo planejado: não há loop de consumo ou recuperação automática em execução. Concluir um job não encerra a conversa nem o atendimento. O [documento 19](19-etapa-4-finalizacao-de-jobs.md) detalha as transições verificadas.
+
 ```mermaid
 flowchart TD
     A["Provedor WhatsApp ou simulador"] --> B["Webhook recebe a requisição"]

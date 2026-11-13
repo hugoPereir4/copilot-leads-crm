@@ -4,7 +4,7 @@ Preparada em 11/11/2026 na branch `feat/job-claim`, sobre a etapa 4.9 revisada e
 
 **Resultado:** `npm run check` passou em tipos, compilação e 46 registros sem banco. `npm run test:integration` passou em 66 registros, incluindo nove cenários novos e seu agrupador. Os bancos descartáveis foram removidos. Consultas de leitura compararam contagens e hashes dos registros de `contacts`, `conversations`, `messages`, `jobs` e `pgmigrations` antes e depois dos testes: os dados e o histórico do banco do projeto permaneceram iguais.
 
-Não foram instaladas dependências, criadas migrações ou alteradas credenciais. Não foram feitos commits, push ou merge desta entrega. A API continua sem consumo automático da fila; os jobs existentes no banco do projeto não foram reivindicados.
+Não foram instaladas dependências, criadas migrações ou alteradas credenciais. Depois da revisão do autor, esta entrega foi enviada ao remoto nos commits `681b800`, `412e343` e `dce98c2`, sem merge ou rebase. A API continua sem consumo automático da fila; os jobs existentes no banco do projeto não foram reivindicados nesta entrega.
 
 ## 1. Ordem de revisão por dependência
 
@@ -109,6 +109,6 @@ Esta entrega não cria rotas HTTP; seu comportamento novo é verificado pelo cas
 
 ## 7. Próxima parte
 
-Depois da revisão, implementar o ciclo de execução: concluir a tentativa atual, reagendar falhas transitórias, respeitar o máximo, recuperar trabalhos interrompidos e impedir que uma execução antiga finalize uma reserva posterior. A política de novas tentativas da fila deve continuar separada da política específica da IA.
+A etapa 4.11 acrescenta conclusão da tentativa atual, reagendamento de falhas transitórias, respeito ao limite persistido e proteção contra uma execução antiga finalizar uma reserva posterior. O [documento 19](19-etapa-4-finalizacao-de-jobs.md) apresenta o fluxo de revisão. A recuperação de trabalhos interrompidos permanece para a próxima parte; a política de novas tentativas da fila continua separada da política específica da IA.
 
 O loop do worker, o encerramento coordenado com a API e o processamento das conversas ficam para os blocos seguintes. A ativação do consumo precisa de um processador real; um handler vazio não deve consumir e concluir os jobs existentes. O envio único da abertura e a ordenação das mensagens por conversa também precisam ser definidos antes desse processamento.
