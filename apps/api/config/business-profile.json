@@ -1,0 +1,46 @@
+{
+  "name": "Clínica Movimento — demonstração fictícia",
+  "timezone": "America/Sao_Paulo",
+  "currency": "BRL",
+  "openingHours": [
+    { "dayOfWeek": 1, "start": "08:00", "end": "12:00" },
+    { "dayOfWeek": 1, "start": "13:00", "end": "18:00" },
+    { "dayOfWeek": 2, "start": "08:00", "end": "12:00" },
+    { "dayOfWeek": 2, "start": "13:00", "end": "18:00" },
+    { "dayOfWeek": 3, "start": "08:00", "end": "12:00" },
+    { "dayOfWeek": 3, "start": "13:00", "end": "18:00" },
+    { "dayOfWeek": 4, "start": "08:00", "end": "12:00" },
+    { "dayOfWeek": 4, "start": "13:00", "end": "18:00" },
+    { "dayOfWeek": 5, "start": "08:00", "end": "12:00" },
+    { "dayOfWeek": 5, "start": "13:00", "end": "18:00" }
+  ],
+  "services": [
+    {
+      "id": "avaliacao",
+      "name": "Avaliação de fisioterapia",
+      "description": "Informações administrativas sobre a avaliação inicial.",
+      "priceInCents": 12000
+    },
+    {
+      "id": "sessao_fisioterapia",
+      "name": "Sessão de fisioterapia",
+      "description": "Informações administrativas sobre sessões e pedidos de agendamento.",
+      "priceInCents": 10000
+    }
+  ],
+  "menuOptions": [
+    { "number": "1", "label": "Conhecer os serviços", "action": "informar_servicos" },
+    { "number": "2", "label": "Consultar valores e horários", "action": "informar_valores_horarios" },
+    { "number": "3", "label": "Falar com a recepção", "action": "solicitar_recepcao" }
+  ],
+  "messages": {
+    "greeting": "Olá! Bem-vindo à nossa recepção virtual. Esta é uma demonstração com dados fictícios.",
+    "menuIntro": "Como podemos ajudar? Escolha uma das opções abaixo.",
+    "invalidOption": "Não reconhecemos essa opção. Escolha uma das opções do menu.",
+    "servicesIntro": "Conheça os serviços disponíveis nesta demonstração:",
+    "serviceQuestion": "Sobre qual serviço você gostaria de receber informações?",
+    "pricesAndHoursIntro": "Confira os valores fictícios e os horários de atendimento abaixo:",
+    "schedulingQuestion": "Você deseja solicitar um agendamento à recepção? A solicitação ainda não confirma uma reserva.",
+    "outOfHoursNotice": "Recebemos sua mensagem fora do expediente. Consulte os horários informados a seguir. Você pode continuar pelo menu; a recepção dará continuidade durante o horário de atendimento."
+  }
+}
