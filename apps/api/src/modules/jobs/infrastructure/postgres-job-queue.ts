@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import type { ClaimedJob, JobQueue, JobType } from "../application/job-queue.js";
 import type { JobAttempt, JobCompletionResult, JobFailureDecision, JobFailureResult, JobLifecycle } from "../application/job-lifecycle.js";
+import type { JobRecovery, JobRecoveryOptions, JobRecoveryResult } from "../application/job-recovery.js";
 
 type ClaimedJobRow = {
   id: string;
@@ -12,7 +13,7 @@ type ClaimedJobRow = {
   locked_at: Date;
 };
 
-export class PostgresJobQueue implements JobQueue, JobLifecycle {
+export class PostgresJobQueue implements JobQueue, JobLifecycle, JobRecovery {
   constructor(private readonly pool: Pool) {}
 
   async claimNext(type: JobType): Promise<ClaimedJob | undefined> {
@@ -45,6 +46,39 @@ export class PostgresJobQueue implements JobQueue, JobLifecycle {
       attempts: row.attempts,
       maxAttempts: row.max_attempts,
       lockedAt: row.locked_at,
+    };
+  }
+
+  async recoverExpired(type: JobType, options: JobRecoveryOptions): Promise<JobRecoveryResult> {
+    if (!Number.isSafeInteger(options.timeoutSeconds) || options.timeoutSeconds <= 0) {
+      throw new RangeError("O prazo da reserva deve ser um inteiro positivo seguro em segundos.");
+    }
+    if (!Number.isSafeInteger(options.batchSize) || options.batchSize <= 0 || options.batchSize > 1000) {
+      throw new RangeError("O tamanho do lote deve ser um inteiro entre 1 e 1000.");
+    }
+    // Seleção e atualização pertencem à mesma instrução. SKIP LOCKED evita
+    // esperar por uma conclusão ou outra recuperação que já bloqueou a linha.
+    const result = await this.pool.query<{ status: "pendente" | "falhou" }>(`
+      WITH expired AS (
+        SELECT id FROM public.jobs
+        WHERE type = $1 AND status = 'processando'
+          AND locked_at <= CURRENT_TIMESTAMP - $2::double precision * INTERVAL '1 second'
+        ORDER BY locked_at, created_at, id
+        LIMIT $3
+        FOR UPDATE SKIP LOCKED
+      )
+      UPDATE public.jobs AS job
+      SET status = CASE WHEN job.attempts < job.max_attempts THEN 'pendente' ELSE 'falhou' END,
+          run_at = CASE WHEN job.attempts < job.max_attempts THEN CURRENT_TIMESTAMP ELSE job.run_at END,
+          locked_at = NULL,
+          last_error = 'processing_reservation_expired'
+      FROM expired
+      WHERE job.id = expired.id
+      RETURNING job.status;
+    `, [type, options.timeoutSeconds, options.batchSize]);
+    return {
+      requeued: result.rows.filter((row) => row.status === "pendente").length,
+      failed: result.rows.filter((row) => row.status === "falhou").length,
     };
   }
 
