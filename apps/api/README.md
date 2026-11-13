@@ -93,4 +93,12 @@ Na revisão foi acrescentada a validação defensiva de `delaySeconds` antes do 
 
 Com saldo, o mesmo job volta a `pendente` e fica disponível imediatamente; sem saldo, fica `falhou`. Os dois caminhos limpam `locked_at` e registram `processing_reservation_expired`. O contador é preservado e só aumenta na próxima reserva. Finalizações antigas deixam de corresponder ao estado ou contador após a recuperação.
 
-Passaram tipos, compilação, 59 registros sem banco e 99 de integração. Consultas de leitura confirmaram os mesmos dados e histórico de migrações no banco do projeto, e não restaram bancos descartáveis. Nenhuma dependência, migração ou credencial mudou. A operação ainda não é executada periodicamente e não está ligada ao ponto de entrada da API. O [guia da etapa 4.12](../../docs/20-etapa-4-recuperacao-de-jobs.md) apresenta a ordem de revisão e explica a diferença entre expiração, recuperação e cancelamento de uma execução.
+Na validação final passaram tipos, compilação, 59 registros sem banco e 101 de integração, incluindo o lote padrão e a fronteira exata do prazo. A entrega foi revisada e enviada ao remoto. Nenhuma dependência, migração ou credencial mudou. A operação ainda não é executada periodicamente e não está ligada ao ponto de entrada da API. O [guia da etapa 4.12](../../docs/20-etapa-4-recuperacao-de-jobs.md) apresenta a ordem de revisão e a política de conclusão tardia antes da recuperação.
+
+## Contexto da mensagem — etapa 4.13
+
+`modules/messaging/contracts/message-processing-context.ts` define o schema Zod e deriva o tipo de leitura interno. A porta `MessageProcessingContextReader` e o caso de uso `loadMessageProcessingContext` ficam na aplicação; `PostgresMessageProcessingContextReader` faz um SELECT parametrizado com JOINs por mensagem, conversa original e contato. O resultado é validado antes de entrar na aplicação, sem carregar o JSON bruto.
+
+A leitura preserva campos nulos, os seis estados, direção e remetente. Mensagem inexistente retorna `undefined`; falhas são propagadas e dados incompatíveis com o schema recebem erro sem valores sensíveis. `createdAt` representa a data de persistência. O contexto é uma fotografia e não autoriza resposta automática ou substitui controles de concorrência do futuro processador.
+
+Passaram tipos, compilação, 62 registros sem banco e 111 de integração. As contagens e hashes das tabelas do projeto permaneceram iguais, e não restaram bancos descartáveis. Não houve instalação de pacotes, novas migrações ou alterações de credenciais. O leitor ainda não está ligado à composição da API ou ao consumo da fila. O [guia da etapa 4.13](../../docs/21-etapa-4-contexto-da-mensagem.md) contém a ordem de revisão e os comandos.

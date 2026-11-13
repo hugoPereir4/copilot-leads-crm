@@ -84,6 +84,20 @@ O caso de uso de recepção solicita registro de todos os três tipos válidos; 
 
 Na etapa 4.8, `PostgresIncomingMessageInbox` implementa a porta com SQL parametrizado, um cliente reservado por transação e bloqueio do contato enquanto resolve a conversa. A implementação retorna o ID original para duplicatas, inclusive em conflito concorrente, sem repetir efeitos. `rawPayload` precisa ser um valor JSON válido; conteúdo incompatível gera `MessagePayloadSerializationError` sem incluir valores no erro e antes de abrir a transação. As garantias reais de gravação, concorrência e rollback foram verificadas em banco descartável, conforme o [documento 16](16-etapa-4-recepcao-postgresql.md). A entrada HTTP e o adapter do provedor continuam pendentes.
 
+### Contexto interno para processamento — etapa 4.13
+
+O contexto de leitura fica em `modules/messaging/contracts/message-processing-context.ts`, com schema Zod e tipo derivado. A aplicação define uma porta `MessageProcessingContextReader`, consumida por `loadMessageProcessingContext`; a infraestrutura PostgreSQL carrega e valida a projeção das tabelas existentes.
+
+| Parte | Campos |
+|---|---|
+| `message` | `id`, `provider`, `externalId`, `direction`, `senderType`, `kind`, `body`, `createdAt` |
+| `conversation` | `id`, `status` |
+| `contact` | `id`, `phone`, `displayName` |
+
+O UUID consultado é o ID interno da mensagem. O contexto segue os vínculos originais, inclusive de conversas encerradas, preserva `body` e `displayName` nulos e não carrega o payload bruto. O schema de leitura não substitui a mensagem normalizada de entrada: o banco admite texto com corpo nulo, e a leitura não decide se um registro é processável. `createdAt` é o instante de persistência, sem equivalência presumida com a data do provedor.
+
+Ausência retorna `undefined`; falhas rejeitam a Promise. Dados incompatíveis com o schema recebem erro genérico sem valores dos campos. A fotografia retornada não autoriza envios nem protege contra mudanças posteriores do estado. Esse contrato permanece interno ao backend, sem acréscimos em `packages/shared`. O [documento 21](21-etapa-4-contexto-da-mensagem.md) apresenta o fluxo de revisão.
+
 ## 5. Resultado da qualificação pela IA
 
 Este é o contrato mais importante do projeto. O schema é enviado ao LLM e depois usado para validar a resposta.

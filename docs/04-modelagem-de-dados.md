@@ -128,6 +128,8 @@ A etapa 4.11 acrescenta conclusão e registro de falha com updates condicionados
 
 A etapa 4.12 usa as colunas existentes para recuperar `processando` com `locked_at` expirado. A seleção limitada com `FOR UPDATE SKIP LOCKED` e o update pertencem à mesma instrução. Com saldo, muda para `pendente` e define `run_at` pelo relógio do banco; sem saldo, marca `falhou` preservando o agendamento. Ambos limpam `locked_at`, registram `processing_reservation_expired` e mantêm `attempts`. O prazo inicial é de 120 segundos, com lote de 100 no caso de uso. Nenhuma migração foi necessária. Execução periódica, consumo automático e idempotência dos efeitos continuam pendentes. O [documento 20](20-etapa-4-recuperacao-de-jobs.md) apresenta a ordem de revisão e os testes.
 
+A etapa 4.13 lê o contexto pelo ID de `messages`, seguindo `conversation_id` e depois `contact_id` em um único SELECT. Não escolhe a conversa aberta mais recente e não altera nenhuma tabela. `messages.body` e `contacts.display_name` preservam nulos; `messages.created_at` continua sendo a data de persistência, sem inferir a data de origem do provedor. O schema Zod valida a representação interna da leitura. Nenhuma mudança de estrutura foi necessária. O [documento 21](21-etapa-4-contexto-da-mensagem.md) detalha os campos e o comportamento concorrente.
+
 ### business_profile e users
 
 - **business_profile:** nome, fuso horário, horário de atendimento, lista de serviços, opções do menu e campos de qualificação. Tudo o que for lista ou estrutura variável pode ficar em jsonb.

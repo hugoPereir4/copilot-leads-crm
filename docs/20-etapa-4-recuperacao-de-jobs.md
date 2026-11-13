@@ -4,7 +4,7 @@ Preparada em 13/11/2026 na branch `feat/job-recovery`, sobre a etapa 4.11 revisa
 
 **Validação executada após a complementação da revisão:** `npm run check` passou em tipos, compilação e 59 registros de testes sem banco. `npm run test:integration` passou em 101 registros, com zero falhas e zero ignorados. A etapa acrescenta três testes sem banco e dezesseis cenários de integração, além do agrupador da suíte. Os dois cenários adicionais verificam o lote padrão e a fronteira exata, descritos na seção 6.
 
-Consultas de leitura antes e depois da integração confirmaram as mesmas contagens e hashes de `contacts`, `conversations`, `messages`, `jobs` e `pgmigrations` no banco do projeto. Não restaram bancos descartáveis. Não foram instaladas dependências, criadas migrações ou alteradas credenciais. As alterações desta etapa ficam locais para revisão, sem commit, push ou merge.
+Consultas de leitura antes e depois da integração confirmaram as mesmas contagens e hashes de `contacts`, `conversations`, `messages`, `jobs` e `pgmigrations` no banco do projeto. Não restaram bancos descartáveis. Não foram instaladas dependências, criadas migrações ou alteradas credenciais. Após a revisão do autor, esta etapa foi enviada ao remoto nos commits `bc7ccb9`, `2e4019b` e `3a35751`, sem merge ou rebase.
 
 ## 1. Problema resolvido
 
@@ -141,4 +141,4 @@ node --env-file=.env --test apps/api/dist/modules/jobs/infrastructure/postgres-j
 
 ## 8. Próxima parte
 
-Preparar o processador real e a configuração de seu tempo máximo, definir ordenação por conversa e idempotência dos efeitos e então ligar reserva, processamento, finalização e recuperação ao loop do worker. O encerramento coordenado deverá impedir novas reservas e tratar o trabalho em andamento. Não ativar um handler vazio que consuma e conclua os jobs existentes.
+A etapa 4.13 prepara uma primeira dependência do processador: carregar a mensagem com a conversa original e o contato. O [documento 21](21-etapa-4-contexto-da-mensagem.md) apresenta o fluxo de revisão. Ainda será necessário preparar o processamento real e a configuração de seu tempo máximo, definir ordenação por conversa e idempotência dos efeitos e então ligar reserva, processamento, finalização e recuperação ao loop do worker. O encerramento coordenado deverá impedir novas reservas e tratar o trabalho em andamento. Não ativar um handler vazio que consuma e conclua os jobs existentes.

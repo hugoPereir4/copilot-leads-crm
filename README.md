@@ -26,7 +26,9 @@ A etapa 4.10 foi revisada e enviada ao remoto na branch `feat/job-claim`: módul
 
 A etapa 4.11 foi revisada e enviada ao remoto na branch `feat/job-lifecycle`: conclusão, reagendamento de falhas transitórias e falha definitiva, com proteção pela tentativa atual e espera crescente. A revisão incluiu validação defensiva do intervalo antes do SQL; passaram tipos, compilação, 56 registros sem banco e 84 de integração. Não foram instaladas dependências ou criadas migrações. O [documento 19](docs/19-etapa-4-finalizacao-de-jobs.md) apresenta o fluxo de revisão.
 
-A etapa 4.12 está preparada para revisão na branch `feat/job-recovery`: recuperação atômica de reservas expiradas, preservando contador e limite de tentativas, com prazo inicial de 120 segundos e lote de 100. Passaram tipos, compilação, 59 registros sem banco e 99 de integração. Os dados e o histórico de migrações do banco do projeto permaneceram intactos. O consumo automático continua pendente. O [documento 20](docs/20-etapa-4-recuperacao-de-jobs.md) apresenta o fluxo de revisão e os limites desta entrega.
+A etapa 4.12 foi revisada e enviada ao remoto na branch `feat/job-recovery`: recuperação atômica de reservas expiradas, preservando contador e limite de tentativas, com prazo inicial de 120 segundos e lote de 100. A validação final passou com tipos, compilação, 59 registros sem banco e 101 de integração, incluindo a fronteira exata e o lote padrão. O [documento 20](docs/20-etapa-4-recuperacao-de-jobs.md) apresenta o fluxo de revisão e a política de conclusão tardia.
+
+A etapa 4.13 está preparada para revisão na branch `feat/message-processing-context`: leitura da mensagem com sua conversa original e contato, com contrato Zod e porta de aplicação separados da consulta PostgreSQL. Passaram tipos, compilação, 62 registros sem banco e 111 de integração. Os dados e o histórico do banco do projeto permaneceram intactos; o consumo automático continua pendente. O [documento 21](docs/21-etapa-4-contexto-da-mensagem.md) apresenta o fluxo de revisão.
 
 ## Ambiente
 
@@ -51,7 +53,7 @@ npm run check
 | `npm run build` | Compila primeiro `shared`, depois API e web, gerando arquivos em seus diretórios `dist` |
 | `npm run check` | Executa a verificação de tipos, a compilação e os testes da API |
 | `npm run test` | Compila a API e executa os testes sem precisar de banco |
-| `npm run test:integration` | Executa as suítes de migrações, recepção PostgreSQL, reserva, finalização e recuperação de jobs, cada uma em seu próprio banco descartável |
+| `npm run test:integration` | Executa as suítes de migrações, recepção e contexto de mensagens, reserva, finalização e recuperação de jobs, cada uma em seu próprio banco descartável |
 | `npm run start:api` | Compila a API e inicia o servidor em `127.0.0.1`, usando `.env`; exige PostgreSQL disponível |
 | `npm run simulate:message` | Envia o exemplo versionado ao webhook local; a API precisa estar em outro terminal |
 | `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
@@ -70,6 +72,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Contexto da mensagem](docs/21-etapa-4-contexto-da-mensagem.md): etapa 4.13, leitura por vínculo original, schema e limites de concorrência.
 - [Recuperação de jobs](docs/20-etapa-4-recuperacao-de-jobs.md): etapa 4.12, expiração, recuperação por lote e proteção contra tentativas antigas.
 - [Finalização de jobs](docs/19-etapa-4-finalizacao-de-jobs.md): etapa 4.11, conclusão, reagendamento, falhas e proteção da tentativa atual.
 - [Reivindicação de jobs](docs/18-etapa-4-reivindicacao-de-jobs.md): etapa 4.10, reserva atômica, concorrência e roteiro de revisão.
