@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import type { ClaimedJob, JobQueue, JobType } from "../application/job-queue.js";
+import type { JobAttempt, JobCompletionResult, JobFailureDecision, JobFailureResult, JobLifecycle } from "../application/job-lifecycle.js";
 
 type ClaimedJobRow = {
   id: string;
@@ -11,7 +12,7 @@ type ClaimedJobRow = {
   locked_at: Date;
 };
 
-export class PostgresJobQueue implements JobQueue {
+export class PostgresJobQueue implements JobQueue, JobLifecycle {
   constructor(private readonly pool: Pool) {}
 
   async claimNext(type: JobType): Promise<ClaimedJob | undefined> {
@@ -45,5 +46,38 @@ export class PostgresJobQueue implements JobQueue {
       maxAttempts: row.max_attempts,
       lockedAt: row.locked_at,
     };
+  }
+
+  async complete(attempt: JobAttempt): Promise<JobCompletionResult> {
+    const result = await this.pool.query(`
+      UPDATE public.jobs SET status = 'concluido', locked_at = NULL, last_error = NULL
+      WHERE id = $1 AND status = 'processando' AND attempts = $2 AND attempts > 0
+      RETURNING id;
+    `, [attempt.id, attempt.attempts]);
+    return { status: result.rowCount === 1 ? "concluido" : "reserva_desatualizada" };
+  }
+
+  async fail(attempt: JobAttempt, decision: JobFailureDecision): Promise<JobFailureResult> {
+    if (decision.retry && (
+      !Number.isFinite(decision.delaySeconds) || decision.delaySeconds <= 0 || decision.delaySeconds > 60
+    )) {
+      throw new RangeError("O intervalo de reagendamento deve ser um número finito maior que zero e de no máximo 60 segundos.");
+    }
+    // O limite vem da linha atual. Nenhum contador é incrementado ou zerado.
+    // Os códigos persistidos são constantes, sem texto recebido do chamador.
+    const result = await this.pool.query<{ status: "pendente" | "falhou"; run_at: Date }>(`
+      UPDATE public.jobs
+      SET status = CASE WHEN $3::boolean AND attempts < max_attempts THEN 'pendente' ELSE 'falhou' END,
+          run_at = CASE WHEN $3::boolean AND attempts < max_attempts
+            THEN CURRENT_TIMESTAMP + $4::double precision * INTERVAL '1 second' ELSE run_at END,
+          locked_at = NULL,
+          last_error = CASE WHEN $3::boolean
+            THEN 'processing_transient_failure' ELSE 'processing_permanent_failure' END
+      WHERE id = $1 AND status = 'processando' AND attempts = $2 AND attempts > 0
+      RETURNING status, run_at;
+    `, [attempt.id, attempt.attempts, decision.retry, decision.retry ? decision.delaySeconds : 0]);
+    const row = result.rows[0];
+    if (row === undefined) return { status: "reserva_desatualizada" };
+    return row.status === "pendente" ? { status: "pendente", runAt: row.run_at } : { status: "falhou" };
   }
 }
