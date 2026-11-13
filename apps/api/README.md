@@ -75,7 +75,7 @@ Em 11/11/2026, o autor executou e aprovou os dez cenários manuais no Postman, i
 
 `modules/jobs/application/job-queue.ts` define a porta de reserva e o resultado interno. O caso de uso `claim-next-job.ts` solicita apenas `processar_mensagem`; não conhece PostgreSQL ou HTTP. `modules/jobs/infrastructure/postgres-job-queue.ts` implementa a reserva com uma única instrução SQL, usando `FOR UPDATE SKIP LOCKED` e `UPDATE ... RETURNING` na mesma transação implícita.
 
-A consulta considera somente jobs pendentes, com agendamento atingido e tentativas disponíveis, e reserva no máximo um por chamada. A reserva muda o estado para `processando`, incrementa `attempts` e preenche `locked_at`. Jobs indisponíveis retornam ausência de trabalho; falhas continuam sendo propagadas. Conclusão e novas tentativas foram acrescentadas na etapa 4.11 abaixo; o processamento automático e a recuperação continuam pendentes.
+A consulta considera somente jobs pendentes, com agendamento atingido e tentativas disponíveis, e reserva no máximo um por chamada. A reserva muda o estado para `processando`, incrementa `attempts` e preenche `locked_at`. Jobs indisponíveis retornam ausência de trabalho; falhas continuam sendo propagadas. Conclusão e novas tentativas foram acrescentadas na etapa 4.11; recuperação, na etapa 4.12. O processamento automático continua pendente.
 
 O módulo ainda não está conectado ao ponto de entrada da API e não consome os jobs existentes. Não foram adicionadas dependências ou migrações. `npm run check` passou com 46 registros sem banco e `npm run test:integration` com 66 registros em bancos descartáveis. As contagens e os hashes dos registros do banco do projeto permaneceram iguais antes e depois. Consulte o [guia da etapa 4.10](../../docs/18-etapa-4-reivindicacao-de-jobs.md) para a ordem de revisão e os comandos.
 
@@ -85,4 +85,12 @@ O módulo ainda não está conectado ao ponto de entrada da API e não consome o
 
 `PostgresJobQueue` implementa as duas portas. Os métodos novos exigem ID, estado `processando` e contador da tentativa atual. Se a reserva não corresponder, retornam `reserva_desatualizada` sem sobrescrever a linha. Sucesso limpa trava e erro; falha transitória com saldo volta para pendente; limite atingido ou falha definitiva encerra como `falhou`. O contador aumenta somente ao reservar.
 
-Passaram 56 registros sem banco e 82 de integração. As contagens e os hashes dos dados e migrações do banco do projeto permaneceram iguais, e os bancos descartáveis foram removidos. Não houve instalação de pacotes, novas migrações ou alterações de credenciais. O worker continua sem loop ativo e sem recuperação por tempo expirado. O [guia da etapa 4.11](../../docs/19-etapa-4-finalizacao-de-jobs.md) apresenta o fluxo de revisão e os comandos.
+Na revisão foi acrescentada a validação defensiva de `delaySeconds` antes do SQL: com retry, o intervalo deve ser finito, maior que zero e no máximo sessenta segundos. Passaram 56 registros sem banco e 84 de integração. Não houve instalação de pacotes, novas migrações ou alterações de credenciais. A entrega foi revisada e enviada ao remoto. O [guia da etapa 4.11](../../docs/19-etapa-4-finalizacao-de-jobs.md) apresenta o fluxo de revisão e os comandos.
+
+## Recuperação de jobs interrompidos — etapa 4.12
+
+`modules/jobs/application/job-recovery.ts` define a terceira porta, separada de reserva e finalização. `recover-expired-jobs.ts` solicita recuperação de `processar_mensagem`, com prazo de 120 segundos e lote de 100. A infraestrutura valida as opções, seleciona reservas expiradas com `FOR UPDATE SKIP LOCKED` e atualiza o lote em uma única instrução.
+
+Com saldo, o mesmo job volta a `pendente` e fica disponível imediatamente; sem saldo, fica `falhou`. Os dois caminhos limpam `locked_at` e registram `processing_reservation_expired`. O contador é preservado e só aumenta na próxima reserva. Finalizações antigas deixam de corresponder ao estado ou contador após a recuperação.
+
+Passaram tipos, compilação, 59 registros sem banco e 99 de integração. Consultas de leitura confirmaram os mesmos dados e histórico de migrações no banco do projeto, e não restaram bancos descartáveis. Nenhuma dependência, migração ou credencial mudou. A operação ainda não é executada periodicamente e não está ligada ao ponto de entrada da API. O [guia da etapa 4.12](../../docs/20-etapa-4-recuperacao-de-jobs.md) apresenta a ordem de revisão e explica a diferença entre expiração, recuperação e cancelamento de uma execução.

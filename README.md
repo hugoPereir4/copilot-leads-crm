@@ -24,7 +24,9 @@ A etapa 4.9 foi revisada e validada na branch `feat/simulator-webhook`: webhook 
 
 A etapa 4.10 foi revisada e enviada ao remoto na branch `feat/job-claim`: módulo de jobs com contrato de fila, caso de uso e reserva PostgreSQL atômica. A reserva respeita tipo, estado, agendamento e tentativas, usando `FOR UPDATE SKIP LOCKED`. Passaram tipos, compilação, 46 registros sem banco e 66 de integração. Não foram instaladas dependências ou criadas migrações. O [documento 18](docs/18-etapa-4-reivindicacao-de-jobs.md) apresenta a ordem de revisão e as garantias verificadas.
 
-A etapa 4.11 está preparada para revisão na branch `feat/job-lifecycle`: conclusão, reagendamento de falhas transitórias e falha definitiva, com proteção pela tentativa atual e espera crescente. Passaram tipos, compilação, 56 registros sem banco e 82 de integração. O consumo automático continua pendente; os dados e o histórico de migrações do banco do projeto permaneceram intactos. Não foram instaladas dependências ou criadas migrações. O [documento 19](docs/19-etapa-4-finalizacao-de-jobs.md) apresenta o fluxo de revisão.
+A etapa 4.11 foi revisada e enviada ao remoto na branch `feat/job-lifecycle`: conclusão, reagendamento de falhas transitórias e falha definitiva, com proteção pela tentativa atual e espera crescente. A revisão incluiu validação defensiva do intervalo antes do SQL; passaram tipos, compilação, 56 registros sem banco e 84 de integração. Não foram instaladas dependências ou criadas migrações. O [documento 19](docs/19-etapa-4-finalizacao-de-jobs.md) apresenta o fluxo de revisão.
+
+A etapa 4.12 está preparada para revisão na branch `feat/job-recovery`: recuperação atômica de reservas expiradas, preservando contador e limite de tentativas, com prazo inicial de 120 segundos e lote de 100. Passaram tipos, compilação, 59 registros sem banco e 99 de integração. Os dados e o histórico de migrações do banco do projeto permaneceram intactos. O consumo automático continua pendente. O [documento 20](docs/20-etapa-4-recuperacao-de-jobs.md) apresenta o fluxo de revisão e os limites desta entrega.
 
 ## Ambiente
 
@@ -49,7 +51,7 @@ npm run check
 | `npm run build` | Compila primeiro `shared`, depois API e web, gerando arquivos em seus diretórios `dist` |
 | `npm run check` | Executa a verificação de tipos, a compilação e os testes da API |
 | `npm run test` | Compila a API e executa os testes sem precisar de banco |
-| `npm run test:integration` | Executa as suítes de migrações, recepção PostgreSQL, reserva e finalização de jobs, cada uma em seu próprio banco descartável |
+| `npm run test:integration` | Executa as suítes de migrações, recepção PostgreSQL, reserva, finalização e recuperação de jobs, cada uma em seu próprio banco descartável |
 | `npm run start:api` | Compila a API e inicia o servidor em `127.0.0.1`, usando `.env`; exige PostgreSQL disponível |
 | `npm run simulate:message` | Envia o exemplo versionado ao webhook local; a API precisa estar em outro terminal |
 | `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
@@ -68,6 +70,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Recuperação de jobs](docs/20-etapa-4-recuperacao-de-jobs.md): etapa 4.12, expiração, recuperação por lote e proteção contra tentativas antigas.
 - [Finalização de jobs](docs/19-etapa-4-finalizacao-de-jobs.md): etapa 4.11, conclusão, reagendamento, falhas e proteção da tentativa atual.
 - [Reivindicação de jobs](docs/18-etapa-4-reivindicacao-de-jobs.md): etapa 4.10, reserva atômica, concorrência e roteiro de revisão.
 - [Webhook do simulador](docs/17-etapa-4-webhook-simulador.md): etapa 4.9, Express, formato externo e roteiro de revisão e execução.

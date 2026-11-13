@@ -4,7 +4,9 @@ Preparada em 11/11/2026 na branch `feat/job-lifecycle`, sobre a etapa 4.10 revis
 
 **Resultado:** `npm run check` passou em tipos, compilação e 56 registros sem banco. `npm run test:integration` passou em 82 registros, incluindo quinze cenários novos e seu agrupador. Nenhuma falha ou teste ignorado. Os bancos descartáveis foram removidos; contagens e hashes dos registros de `contacts`, `conversations`, `messages`, `jobs` e `pgmigrations` permaneceram iguais no banco do projeto antes e depois dos testes.
 
-Não foram instalados pacotes, criadas migrações ou alteradas credenciais. A API continua sem consumo automático da fila; os jobs existentes no banco do projeto não foram reservados ou finalizados. As alterações ficam locais para revisão, sem commit, push ou merge desta etapa.
+Não foram instalados pacotes, criadas migrações ou alteradas credenciais. A API continua sem consumo automático da fila; os jobs existentes no banco do projeto não foram reservados ou finalizados nesta entrega. Após a revisão, a etapa foi enviada ao remoto nos commits `68ebe4e`, `8c33553` e `dff11b2`, sem merge ou rebase.
+
+**Complemento da revisão:** `PostgresJobQueue.fail()` passou a rejeitar intervalos não finitos, menores ou iguais a zero ou superiores a sessenta segundos antes de executar SQL. Dois cenários adicionais verificaram valores inválidos sem consulta nem alteração persistida e aceitação de intervalo positivo fracionário e do teto. A validação final da etapa 4.11 passou com 56 registros sem banco e **84 de integração**; os 82 citados na preparação acima correspondem à execução anterior à melhoria.
 
 ## 1. Ordem de revisão por dependência
 
@@ -134,4 +136,4 @@ Esta entrega não adiciona endpoints ou ativa um worker. A validação do compor
 
 ## 8. Próxima parte
 
-Implementar recuperação de jobs interrompidos, com prazo de reserva e preservação do contador. Depois, conectar o loop do worker e seu encerramento coordenado ao processamento real. Antes de ativar o consumo, detalhar ordenação por conversa, envio único da abertura e idempotência dos efeitos. Nenhum handler vazio deve consumir e concluir os jobs existentes apenas para demonstrar o loop.
+A etapa 4.12 implementa a operação de recuperação de jobs interrompidos, com prazo de reserva e preservação do contador. O [documento 20](20-etapa-4-recuperacao-de-jobs.md) apresenta o fluxo de revisão. A execução periódica dessa operação e o loop do worker continuam pendentes. Antes de ativar o consumo real, detalhar tempo máximo de processamento, ordenação por conversa, envio único da abertura e idempotência dos efeitos. Nenhum handler vazio deve consumir e concluir os jobs existentes apenas para demonstrar o loop.

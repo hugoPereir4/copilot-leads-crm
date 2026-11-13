@@ -10,6 +10,8 @@ O diagrama representa o processamento de texto. Mídias são registradas, mas n�
 
 A etapa 4.11 acrescenta operações internas para concluir a tentativa atual, reagendar falhas transitórias e registrar falha definitiva, protegendo o contador da reserva. O diagrama continua representando o fluxo completo planejado: não há loop de consumo ou recuperação automática em execução. Concluir um job não encerra a conversa nem o atendimento. O [documento 19](19-etapa-4-finalizacao-de-jobs.md) detalha as transições verificadas.
 
+A etapa 4.12 acrescenta a operação interna de recuperação por lote: reservas com 120 segundos ou mais voltam a pendente quando há saldo, ou falham quando as tentativas se esgotaram. O contador é preservado; apenas a nova reserva o incrementa. A operação não está agendada ou conectada ao consumo automático. O [documento 20](20-etapa-4-recuperacao-de-jobs.md) explica a proteção contra finalizações antigas e os limites para efeitos externos.
+
 ```mermaid
 flowchart TD
     A["Provedor WhatsApp ou simulador"] --> B["Webhook recebe a requisição"]
