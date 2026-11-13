@@ -102,3 +102,13 @@ Na validação final passaram tipos, compilação, 59 registros sem banco e 101 
 A leitura preserva campos nulos, os seis estados, direção e remetente. Mensagem inexistente retorna `undefined`; falhas são propagadas e dados incompatíveis com o schema recebem erro sem valores sensíveis. `createdAt` representa a data de persistência. O contexto é uma fotografia e não autoriza resposta automática ou substitui controles de concorrência do futuro processador.
 
 Passaram tipos, compilação, 62 registros sem banco e 111 de integração. As contagens e hashes das tabelas do projeto permaneceram iguais, e não restaram bancos descartáveis. Não houve instalação de pacotes, novas migrações ou alterações de credenciais. O leitor ainda não está ligado à composição da API ou ao consumo da fila. O [guia da etapa 4.13](../../docs/21-etapa-4-contexto-da-mensagem.md) contém a ordem de revisão e os comandos.
+
+## Perfil configurável do negócio — etapa 4.14
+
+`config/business-profile.json` contém um perfil fictício de demonstração com nome, fuso, moeda, horários, serviços, valores em centavos, menu e textos-base. O módulo `business-profile` define o schema Zod e a porta `BusinessProfileReader`; `loadBusinessProfile` solicita a configuração sem conhecer arquivos ou banco.
+
+`JsonBusinessProfileReader` lê o arquivo por um caminho relativo ao módulo, interpreta JSON como `unknown` e valida o schema. Cada chamada faz uma nova leitura. Arquivo indisponível, JSON malformado e perfil inválido têm códigos separados, com mensagens sem conteúdo ou caminho fornecido. Não há fallback silencioso para o perfil de demonstração.
+
+O build TypeScript não copia o JSON: a pasta `config` deve acompanhar a estrutura da API. O perfil ainda não é carregado pela composição principal. Composição de mensagens, cálculo de expediente, decisões por estado e campos extras de qualificação por IA ficam para seus próprios blocos.
+
+Passaram tipos, compilação e 78 registros sem banco, incluindo 16 testes novos do contrato, aplicação e arquivos reais temporários. A integração PostgreSQL não foi repetida; seus caminhos e scripts não mudaram e não houve acesso ao banco. Nenhuma dependência, migração ou credencial mudou. O [guia da etapa 4.14](../../docs/22-etapa-4-perfil-do-negocio.md) contém os dados propostos, a ordem de revisão e os comandos.

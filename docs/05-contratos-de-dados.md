@@ -127,11 +127,14 @@ Pontos importantes:
 |---|---|---|
 | name | texto | |
 | timezone | texto | Fuso do negócio usado para verificar o expediente, independentemente do fuso do servidor (D17) |
-| openingHours | lista de faixas | Dia da semana, início e fim, interpretados no fuso do negócio |
-| services | lista | Nome e descrição curta |
-| menuOptions | lista | Número, rótulo e ação; as opções e seus comportamentos confirmados para a clínica estão no documento 3, seção 6. Os textos finais e dados da clínica ainda serão definidos. |
-| qualificationFields | lista | Campos extras que a IA deve tentar extrair |
+| currency | literal | `BRL` no contrato inicial da etapa 4.14 |
+| openingHours | lista de faixas | `dayOfWeek` de 0 a 6, `start` e `end` em `HH:mm`, no mesmo dia e sem sobreposição. A interpretação futura usará o fuso do negócio |
+| services | lista | ID único, nome, descrição e `priceInCents` como inteiro seguro não negativo ou nulo |
+| menuOptions | lista | Número textual único de 1 a 99, rótulo e uma das três ações conhecidas, sem repetir ação. O perfil fictício usa as opções 1, 2 e 3 confirmadas no documento 3 |
+| qualificationFields | lista planejada | Campos extras para a IA; ainda não fazem parte do schema de execução da etapa 4.14 |
 | messages | objeto | Textos predefinidos: saudação, menu, opção inválida, apresentação de serviços, valores e horários, perguntas após as opções 1 e 2 e aviso fora do expediente com os horários configurados (D17) |
+
+**Implementação inicial — etapa 4.14:** o módulo `business-profile` define schema Zod estrito e tipo derivado, porta `BusinessProfileReader` e caso de uso `loadBusinessProfile`. `JsonBusinessProfileReader` lê e valida `apps/api/config/business-profile.json`; falhas são explícitas, sem fallback. Objetos com campos desconhecidos são rejeitados para detectar erros de edição. As mensagens são textos-base; o futuro compositor acrescentará opções, serviços, valores e horários estruturados, sem manter essas listas duplicadas no JSON. O [documento 22](22-etapa-4-perfil-do-negocio.md) apresenta as regras, os dados fictícios e o fluxo de revisão.
 
 ## 7. Contratos da API do painel
 

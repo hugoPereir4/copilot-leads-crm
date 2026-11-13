@@ -134,7 +134,7 @@ Opções confirmadas em 23/10/2026 para o perfil da clínica fictícia:
 | 2 | Consultar valores e horários | Envia valores e horários configurados e pergunta se deseja solicitar um agendamento. Aguarda a resposta em texto livre para qualificação. |
 | 3 | Falar com a recepção | Cria o card em Novo, sem indicador Revisar, e coloca a conversa em Aguardando humano, sem chamar a IA. |
 
-Essas opções e seus textos ficam na configuração do negócio, conforme D11. O cliente escolhe pelo WhatsApp; na demonstração inicial, o simulador representa essa interação (D14). O comportamento e as transições acima estão confirmados; os textos finais, serviços, valores e horários da clínica ainda serão definidos.
+Essas opções e seus textos ficam na configuração do negócio, conforme D11. O cliente escolhe pelo WhatsApp; na demonstração inicial, o simulador representa essa interação (D14). O comportamento e as transições acima estão confirmados. A etapa 4.14 propõe os textos-base, serviços, valores e horários fictícios no JSON versionado, com as opções 1, 2 e 3. Leitura e validação estão preparadas; composição das respostas, cálculo de expediente e processamento dessas opções continuam pendentes. O [documento 22](22-etapa-4-perfil-do-negocio.md) apresenta os dados para revisão.
 
 Nas opções 1 e 2, a IA apenas extrai informações da resposta e do contexto administrativo. Uma solicitação de agendamento não confirma uma reserva: a recepção dá continuidade pelo WhatsApp.
 

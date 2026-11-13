@@ -4,7 +4,7 @@ Preparada em 13/11/2026 na branch `feat/message-processing-context`, sobre a eta
 
 **Validação executada:** `npm run check` passou em tipos, compilação e 62 registros de testes sem banco. `npm run test:integration` passou em 111 registros, com zero falhas, cancelados ou ignorados. A etapa acrescentou três testes sem banco e nove cenários de integração, além do agrupador da suíte. O aviso de conexão ociosa observado na execução anterior não apareceu nesta execução; sua causa não foi diagnosticada ou corrigida nesta entrega.
 
-Consultas de leitura antes e depois confirmaram as mesmas contagens e hashes de `contacts`, `conversations`, `messages`, `jobs` e `pgmigrations` no banco do projeto. Não restaram bancos descartáveis. Não foram instaladas dependências, criadas migrações ou alteradas credenciais. O autor autorizou organizar os commits e enviar esta branch ao GitHub para revisão em outra aba do ChatGPT, podendo solicitar ajustes durante o desenvolvimento. A revisão técnica desta entrega continua pendente; a integração na `main` será uma decisão posterior.
+Consultas de leitura antes e depois confirmaram as mesmas contagens e hashes de `contacts`, `conversations`, `messages`, `jobs` e `pgmigrations` no banco do projeto. Não restaram bancos descartáveis. Não foram instaladas dependências, criadas migrações ou alteradas credenciais. Após autorização do autor, os commits `966baea`, `0f580e7` e `6547f24` foram enviados para `origin/feat/message-processing-context`, com upstream e sincronização conferidos. A revisão técnica ocorre em outra aba do ChatGPT e continua pendente, podendo trazer ajustes durante o desenvolvimento. A integração na `main` será uma decisão posterior.
 
 ## 1. Problema e escopo
 
@@ -124,4 +124,4 @@ node --env-file=.env --test apps/api/dist/modules/messaging/infrastructure/postg
 
 ## 8. Próxima parte
 
-Preparar as decisões do processamento por estado e a configuração do perfil fictício da clínica, detalhando ordenação por conversa e idempotência dos efeitos antes de ativar o consumo. O futuro processador poderá usar esta porta para obter contexto, mas ainda precisará validar a tentativa atual, tratar mudanças concorrentes e respeitar tempos máximos compatíveis com a reserva. O loop, a recuperação periódica e o encerramento coordenado permanecem para suas próprias entregas.
+A etapa 4.14 prepara a configuração do perfil fictício da clínica em JSON versionado, com schema e porta de leitura. O [documento 22](22-etapa-4-perfil-do-negocio.md) apresenta o fluxo de revisão. Depois, preparar as decisões do processamento por estado, detalhando ordenação por conversa e idempotência dos efeitos antes de ativar o consumo. O futuro processador poderá usar esta porta para obter contexto, mas ainda precisará validar a tentativa atual, tratar mudanças concorrentes e respeitar tempos máximos compatíveis com a reserva. O loop, a recuperação periódica e o encerramento coordenado permanecem para suas próprias entregas.

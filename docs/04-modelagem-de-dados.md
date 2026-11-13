@@ -8,7 +8,7 @@ Modelo relacional mínimo para sustentar o fluxo do documento 3. Pensado para Po
 
 | Entidade | Papel | Relacionamentos |
 |---|---|---|
-| business_profile | Configuração do negócio (nome, serviços, horário, menu, campos de qualificação) | Uma linha na v1 |
+| business_profile | Configuração do negócio (nome, serviços, horário, menu, campos de qualificação) | Perfil único; JSON inicial na etapa 4.14, tabela ainda planejada |
 | users | Atendentes que acessam o painel | 1 usuário : N leads atribuídos |
 | contacts | Pessoa que escreve pelo WhatsApp | 1 contato : N conversas ao longo do tempo, no máximo uma aberta |
 | conversations | Um ciclo de atendimento com estado próprio | 1 conversa : N mensagens; 1 conversa : no máximo 1 lead, criado conforme o fluxo |
@@ -132,7 +132,7 @@ A etapa 4.13 lê o contexto pelo ID de `messages`, seguindo `conversation_id` e 
 
 ### business_profile e users
 
-- **business_profile:** nome, fuso horário, horário de atendimento, lista de serviços, opções do menu e campos de qualificação. Tudo o que for lista ou estrutura variável pode ficar em jsonb.
+- **business_profile:** a etapa 4.14 escolhe inicialmente um JSON versionado para nome, fuso, moeda, faixas de atendimento, serviços, valores, opções do menu e textos-base. O schema exige preços inteiros em centavos ou nulos, horários válidos sem sobreposição e IDs/opções únicos. Os campos extras de qualificação continuam planejados para a integração de IA. Não há migração dessa tabela; o diagrama relacional abaixo continua sendo uma proposta futura para esse perfil. O [documento 22](22-etapa-4-perfil-do-negocio.md) detalha a implementação de arquivo e a porta de leitura.
 - **users:** nome, e-mail único, hash da senha (nunca a senha), data de criação.
 
 ### lead_events (opcional)
