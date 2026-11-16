@@ -38,7 +38,9 @@ A etapa 4.16 foi enviada para revisão na branch `feat/message-composition`: com
 
 A etapa 4.17 foi enviada para revisão na branch `feat/response-plan-contract`: primeiro recorte do controle persistido, com modelagem do plano/blocos, schema do rascunho, porta de gravação atômica e caso de uso de preparação. Passaram tipos, compilação e 131 registros sem banco. O [documento 25](docs/25-etapa-4-contrato-do-plano-de-resposta.md) apresenta a proposta e a ordem de revisão.
 
-A etapa 4.18 está preparada para revisão na branch `feat/response-plans-migration`: migração das duas tabelas com vínculos compostos, restrições e índices de unicidade. Passaram tipos, compilação, 131 registros sem banco e 131 de integração. Aplicação e reversão ocorreram apenas em bancos descartáveis; o banco do projeto permaneceu intacto. A implementação da porta de preparação e o envio continuam pendentes. O [documento 26](docs/26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta o fluxo de revisão.
+A etapa 4.18 foi enviada para revisão na branch `feat/response-plans-migration`, commits `31f4363` e `65062c5`: migração das duas tabelas com vínculos compostos, restrições e índices de unicidade. Passaram tipos, compilação, 131 registros sem banco e 131 de integração em bancos descartáveis. Depois, o autor aplicou a migração localmente; a conferência da etapa seguinte encontrou cinco migrações e as novas tabelas no banco do projeto. O [documento 26](docs/26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta o fluxo de revisão.
+
+A etapa 4.19 está preparada para revisão na branch `feat/postgres-response-plan`: adapter PostgreSQL da porta `MessageResponsePlanStore`, com tentativa protegida, releitura de contexto, preservação do plano original e gravação atômica dos blocos. Passaram tipos, compilação, 131 registros sem banco e 155 de integração. O banco do projeto permaneceu intacto e não restaram bancos descartáveis. Leitura do plano, envio e worker continuam para entregas próprias. O [documento 27](docs/27-etapa-4-preparacao-postgresql-do-plano.md) apresenta as garantias e o fluxo de revisão.
 
 ## Ambiente
 

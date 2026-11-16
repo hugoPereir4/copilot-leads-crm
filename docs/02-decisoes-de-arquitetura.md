@@ -52,6 +52,8 @@ Os casos de uso dependem de contratos de acesso a dados; as implementações con
 
 **Estrutura — etapa 4.18:** a migração acrescenta as tabelas e as unicidades de origem, abertura e plano pendente, com FKs compostas para conferir os vínculos. Os blocos incluem a conversa para proteger a correspondência da mensagem confirmada. O SQL foi aplicado/revertido somente em bancos descartáveis; não implementa a porta ou o envio. O [documento 26](26-etapa-4-migracao-dos-planos-de-resposta.md) detalha as garantias estruturais e a validação.
 
+**Preparação — etapa 4.19:** `PostgresMessageResponsePlanStore` implementa a porta de aplicação sem levar SQL aos casos de uso. Validação anterior à conexão e uma transação protegem tentativa/vínculos, preservam o original e gravam todos os blocos juntos. A ordem de bloqueio é job → conversa → mensagem; operações futuras que compartilhem esses registros deverão respeitá-la. Estado/abertura são relidos sob proteção, e a expiração isolada não revoga a tentativa. Os testes reais cobrem concorrência, rollback e retomada; FIFO, envio e worker permanecem pendentes. O [documento 27](27-etapa-4-preparacao-postgresql-do-plano.md) apresenta o protocolo e seus limites.
+
 **Como funciona:** toda mensagem do provedor traz um ID externo. O banco tem uma restrição de unicidade sobre (provedor, ID externo). Se o mesmo webhook chegar duas vezes, a segunda inserção é simplesmente ignorada.
 
 **Por quê:** os provedores garantem entrega "pelo menos uma vez", ou seja, duplicatas **vão** acontecer. Sem idempotência você cria leads e qualificações duplicados.

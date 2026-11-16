@@ -6,7 +6,9 @@ Preparada em 16/11/2026 na branch `feat/response-plans-migration`, sobre a etapa
 
 O PostgreSQL existente no Docker estava saudável; não foi necessário iniciar, recriar ou atualizar o contêiner. A aplicação e a reversão do SQL ocorreram somente em bancos descartáveis. Consultas de leitura antes e depois encontraram as mesmas contagens e hashes de `contacts`, `conversations`, `messages`, `jobs` e `pgmigrations` no banco do projeto. As novas tabelas e chaves de apoio continuam ausentes desse banco. Não restaram bancos descartáveis.
 
-Não houve instalação de dependências, alterações de credenciais, execução de `db:migrate` no banco do projeto, envio ou worker. As alterações permanecem locais para revisão, sem commit ou push.
+Durante a preparação desta entrega não houve instalação de dependências, alterações de credenciais, execução de `db:migrate` no banco do projeto, envio ou worker. Após autorização, os commits `31f4363` e `65062c5` foram enviados para `origin/feat/response-plans-migration`, preservando os 16 arquivos auditados, sem repetir os testes durante os commits, merge ou PR.
+
+**Atualização posterior:** o autor informou sucesso na aplicação local da migração. A conferência inicial da etapa 4.19 encontrou cinco migrações, `response_plans` e `response_blocks` no banco do projeto. A implementação da porta está preparada na [etapa 4.19](27-etapa-4-preparacao-postgresql-do-plano.md), sem nova migração.
 
 ## 1. Responsabilidade da entrega
 

@@ -20,6 +20,8 @@ A etapa 4.17 prepara o contrato desse controle: um plano por mensagem, blocos or
 
 A etapa 4.18 prepara a migração dos planos/blocos e verifica suas restrições em bancos descartáveis. Nenhum plano é criado automaticamente pela aplicação, e o banco principal não recebeu a migração nesta entrega. A futura transação da porta ainda deverá proteger a tentativa e o estado atual e traduzir conflitos em resultados de negócio. O [documento 26](26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta a revisão.
 
+A etapa 4.19 implementa essa transação no adapter PostgreSQL, após o autor aplicar a migração localmente. Tentativa e vínculos válidos permitem reconhecer o plano original antes de exigir o estado para uma criação. Para criar, a operação relê estado/elegibilidade/abertura e adia diante de resposta pendente, sem enviar, mudar estado ou finalizar job. O adapter ainda não está ligado ao webhook ou a um consumidor automático. Leitura do original e execução continuam para suas entregas próprias. O [documento 27](27-etapa-4-preparacao-postgresql-do-plano.md) apresenta as regras verificadas.
+
 ```mermaid
 flowchart TD
     A["Provedor WhatsApp ou simulador"] --> B["Webhook recebe a requisição"]

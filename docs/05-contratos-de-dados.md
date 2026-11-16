@@ -106,6 +106,8 @@ A porta `MessageResponsePlanStore` recebe tentativa (`id + attempts`) e rascunho
 
 **Estrutura da etapa 4.18:** a migração cria tabelas para o plano e os blocos, sem mudar o schema do rascunho. O `conversation_id` adicional de cada bloco será derivado do plano na futura implementação, apoiando FKs compostas. Checks SQL e unicidades protegem a estrutura, mas não substituem a validação do rascunho e os guardas da transação. A porta continua sem implementação PostgreSQL. O [documento 26](26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta as restrições e seus testes.
 
+**Adapter da etapa 4.19:** a porta agora tem implementação PostgreSQL, preservando suas assinaturas e resultados. O adapter valida o rascunho na fronteira, deriva a conversa dos blocos do plano e confere tentativa, vínculos e condições atuais na transação. Para novo plano, a referência deve corresponder à data de persistência da mensagem em milissegundos. Para original já gravado, com tentativa/vínculos válidos, o conteúdo recebido não substitui o snapshot persistido; `existente` não autoriza envio. O [documento 27](27-etapa-4-preparacao-postgresql-do-plano.md) apresenta as regras e os limites.
+
 ## 5. Resultado da qualificação pela IA
 
 ### Decisão anterior à qualificação — etapa 4.15

@@ -144,3 +144,11 @@ Passaram tipos, compilação e 131 registros sem banco, incluindo 16 testes novo
 A suíte nova verifica as restrições, corridas de unicidade, rollback explícito, reaplicação e reversão, somente em banco descartável. Quatro suítes existentes passaram a incluir as duas tabelas na limpeza por `TRUNCATE`, sem `CASCADE` ou alterações de produção. Passaram tipos, compilação, 131 registros sem banco e 131 de integração. O banco principal manteve as mesmas contagens/hashes e quatro migrações; as novas tabelas não foram aplicadas nele. Não restaram bancos descartáveis.
 
 Não há implementação da porta, confirmação de envio ou worker nesta entrega. A migração não valida a tentativa atual, FIFO entre mensagens ou quantidade/contiguidade de todos os blocos. O [guia da etapa 4.18](../../docs/26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta as garantias, os limites e a ordem de revisão.
+
+## Preparação PostgreSQL dos planos — etapa 4.19
+
+`modules/messaging/infrastructure/postgres-message-response-plan-store.ts` implementa a porta existente, validando o comando antes da conexão. A transação `READ COMMITTED` bloqueia job, conversa e mensagem nessa ordem, confere a tentativa e os vínculos, reconhece o original e só então exige as condições de uma nova preparação. Plano e todos os blocos usam o mesmo cliente; erro provoca rollback.
+
+Abertura pendente adia outra mensagem; cancelada não autoriza recriação. Menu exige abertura enviada, e outra resposta pendente também adia a preparação. Uma nova tentativa válida do mesmo job reconhece o plano original sem sobrescrever seu conteúdo, mesmo após avanço de estado/perfil. O resultado existente não autoriza envio. Os 120 segundos continuam tornando o job recuperável, sem revogação automática da tentativa.
+
+Passaram tipos, compilação, 131 registros sem banco e 155 de integração, com 23 cenários novos e seu agrupador. As sete tabelas auditadas do projeto mantiveram contagens/hashes e não restaram bancos descartáveis. Não há migração nova, dependência instalada, ligação do adapter à composição da API ou execução automática. O [guia da etapa 4.19](../../docs/27-etapa-4-preparacao-postgresql-do-plano.md) apresenta os testes, o aviso observado na suíte existente de recuperação e a ordem de revisão.
