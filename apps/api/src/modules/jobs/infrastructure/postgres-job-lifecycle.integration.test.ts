@@ -83,7 +83,7 @@ test("finalização e novas tentativas em banco descartável", { timeout: 60000 
   }
   t.beforeEach(async () => {
     // O pool está conectado exclusivamente ao banco criado pela suíte.
-    await pool.query("TRUNCATE public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
+    await pool.query("TRUNCATE public.leads, public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
   });
 
   try {

@@ -73,7 +73,7 @@ test("recuperação de reservas expiradas em banco descartável", { timeout: 600
   }
   t.beforeEach(async () => {
     // Exclusivamente no banco descartável criado e possuído por esta suíte.
-    await pool.query("TRUNCATE public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
+    await pool.query("TRUNCATE public.leads, public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
   });
 
   try {

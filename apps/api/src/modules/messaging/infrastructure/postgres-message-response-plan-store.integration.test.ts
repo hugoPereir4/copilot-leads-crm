@@ -153,7 +153,7 @@ test("preparação de planos em PostgreSQL descartável", { timeout: 60000 }, as
     throw new Error("As operações não atingiram a barreira de bloqueio do teste.");
   }
   t.beforeEach(async () => {
-    await pool.query("TRUNCATE public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
+    await pool.query("TRUNCATE public.leads, public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
   });
 
   try {

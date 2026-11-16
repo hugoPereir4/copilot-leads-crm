@@ -14,17 +14,29 @@ type ClaimedJobRow = {
 };
 
 export class PostgresJobQueue implements JobQueue, JobLifecycle, JobRecovery {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool, private readonly serializeSimulatorConversations = false) {}
 
   async claimNext(type: JobType): Promise<ClaimedJob | undefined> {
     // Uma única instrução: seleção e atualização compartilham a transação
     // implícita do PostgreSQL. O bloqueio termina antes de devolver a reserva.
     const result = await this.pool.query<ClaimedJobRow>(`
       WITH candidate AS (
-        SELECT id FROM public.jobs
-        WHERE type = $1 AND status = 'pendente'
-          AND run_at <= CURRENT_TIMESTAMP AND attempts < max_attempts
-        ORDER BY run_at, created_at, id
+        SELECT candidate.id FROM public.jobs candidate
+        WHERE candidate.type = $1 AND candidate.status = 'pendente'
+          AND candidate.run_at <= CURRENT_TIMESTAMP AND candidate.attempts < candidate.max_attempts
+          AND (NOT $2::boolean OR (
+            EXISTS (SELECT 1 FROM public.messages m JOIN public.conversations c ON c.id = m.conversation_id
+              WHERE m.id = candidate.message_id AND m.provider = 'simulador' AND c.status <> 'qualificando')
+            AND NOT EXISTS (
+              SELECT 1 FROM public.jobs previous
+              JOIN public.messages pm ON pm.id = previous.message_id
+              JOIN public.messages cm ON cm.id = candidate.message_id
+              WHERE previous.type = candidate.type AND pm.conversation_id = cm.conversation_id
+                AND previous.status IN ('pendente', 'processando')
+                AND (previous.created_at, previous.id) < (candidate.created_at, candidate.id)
+            )
+          ))
+        ORDER BY candidate.run_at, candidate.created_at, candidate.id
         LIMIT 1
         FOR UPDATE SKIP LOCKED
       )
@@ -35,7 +47,7 @@ export class PostgresJobQueue implements JobQueue, JobLifecycle, JobRecovery {
       WHERE job.id = candidate.id
       RETURNING job.id, job.type, job.message_id, job.status,
                 job.attempts, job.max_attempts, job.locked_at;
-    `, [type]);
+    `, [type, this.serializeSimulatorConversations]);
     const row = result.rows[0];
     if (row === undefined) return undefined;
     return {
@@ -63,6 +75,7 @@ export class PostgresJobQueue implements JobQueue, JobLifecycle, JobRecovery {
         SELECT id FROM public.jobs
         WHERE type = $1 AND status = 'processando'
           AND locked_at <= CURRENT_TIMESTAMP - $2::double precision * INTERVAL '1 second'
+          AND (NOT $4::boolean OR EXISTS (SELECT 1 FROM public.messages m WHERE m.id = jobs.message_id AND m.provider = 'simulador'))
         ORDER BY locked_at, created_at, id
         LIMIT $3
         FOR UPDATE SKIP LOCKED
@@ -75,7 +88,7 @@ export class PostgresJobQueue implements JobQueue, JobLifecycle, JobRecovery {
       FROM expired
       WHERE job.id = expired.id
       RETURNING job.status;
-    `, [type, options.timeoutSeconds, options.batchSize]);
+    `, [type, options.timeoutSeconds, options.batchSize, this.serializeSimulatorConversations]);
     return {
       requeued: result.rows.filter((row) => row.status === "pendente").length,
       failed: result.rows.filter((row) => row.status === "falhou").length,
