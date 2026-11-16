@@ -1,7 +1,7 @@
-# Dashboard
+# Interface web
 
-Esta aplicação conterá o painel usado pelos atendentes da clínica. Ela consumirá a API HTTP e os contratos públicos de `@copilot-leads/shared`.
+A aplicação contém o simulador em `/simulator` e o painel de leads em `/admin`. As duas telas usam HTML, CSS e TypeScript sem framework e consomem os contratos públicos de `@copilot-leads/shared` e a API HTTP local.
 
-A configuração TypeScript reconhece as APIs do navegador e usa resolução de módulos compatível com um futuro bundler. Os tipos globais do Node não são incluídos neste pacote.
+Os estilos ficam em `src/styles/`, organizados em tokens, regras globais, layout, componentes e estilos específicos do simulador e do Kanban. O build compila o TypeScript e copia essa pasta para `dist/styles/`, publicada pela API em `/assets/styles/`. O HTML servido nas duas rotas carrega os mesmos arquivos.
 
-Na etapa 3, `src/index.ts` apenas permite verificar e compilar a estrutura inicial. O script `build` atual compila TypeScript; a interface React e o empacotamento do frontend serão implementados na etapa do painel.
+O tema inicial acompanha a preferência do sistema; a escolha manual é salva no `localStorage`. O frontend não inclui dados mockados nem substitui as chamadas da API.
