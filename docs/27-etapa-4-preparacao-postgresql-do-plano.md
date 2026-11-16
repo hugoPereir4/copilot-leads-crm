@@ -6,7 +6,7 @@ Preparada em 16/11/2026 na branch `feat/postgres-response-plan`, sobre a etapa 4
 
 O autor informou que aplicou a migração da etapa 4.18. A conferência inicial encontrou cinco migrações e as duas tabelas novas no banco do projeto. Antes/depois dos testes, contagens e hashes de `contacts`, `conversations`, `messages`, `jobs`, `response_plans`, `response_blocks` e `pgmigrations` permaneceram iguais. Não restaram bancos descartáveis. Nenhuma migração foi executada no banco do projeto nesta etapa.
 
-O Docker foi usado somente para listar o serviço existente, já saudável; não houve reinício ou recriação. A implementação permanece local para revisão, sem commit ou push.
+O Docker foi usado somente para listar o serviço existente, já saudável; não houve reinício ou recriação. Após autorização, os commits `36164cb` e `981b395` foram enviados para `origin/feat/postgres-response-plan`, com upstream/sincronização conferidos e os 14 arquivos preservados. Os testes não foram repetidos durante os commits; não houve merge ou PR. A revisão técnica permanece em paralelo.
 
 ## 1. Fluxo de revisão por dependência
 
@@ -144,3 +144,5 @@ Não é necessário iniciar a API, enviar mensagens pelo Postman ou executar `np
 Proposta: contrato e leitura do plano original com seus blocos e progresso, para permitir uma retomada baseada no conteúdo persistido em vez de recomposição. A leitura deverá preservar ordem, datas e campos de confirmação, distinguir ausência de falha e validar a representação sem autorizar envio.
 
 Continuam para entregas próprias: confirmação/cancelamento de blocos, transições coordenadas, ordenação entre mensagens, adiamento sem gasto indevido de tentativas, adapter de saída e worker. Um pendente por conversa não garante FIFO de jobs ainda não preparados, e unicidade/checkpoints locais não garantem entrega externa exatamente uma vez. Nenhuma IA foi selecionada ou integrada aqui.
+
+A leitura está preparada na [etapa 4.20](28-etapa-4-leitura-do-plano-de-resposta.md): contrato de snapshot, porta, caso de uso e consulta PostgreSQL por mensagem, com testes de progresso e fotografia concorrente. Não houve mudança no store ou na migração da etapa 4.18.

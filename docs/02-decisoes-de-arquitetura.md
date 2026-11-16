@@ -54,6 +54,8 @@ Os casos de uso dependem de contratos de acesso a dados; as implementações con
 
 **Preparação — etapa 4.19:** `PostgresMessageResponsePlanStore` implementa a porta de aplicação sem levar SQL aos casos de uso. Validação anterior à conexão e uma transação protegem tentativa/vínculos, preservam o original e gravam todos os blocos juntos. A ordem de bloqueio é job → conversa → mensagem; operações futuras que compartilhem esses registros deverão respeitá-la. Estado/abertura são relidos sob proteção, e a expiração isolada não revoga a tentativa. Os testes reais cobrem concorrência, rollback e retomada; FIFO, envio e worker permanecem pendentes. O [documento 27](27-etapa-4-preparacao-postgresql-do-plano.md) apresenta o protocolo e seus limites.
 
+**Leitura — etapa 4.20:** uma porta própria consulta o plano original por mensagem de origem, com schema distinto do rascunho e progresso dos blocos. O adapter PostgreSQL usa uma instrução para manter cabeçalho/blocos na mesma fotografia e valida sua representação, sem importar infraestrutura nos casos de uso. A consulta preserva enviados/cancelados, diferencia ausência de falha e não autoriza efeitos. A confirmação futura deverá manter a coerência entre plano e blocos atomicamente. O [documento 28](28-etapa-4-leitura-do-plano-de-resposta.md) apresenta o contrato e a revisão.
+
 **Como funciona:** toda mensagem do provedor traz um ID externo. O banco tem uma restrição de unicidade sobre (provedor, ID externo). Se o mesmo webhook chegar duas vezes, a segunda inserção é simplesmente ignorada.
 
 **Por quê:** os provedores garantem entrega "pelo menos uma vez", ou seja, duplicatas **vão** acontecer. Sem idempotência você cria leads e qualificações duplicados.

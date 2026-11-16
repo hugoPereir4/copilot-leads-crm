@@ -132,7 +132,7 @@ A etapa 4.12 usa as colunas existentes para recuperar `processando` com `locked_
 
 A etapa 4.13 lê o contexto pelo ID de `messages`, seguindo `conversation_id` e depois `contact_id` em um único SELECT. Não escolhe a conversa aberta mais recente e não altera nenhuma tabela. `messages.body` e `contacts.display_name` preservam nulos; `messages.created_at` continua sendo a data de persistência, sem inferir a data de origem do provedor. O schema Zod valida a representação interna da leitura. Nenhuma mudança de estrutura foi necessária. O [documento 21](21-etapa-4-contexto-da-mensagem.md) detalha os campos e o comportamento concorrente.
 
-### response_plans e response_blocks — etapas 4.17 a 4.19
+### response_plans e response_blocks — etapas 4.17 a 4.20
 
 O primeiro recorte, na etapa 4.17, implementou somente o contrato do rascunho e a preparação pela aplicação, quando as tabelas ainda não existiam. `response_plans` vincula mensagem, conversa e job de origem, preservando ação, estado esperado/próximo, referência temporal e status do plano. `response_blocks` guarda posição, texto e progresso de cada bloco, com possível referência à mensagem de saída confirmada.
 
@@ -143,6 +143,8 @@ Preparação não altera o estado da conversa ou confirma o envio. Abertura pend
 **Migração da etapa 4.18:** o SQL das duas tabelas foi aplicado/revertido em banco descartável e depois aplicado pelo autor ao banco local do projeto. As chaves únicas `(id, conversation_id)` de `messages` e `(id, message_id)` de `jobs` apoiam as FKs compostas da origem. O plano tem também uma chave `(id, conversation_id)`; os blocos acrescentam `conversation_id` para conferir tanto a conversa do plano quanto a da mensagem confirmada. O status do plano/bloco e as respectivas datas têm checks locais. O [documento 26](26-etapa-4-migracao-dos-planos-de-resposta.md) detalha os campos e a reversão.
 
 **Persistência da etapa 4.19:** o adapter valida a lista não vazia/consecutiva e grava plano/blocos na mesma transação, sob proteção da tentativa e da conversa. Reconhece o original sem sobrescrever conteúdo, confere origem/elegibilidade e distingue abertura pendente, enviada ou cancelada. Criar não confirma envio nem altera o estado da conversa. A coerência futura entre plano terminado e todos os blocos continua responsabilidade da confirmação coordenada; SQL direto não torna os textos imutáveis. O [documento 27](27-etapa-4-preparacao-postgresql-do-plano.md) apresenta as garantias e a revisão.
+
+**Leitura da etapa 4.20:** o reader consulta o plano por `source_message_id`, com todos os blocos ordenados por `position` e confirmações opcionais. O contrato de leitura valida representação, sequência e coerência de status/datas; não acrescenta colunas, índices ou constraints. Incoerências permitidas pelo SQL entre linhas são rejeitadas na leitura, sem reparo automático. A confirmação futura deverá mantê-las coerentes atomicamente. O [documento 28](28-etapa-4-leitura-do-plano-de-resposta.md) apresenta as regras. O bloco DBML da seção 6 permanece inalterado.
 
 ### business_profile e users
 

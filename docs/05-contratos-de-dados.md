@@ -108,6 +108,8 @@ A porta `MessageResponsePlanStore` recebe tentativa (`id + attempts`) e rascunho
 
 **Adapter da etapa 4.19:** a porta agora tem implementação PostgreSQL, preservando suas assinaturas e resultados. O adapter valida o rascunho na fronteira, deriva a conversa dos blocos do plano e confere tentativa, vínculos e condições atuais na transação. Para novo plano, a referência deve corresponder à data de persistência da mensagem em milissegundos. Para original já gravado, com tentativa/vínculos válidos, o conteúdo recebido não substitui o snapshot persistido; `existente` não autoriza envio. O [documento 27](27-etapa-4-preparacao-postgresql-do-plano.md) apresenta as regras e os limites.
 
+**Leitura da etapa 4.20:** `MessageResponsePlanSnapshot` acrescenta ao conteúdo original `id`, `sourceJobId`, estado/datas do plano e estado/confirmação de cada bloco. É um contrato interno distinto do rascunho, sem mudança em `shared`. A porta `MessageResponsePlanReader` consulta por UUID da mensagem; o caso de uso preserva snapshot, ausência (`undefined`) e falha. O adapter valida uma fotografia de plano/blocos numa única consulta. Enviado exige todos os blocos enviados; cancelado não admite blocos pendentes; pendente não admite cancelados. Datas, confirmação e posições também são validadas, sem reparar dados ou autorizar execução. O [documento 28](28-etapa-4-leitura-do-plano-de-resposta.md) apresenta os campos e os limites.
+
 ## 5. Resultado da qualificação pela IA
 
 ### Decisão anterior à qualificação — etapa 4.15

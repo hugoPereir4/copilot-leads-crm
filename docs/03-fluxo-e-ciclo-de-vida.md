@@ -22,6 +22,8 @@ A etapa 4.18 prepara a migração dos planos/blocos e verifica suas restrições
 
 A etapa 4.19 implementa essa transação no adapter PostgreSQL, após o autor aplicar a migração localmente. Tentativa e vínculos válidos permitem reconhecer o plano original antes de exigir o estado para uma criação. Para criar, a operação relê estado/elegibilidade/abertura e adia diante de resposta pendente, sem enviar, mudar estado ou finalizar job. O adapter ainda não está ligado ao webhook ou a um consumidor automático. Leitura do original e execução continuam para suas entregas próprias. O [documento 27](27-etapa-4-preparacao-postgresql-do-plano.md) apresenta as regras verificadas.
 
+A etapa 4.20 disponibiliza a leitura do original pela mensagem de origem, com blocos ordenados e confirmações preservadas. Isso permite ao futuro processador consultar o plano antes de recompor/decidir; ainda não há essa orquestração automática. A leitura aceita histórico enviado/cancelado e valida a coerência dos dados, mas não escolhe o próximo bloco ou confirma envio. Tentativa, estado atual da conversa e progresso deverão ser revalidados na operação protegida de execução. O [documento 28](28-etapa-4-leitura-do-plano-de-resposta.md) apresenta o recorte.
+
 ```mermaid
 flowchart TD
     A["Provedor WhatsApp ou simulador"] --> B["Webhook recebe a requisição"]

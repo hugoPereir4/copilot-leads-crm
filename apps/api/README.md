@@ -152,3 +152,11 @@ Não há implementação da porta, confirmação de envio ou worker nesta entreg
 Abertura pendente adia outra mensagem; cancelada não autoriza recriação. Menu exige abertura enviada, e outra resposta pendente também adia a preparação. Uma nova tentativa válida do mesmo job reconhece o plano original sem sobrescrever seu conteúdo, mesmo após avanço de estado/perfil. O resultado existente não autoriza envio. Os 120 segundos continuam tornando o job recuperável, sem revogação automática da tentativa.
 
 Passaram tipos, compilação, 131 registros sem banco e 155 de integração, com 23 cenários novos e seu agrupador. As sete tabelas auditadas do projeto mantiveram contagens/hashes e não restaram bancos descartáveis. Não há migração nova, dependência instalada, ligação do adapter à composição da API ou execução automática. O [guia da etapa 4.19](../../docs/27-etapa-4-preparacao-postgresql-do-plano.md) apresenta os testes, o aviso observado na suíte existente de recuperação e a ordem de revisão.
+
+## Leitura do plano persistido — etapa 4.20
+
+`MessageResponsePlanSnapshot` descreve o plano original com blocos ordenados, status, datas e confirmações. Reutiliza os campos de criação, mas valida também a representação do progresso. `MessageResponsePlanReader` define a consulta por UUID da mensagem de origem; `loadMessageResponsePlan` delega sem conhecer PostgreSQL ou recompor textos.
+
+`PostgresMessageResponsePlanReader` valida o UUID antes do SQL e lê plano/blocos numa única instrução com `LEFT JOIN` e ordenação por posição. Ausência retorna `undefined`; plano sem blocos ou incoerente rejeita com mensagem fixa; falhas SQL são propagadas. A leitura inclui enviados/cancelados e conversas encerradas, sem reservar jobs, autorizar envio ou reparar dados.
+
+Passaram tipos, compilação, 144 registros sem banco e 169 de integração, com dez testes novos de contrato, três de aplicação e 13 cenários PostgreSQL mais seu agrupador. Contagens/hashes das sete tabelas auditadas permaneceram iguais e não restaram bancos descartáveis. Nenhuma migração ou dependência mudou; o leitor ainda não está conectado ao webhook ou worker. O [guia da etapa 4.20](../../docs/28-etapa-4-leitura-do-plano-de-resposta.md) apresenta o fluxo de revisão, as regras de coerência e o aviso observado na suíte existente de reivindicação.

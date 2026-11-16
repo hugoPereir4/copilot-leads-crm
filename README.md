@@ -40,7 +40,9 @@ A etapa 4.17 foi enviada para revisão na branch `feat/response-plan-contract`: 
 
 A etapa 4.18 foi enviada para revisão na branch `feat/response-plans-migration`, commits `31f4363` e `65062c5`: migração das duas tabelas com vínculos compostos, restrições e índices de unicidade. Passaram tipos, compilação, 131 registros sem banco e 131 de integração em bancos descartáveis. Depois, o autor aplicou a migração localmente; a conferência da etapa seguinte encontrou cinco migrações e as novas tabelas no banco do projeto. O [documento 26](docs/26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta o fluxo de revisão.
 
-A etapa 4.19 está preparada para revisão na branch `feat/postgres-response-plan`: adapter PostgreSQL da porta `MessageResponsePlanStore`, com tentativa protegida, releitura de contexto, preservação do plano original e gravação atômica dos blocos. Passaram tipos, compilação, 131 registros sem banco e 155 de integração. O banco do projeto permaneceu intacto e não restaram bancos descartáveis. Leitura do plano, envio e worker continuam para entregas próprias. O [documento 27](docs/27-etapa-4-preparacao-postgresql-do-plano.md) apresenta as garantias e o fluxo de revisão.
+A etapa 4.19 foi enviada para revisão na branch `feat/postgres-response-plan`, commits `36164cb` e `981b395`: adapter PostgreSQL da porta `MessageResponsePlanStore`, com tentativa protegida, releitura de contexto, preservação do plano original e gravação atômica dos blocos. Passaram tipos, compilação, 131 registros sem banco e 155 de integração. O banco do projeto permaneceu intacto e não restaram bancos descartáveis. O [documento 27](docs/27-etapa-4-preparacao-postgresql-do-plano.md) apresenta as garantias e o fluxo de revisão.
+
+A etapa 4.20 está preparada para revisão na branch `feat/response-plan-reader`: contrato, porta, caso de uso e leitura PostgreSQL do plano original por mensagem, com blocos ordenados e confirmações. Passaram tipos, compilação, 144 registros sem banco e 169 de integração. As sete tabelas auditadas do banco do projeto permaneceram iguais e não restaram bancos descartáveis. A leitura não autoriza envio nem está ligada a um worker. O [documento 28](docs/28-etapa-4-leitura-do-plano-de-resposta.md) apresenta a ordem de revisão e os limites.
 
 ## Ambiente
 
@@ -84,6 +86,8 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Leitura do plano persistido](docs/28-etapa-4-leitura-do-plano-de-resposta.md): etapa 4.20, conteúdo original, progresso, validação e fotografia de leitura.
+- [Preparação PostgreSQL dos planos](docs/27-etapa-4-preparacao-postgresql-do-plano.md): etapa 4.19, transação, retomada, bloqueios e rollback.
 - [Migração dos planos de resposta](docs/26-etapa-4-migracao-dos-planos-de-resposta.md): etapa 4.18, chaves compostas, unicidades e testes em bancos descartáveis.
 - [Contrato do plano de resposta](docs/25-etapa-4-contrato-do-plano-de-resposta.md): etapa 4.17, modelagem, abertura preparada/enviada e contrato de gravação atômica.
 - [Composição e expediente](docs/24-etapa-4-composicao-de-mensagens.md): etapa 4.16, textos do perfil, preços e cálculo de horários com instante explícito.
