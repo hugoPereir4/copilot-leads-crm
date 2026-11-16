@@ -82,7 +82,7 @@ test("contexto de mensagem em PostgreSQL descartável", { timeout: 60000 }, asyn
   }
   t.beforeEach(async () => {
     // Todas as fixtures e alterações de cenário pertencem ao banco da suíte.
-    await pool.query("TRUNCATE public.jobs, public.messages, public.conversations, public.contacts;");
+    await pool.query("TRUNCATE public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
   });
 
   try {
