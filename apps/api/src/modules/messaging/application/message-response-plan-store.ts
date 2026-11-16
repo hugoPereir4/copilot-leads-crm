@@ -13,7 +13,7 @@ export type ResponsePlanPreparationResult =
   | { readonly status: "contexto_desatualizado" }
   | { readonly status: "adiado"; readonly reason: "abertura_pendente" | "resposta_anterior_pendente" };
 
-// Contrato para a futura transação, ainda sem implementação PostgreSQL:
+// Contrato da transação, implementado pelo adapter PostgreSQL da etapa 4.19:
 // - Conferir id + attempts + processando e os vínculos job/mensagem/conversa.
 //   Expiração, isoladamente, não invalida a tentativa (política da etapa 4.12).
 // - Com tentativa válida, devolver o plano já existente da mensagem antes de
@@ -23,7 +23,8 @@ export type ResponsePlanPreparationResult =
 //   mensagem; outra resposta pendente adia a preparação, sem concluir o job.
 // - Gravar plano e todos os blocos na mesma transação, sem envio ou transição de
 //   conversa. Posição começa em 1. Falha deve desfazer toda a preparação.
-// Concorrência e essas garantias só serão comprovadas pela futura integração.
+// O resultado existente não autoriza envio: o executor deverá ler o original
+// e revalidar suas próprias condições. Esta porta somente prepara a intenção.
 export interface MessageResponsePlanStore {
   prepare(input: ResponsePlanPreparation): Promise<ResponsePlanPreparationResult>;
 }
