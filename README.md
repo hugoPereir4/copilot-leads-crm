@@ -6,6 +6,10 @@ O backend seguirá um monólito modular. O código está organizado em um monore
 
 ## Estado atual
 
+A entrega atual integra um **MVP local demonstrável**, na branch `feat/simulator-demo-flow`: webhook → job → decisão → plano → resposta simulada persistida → lead → painel. Há simulador visual em `/simulator` e painel de leitura em `/admin`, iniciados por `npm run start:demo`. **A IA permanece desabilitada**: pedidos que exigiriam qualificação criam um lead Novo com indicação Revisar. Isso ainda não corresponde à V1 completa.
+
+O [guia do fluxo demonstrável](docs/29-mvp-fluxo-simulador.md) contém a preparação, os limites e a ordem de revisão. A nova migração de `leads` precisa ser revisada e aplicada pelo autor antes de iniciar a demonstração; não foi executada no banco principal durante o desenvolvimento. O histórico abaixo descreve as entregas anteriores.
+
 A etapa 3 preparou os pacotes, a tipagem estrita e os scripts de verificação. A etapa 4.1 preparou o PostgreSQL local com Docker Compose e validou a persistência após recriar o container. A etapa 4.2 configurou o acesso com `pg`, a validação de ambiente com Zod e o controle de migrações com `node-pg-migrate`. A conexão pelo Node fora do container foi verificada. A API agora tem a entrada HTTP local descrita na etapa 4.9; as demais funcionalidades continuam em entregas pequenas, com revisão individual.
 
 A etapa 4.3 foi revisada e verificada: os oito cenários de integração da migração de `contacts` passaram em banco descartável, e sua limpeza foi confirmada. Uma consulta de leitura também encontrou a migração registrada e a tabela correspondente em `copilot_leads`. O [documento 11](docs/11-etapa-4-migracao-de-contatos.md) registra os resultados e os comandos.
@@ -69,6 +73,7 @@ npm run check
 | `npm run test` | Compila a API e executa os testes sem precisar de banco |
 | `npm run test:integration` | Executa as suítes de migrações, recepção e contexto de mensagens, reserva, finalização e recuperação de jobs, cada uma em seu próprio banco descartável |
 | `npm run start:api` | Compila a API e inicia o servidor em `127.0.0.1`, usando `.env`; exige PostgreSQL disponível |
+| `npm run start:demo` | Compila os três pacotes e inicia API, worker do simulador e telas locais; exige a migração de leads aplicada |
 | `npm run simulate:message` | Envia o exemplo versionado ao webhook local; a API precisa estar em outro terminal |
 | `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
 | `npm run db:migrate` | Compila a API e aplica migrações pendentes; pode alterar a estrutura do banco |

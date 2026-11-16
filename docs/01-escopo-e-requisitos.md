@@ -8,6 +8,10 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 
 **Objetivo da v1, em uma frase:** uma mensagem de texto chega, vira um lead qualificado e estruturado, aparece no Kanban e um humano consegue assumir o atendimento.
 
+**Estratégia atual — fluxos completos:** priorizar funcionalidades demonstráveis que integrem os componentes existentes, mantendo as garantias críticas e testes direcionados durante o desenvolvimento. Executar a suíte completa nos marcos da entrega; adiar abstrações opcionais e documentação extensa. Não há mudança nos requisitos finais abaixo.
+
+**Primeiro MVP demonstrável:** simulador visual → webhook → processamento de jobs → menu e respostas predefinidas persistidas → lead Novo → painel de leitura e botão WhatsApp. IA desabilitada, com marcação Revisar quando a solicitação exigiria qualificação. Login, qualificação real, movimentação/assunção/encerramento e atualização por SSE continuam pendentes para completar a V1. O [guia da entrega](29-mvp-fluxo-simulador.md) distingue implementação e pendências.
+
 ## 2. Decisões já tomadas
 
 - A v1 trata **apenas texto**. Áudio fica para a v1.1.
@@ -38,7 +42,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 - Botão **Abrir no WhatsApp** para continuar o atendimento humano fora do painel.
 - Simulador de webhooks para desenvolvimento e demonstração.
 
-**Interfaces da v1:** o cliente interage pelo WhatsApp; não há portal ou página web para clientes. O painel web é usado pelos atendentes da clínica, com login simples e sem separação de papéis complexa. Na demonstração inicial, o simulador representa as mensagens do cliente. O formato do simulador (script, ferramenta HTTP ou interface visual) ainda será definido; uma página de chat não é requisito da v1.
+**Interfaces da v1:** o cliente interage pelo WhatsApp; não há portal ou página web para clientes. O painel web é usado pelos atendentes da clínica, com login simples e sem separação de papéis complexa. Na demonstração inicial, o simulador representa as mensagens do cliente. O MVP oferece uma interface visual de simulação, além do webhook e do script existentes; essa tela é uma ferramenta de demonstração, não um portal de pacientes.
 
 ## 4. Fora do escopo da v1
 

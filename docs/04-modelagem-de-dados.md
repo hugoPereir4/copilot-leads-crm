@@ -72,20 +72,15 @@ A migração da etapa 4.5 está preparada para revisão e passou em dez cenário
 
 | Campo | Tipo | Observação |
 |---|---|---|
-| id | identificador | |
-| conversation_id | referência | Única: um lead por conversa na v1 |
-| contact_id | referência | |
-| stage | enum | novo, qualificado, em_atendimento, ganho, perdido |
-| needs_review | booleano | Indicador Revisar do fallback humano |
-| intent | texto ou enum, opcional | Intenção identificada pela IA; pode ficar sem preenchimento no pedido direto à recepção |
-| service_interest | texto, opcional | Serviço de interesse declarado pelo contato, sem indicação de tratamento pela IA |
-| desired_timeframe | texto, opcional | Prazo desejado informado pelo contato; não representa urgência clínica (D15) |
-| summary | texto, opcional | Resumo administrativo gerado pela IA |
-| confidence | número, opcional | Confiança informada pela IA |
-| extracted_data | jsonb | Campos extras que variam conforme o negócio |
-| assigned_user_id | referência, opcional | |
-| position | número | Ordem do card dentro da coluna |
-| created_at, updated_at | data e hora | |
+| id | uuid | PK; padrão gen_random_uuid() |
+| conversation_id | uuid | Obrigatório e único: um lead por conversa |
+| contact_id | uuid | FK composta com conversation_id garante o contato da conversa |
+| stage | text com CHECK | novo, qualificado, em_atendimento, ganho, perdido; padrão novo |
+| needs_review | boolean | Obrigatório; padrão false |
+| summary | text, opcional | No MVP contém apenas a indicação de revisão, sem alegar extração por IA |
+| created_at, updated_at | timestamptz | Obrigatórios; padrão now() |
+
+A migração `1794873600000_create_leads.sql` implementa esse recorte no fluxo demonstrável. Foi aplicada somente nos bancos descartáveis; sua aplicação ao banco do projeto fica para após revisão. Há unicidade parcial por contato nos estágios abertos e índice `(stage, created_at)`. Intenção, serviço, prazo, confiança, dados extraídos, atribuição e posição manual dos cards permanecem planejados para entregas futuras, sem colunas nesta migração.
 
 O caminho direto à recepção (opção 3) cria o lead em `novo`, com `needs_review = false`, sem criar extração de IA e sem preencher os campos exclusivos da qualificação. O painel deve aceitar a ausência desses dados.
 
@@ -164,13 +159,13 @@ Tipo do evento (mudança de estágio, assunção, revisão), estágio de origem 
 | contacts | Único em phone | Um registro por número |
 | jobs | Índice em (status, run_at) | O worker acha o próximo job rápido |
 | jobs | Único em (type, message_id) | Um job por tarefa e mensagem; reutilizar o mesmo registro nas tentativas |
-| leads | Índice em (stage, position) | Montar as colunas do Kanban |
+| leads | Índice em (stage, created_at); posição manual futura | Consultar as colunas do Kanban no MVP |
 | leads | Único em conversation_id | Um lead por conversa |
 | conversations | Índice em (contact_id, status) | Achar a conversa ativa de um contato |
 | conversations | Unicidade parcial em contact_id quando status é diferente de encerrada | Garantir no máximo uma conversa aberta por contato, inclusive sob concorrência (D16) |
 | leads | Unicidade parcial em contact_id quando stage é novo, qualificado ou em_atendimento | Garantir no máximo um lead aberto por contato sem impedir vários encerrados (D16) |
 
-Mover o lead para `ganho` ou `perdido` e encerrar sua conversa deve ocorrer na mesma transação. Um retorno posterior cria outra conversa no mesmo contato, sem alterar o resultado anterior. Os índices parciais acima serão definidos nas migrações; o DBML abaixo é uma representação simplificada e não os expressa.
+Mover o lead para `ganho` ou `perdido` e encerrar sua conversa deverá ocorrer na mesma transação, em entrega futura. Um retorno posterior criará outra conversa no mesmo contato, sem alterar o resultado anterior. As migrações de conversas e leads já definem os índices únicos parciais que impedem múltiplos registros abertos por contato; o DBML abaixo registra seus predicados em notas.
 
 ## 4. Por que o modelo é assim
 
@@ -187,14 +182,16 @@ Mover o lead para `ganho` ou `perdido` e encerrar sua conversa deve ocorrer na m
 - A ordenação dos cards usa números fracionários ou uma lista reordenada a cada movimento?
 - Vale incluir lead_events já na v1?
 
+A estrutura de leads abaixo pertence à nova migração do MVP; o banco principal só a receberá após revisão.
+
 ## 6. Código DBML (para colar no dbdiagram.io)
 
 Atualizado em 16/11/2026. Copie **todo o bloco abaixo** para o [dbdiagram.io](https://dbdiagram.io/d).
 
-- **Implementadas no PostgreSQL:** `contacts`, `conversations`, `messages`, `jobs`, `response_plans` e `response_blocks`. As cinco migrações de `apps/api/migrations` são a fonte de verdade para colunas, tipos, defaults, chaves, índices e checks desse grupo.
-- **Propostas futuras, sem migração:** `business_profile`, `users`, `leads`, `ai_extractions` e `lead_events`. Seus campos e relacionamentos conceituais já documentados foram preservados em outro grupo, com notas explícitas. O perfil atual continua em JSON; `lead_events` é opcional na V1.
+- **Implementadas no PostgreSQL:** `contacts`, `conversations`, `messages`, `jobs`, `response_plans`, `response_blocks` e `leads`. As seis migrações de `apps/api/migrations` são a fonte de verdade para colunas, tipos, defaults, chaves, índices e checks desse grupo.
+- **Propostas futuras, sem migração:** `business_profile`, `users`, `ai_extractions` e `lead_events`. Seus campos e relacionamentos conceituais já documentados foram preservados em outro grupo, com notas explícitas. O perfil atual continua em JSON; `lead_events` é opcional na V1.
 - `conversations.assigned_user_id` é uma proposta futura e não aparece na tabela implementada nem como FK no diagrama. Não existe FK direta dos planos/blocos para `conversations`: o vínculo já é garantido pelas FKs compostas que passam por `messages` e pelo plano. Não foi acrescentada uma referência SQL fictícia.
-- O DBML representa nativamente as quatro FKs compostas, as chaves compostas e os `CHECK` nomeados. As expressões PostgreSQL dos checks permanecem na notação de expressão, e as notas explicam suas consequências; o parser DBML não executa essas validações. Os três índices únicos parciais ficam **somente em notas com nome e predicado**, pois não se deve transformar uma unicidade condicional em global.
+- O DBML representa nativamente as cinco FKs compostas, as chaves compostas e os `CHECK` nomeados. As expressões PostgreSQL dos checks permanecem na notação de expressão, e as notas explicam suas consequências; o parser DBML não executa essas validações. Os quatro índices únicos parciais ficam **somente em notas com nome e predicado**, pois não se deve transformar uma unicidade condicional em global.
 - Este bloco serve à visualização e contém propostas futuras; não deve ser exportado e aplicado como substituto das migrações. A tabela interna `pgmigrations`, mantida pelo migrador, fica fora do modelo de domínio.
 
 Sintaxe de referência: [DBML — checks, índices e FKs compostas](https://dbml.dbdiagram.io/docs/) e [grupos e notas](https://dbml.dbdiagram.io/syntax/enrichment-visualization/).
@@ -202,17 +199,17 @@ Sintaxe de referência: [DBML — checks, índices e FKs compostas](https://dbml
 ```dbml
 // Copiloto de Leads WhatsApp — estrutura implementada e propostas futuras.
 // Tabelas sem prefixo pertencem ao schema public.
-// Fonte de verdade do grupo implementado: cinco migrações SQL, etapas 4.3–4.18.
+// Fonte de verdade do grupo implementado: seis migrações SQL, etapas 4.3–4.21.
 // Os grupos abaixo são apenas visuais; não criam schemas ou tabelas adicionais.
 
 Project copiloto_leads_whatsapp {
   database_type: 'PostgreSQL'
   Note: '''
-  IMPLEMENTADAS: contacts, conversations, messages, jobs, response_plans, response_blocks.
-  PLANEJADAS: business_profile, users, leads, ai_extractions, lead_events.
+  MIGRAÇÕES IMPLEMENTADAS: contacts, conversations, messages, jobs, response_plans, response_blocks, leads.
+  PLANEJADAS: business_profile, users, ai_extractions, lead_events.
   Os índices únicos parciais estão descritos nas notas, sem índices globais substitutos.
   Checks são expressões PostgreSQL; DBML não os executa.
-  As quatro FKs compostas são declaradas uma vez, sem refs simples duplicadas.
+  As cinco FKs compostas são declaradas uma vez, sem refs simples duplicadas.
   Não usar este diagrama misto para migrar o banco.
   '''
 }
@@ -246,6 +243,7 @@ Table conversations {
 
   indexes {
     (contact_id, status) [name: 'conversations_contact_status_idx']
+    (id, contact_id) [unique, name: 'conversations_id_contact_id_key']
   }
 
   checks {
@@ -403,10 +401,37 @@ Table response_blocks {
   '''
 }
 
+Table leads {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  conversation_id uuid [not null]
+  contact_id uuid [not null]
+  stage text [not null, default: 'novo']
+  needs_review boolean [not null, default: false]
+  summary text
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  indexes {
+    conversation_id [unique, name: 'leads_conversation_id_key']
+    (stage, created_at) [name: 'leads_stage_created_at_idx']
+  }
+  checks {
+    `stage IN ('novo', 'qualificado', 'em_atendimento', 'ganho', 'perdido')` [name: 'leads_stage_check']
+  }
+  Note: '''
+  MIGRAÇÃO IMPLEMENTADA no MVP; ainda não aplicada ao banco principal nesta entrega. PK leads_pkey.
+  FK composta (conversation_id, contact_id) referencia conversations.(id, contact_id).
+  ÍNDICE ÚNICO PARCIAL, somente anotado: leads_one_open_per_contact_idx
+  ON (contact_id) WHERE stage IN ('novo', 'qualificado', 'em_atendimento').
+  No máximo um lead aberto por contato e um por conversa.
+  Campos de extração, atribuição e ordenação manual permanecem futuros.
+  '''
+}
+
 // FKs implementadas: cada constraint aparece exatamente uma vez.
 // Todas mantêm ON DELETE RESTRICT; ON UPDATE usa NO ACTION padrão do PostgreSQL.
 Ref conversations_contact_id_fkey: conversations.contact_id > contacts.id [delete: restrict]
 Ref messages_conversation_id_fkey: messages.conversation_id > conversations.id [delete: restrict]
+Ref leads_conversation_contact_fkey: leads.(conversation_id, contact_id) > conversations.(id, contact_id) [delete: restrict]
 Ref jobs_message_id_fkey: jobs.message_id > messages.id [delete: restrict]
 Ref response_plans_source_message_conversation_fkey: response_plans.(source_message_id, conversation_id) > messages.(id, conversation_id) [delete: restrict]
 Ref response_plans_source_job_message_fkey: response_plans.(source_job_id, source_message_id) > jobs.(id, message_id) [delete: restrict]
@@ -448,34 +473,6 @@ Table users {
   Note: 'PLANEJADA, sem migração. Atendentes do painel; demais colunas e vínculos ainda dependem da entrega própria.'
 }
 
-Table leads {
-  id uuid [pk]
-  conversation_id uuid [not null, unique]
-  contact_id uuid [not null]
-  stage lead_stage [not null, default: 'novo']
-  needs_review boolean [not null, default: false, note: 'Indicador Revisar (fallback humano)']
-  intent varchar
-  service_interest varchar
-  desired_timeframe text [note: 'Prazo desejado pelo contato; não representa urgência clínica (D15)']
-  summary text
-  confidence numeric(3,2)
-  extracted_data jsonb [note: 'Campos extras que variam por negócio']
-  assigned_user_id uuid
-  position numeric [not null, default: 0, note: 'Ordem do card dentro da coluna']
-  created_at timestamptz [not null, default: `now()`]
-  updated_at timestamptz [not null, default: `now()`]
-
-  indexes {
-    (stage, position)
-  }
-
-  Note: '''
-  PLANEJADA, sem migração. Estágio comercial do funil; um lead por conversa.
-  D16: no máximo um lead aberto por contato; encerrados permanecem no histórico.
-  A unicidade parcial por contact_id para os estágios abertos também é proposta futura, não índice implementado.
-  '''
-}
-
 Table ai_extractions {
   id uuid [pk]
   conversation_id uuid [not null]
@@ -505,9 +502,6 @@ Table lead_events {
 
 // Relacionamentos somente propostos: NÃO são constraints PostgreSQL existentes.
 // Em refs 1:1, a coluna da direita é a FK; leads.conversation_id é a origem.
-Ref: conversations.id - leads.conversation_id
-Ref: leads.contact_id > contacts.id
-Ref: leads.assigned_user_id > users.id
 Ref: ai_extractions.conversation_id > conversations.id
 Ref: ai_extractions.lead_id > leads.id
 Ref: lead_events.lead_id > leads.id
@@ -520,12 +514,12 @@ TableGroup implementadas_no_postgresql {
   jobs
   response_plans
   response_blocks
+  leads
 }
 
 TableGroup propostas_futuras_sem_migracao {
   business_profile
   users
-  leads
   ai_extractions
   lead_events
 }
