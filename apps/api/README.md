@@ -120,3 +120,11 @@ Passaram tipos, compilação e 78 registros sem banco, incluindo 16 testes novos
 A regra usa o menu configurado, diferencia texto livre de escolha numérica e preserva silêncio nos estados humanos e encerrados. Em `qualificando`, retorna adiamento para não iniciar outra extração ou propor o descarte da mensagem. O tratamento desse adiamento e a fonte persistida do controle de abertura ficam para a integração com o executor.
 
 Passaram tipos, compilação e 93 registros sem banco, incluindo 15 testes novos. Não houve dependências novas, acesso ao PostgreSQL ou Docker; os testes PostgreSQL inalterados não foram repetidos. A função ainda não está ligada ao webhook, à composição principal ou ao worker. O [guia da etapa 4.15](../../docs/23-etapa-4-decisao-de-processamento.md) contém a matriz de regras, os limites e a ordem de revisão.
+
+## Composição de mensagens e expediente — etapa 4.16
+
+`modules/business-profile/application/is-business-open.ts` verifica as faixas para um instante explícito no fuso do perfil, incluindo o início e excluindo o fim. `modules/messaging/application/compose-message-response.ts` transforma a decisão e o perfil em uma lista ordenada de textos. Compõe nome/saudação, menu, serviços, preços, horários e perguntas; somente a abertura fora do expediente inclui o aviso com horários.
+
+As funções não consultam o relógio ou a infraestrutura e preservam as entradas. Dias sem faixas aparecem fechados. Preços nulos permanecem não informados; a formatação preserva centavos em todo o intervalo de inteiros seguros do contrato. Recepções, qualificações, silêncio e adiamento não produzem texto adicional.
+
+Passaram tipos, compilação e 115 registros sem banco, com 22 testes novos. Nenhuma dependência, credencial ou migração mudou; não houve acesso ao PostgreSQL ou Docker. Os testes PostgreSQL inalterados não foram repetidos. Não há ligação com webhook/worker ou envio de mensagens. O [guia da etapa 4.16](../../docs/24-etapa-4-composicao-de-mensagens.md) apresenta as regras de expediente, os limites da composição e a ordem de revisão.

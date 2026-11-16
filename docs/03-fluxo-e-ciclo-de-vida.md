@@ -14,6 +14,8 @@ A etapa 4.12 acrescenta a operação interna de recuperação por lote: reservas
 
 A etapa 4.15 implementa a decisão pura para uma mensagem recebida: abertura explicitamente pendente, opções do menu configurado, solicitação de qualificação, encaminhamento à recepção, silêncio e adiamento durante qualificação em andamento. Retorna intenções e estados propostos, sem executar as transições ou efeitos do diagrama. O [documento 23](23-etapa-4-decisao-de-processamento.md) apresenta as regras e os controles ainda necessários antes do worker.
 
+A etapa 4.16 compõe os textos dessas intenções com os dados do perfil e verifica o expediente para um instante explícito. Retorna uma lista ordenada de textos; envio, controle persistido da abertura e execução das transições continuam pendentes. O [documento 24](24-etapa-4-composicao-de-mensagens.md) apresenta o fluxo de revisão.
+
 ```mermaid
 flowchart TD
     A["Provedor WhatsApp ou simulador"] --> B["Webhook recebe a requisição"]
@@ -153,6 +155,8 @@ Ao iniciar uma conversa fora do expediente, o bot envia o aviso configurado com 
 O aviso faz parte da abertura, sem repetição a cada mensagem. O restante do fluxo permanece igual: as opções 1 e 2 permitem qualificação pela IA; a opção 3 encaminha diretamente à recepção. Os leads ficam disponíveis no painel para o atendimento humano, sem promessa de resposta imediata.
 
 Conversas em **Aguardando humano** ou **Em atendimento humano** continuam com o bot em silêncio, inclusive fora do expediente. A chegada do horário de abertura não altera automaticamente o estado nem atribui um atendente.
+
+A regra isolada da etapa 4.16 considera início incluído e fim excluído: por exemplo, 08:00–12:00 atende às 08:00 e já está fechado às 12:00. O cálculo interpreta dia e hora no fuso do perfil. Dias sem faixas e semana vazia representam fechado; feriados e exceções por data ainda não são configurados. O compositor apresenta horários junto do aviso na abertura; não repete o aviso em respostas de menu, serviços ou valores. A escolha do instante de referência para execução real permanece pendente.
 
 ## 8. Inatividade do cliente
 

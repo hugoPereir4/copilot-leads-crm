@@ -191,6 +191,8 @@ O Kanban principal mostra apenas leads em **Novo**, **Qualificado** e **Em atend
 
 O aviso e os horários são configuração, sem geração de texto pela IA. O aviso integra a abertura da conversa; não é reenviado a cada mensagem. Não cria um estado adicional nem autoriza mensagens automáticas nos estados **Aguardando humano** e **Em atendimento humano**, que continuam em silêncio.
 
+**Implementação isolada — etapa 4.16:** a aplicação verifica o expediente para um instante fornecido explicitamente, no fuso configurado, com início incluído e fim excluído em cada faixa. O compositor monta o aviso e os horários apenas para a intenção de abertura, sem enviar mensagens. Dias ausentes representam fechado; feriados e exceções por data continuam fora do contrato. A escolha do instante de referência em produção e o controle de envio único permanecem para a integração com o executor. O [documento 24](24-etapa-4-composicao-de-mensagens.md) detalha as regras e os testes.
+
 **Por quê:** permite organizar solicitações fora do expediente e informar quando a clínica atende, mantendo o mesmo fluxo de qualificação. O menu e a IA não dependem da presença de um atendente.
 
 **Trade-off:** o bot não garante disponibilidade da equipe nem resposta imediata. O atendimento humano depende da recepção, e a mudança de horário por si só não assume ou encerra a conversa.

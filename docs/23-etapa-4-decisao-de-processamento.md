@@ -4,7 +4,7 @@ Preparada em 13/11/2026 na branch `feat/message-processing-decision`, sobre a et
 
 **Validação executada:** `npm run check` passou em tipos, compilação e **93 registros sem banco**, com zero falhas, cancelamentos ou ignorados. São 15 testes novos. A suíte PostgreSQL não foi repetida, pois nenhum caminho de persistência ou script de integração mudou; o último resultado é de 111 registros na etapa 4.13.
 
-Não houve acesso ao PostgreSQL, uso do Docker, instalação de dependências, migrações ou alterações de credenciais. A entrega fica local para revisão, sem commit ou push.
+Não houve acesso ao PostgreSQL, uso do Docker, instalação de dependências, migrações ou alterações de credenciais. Após autorização, os commits `126fe03` e `2d0b232` foram enviados para `origin/feat/message-processing-decision`, com upstream e sincronização conferidos. Os testes não foram repetidos durante os commits. Não houve merge ou PR; a revisão técnica permanece em paralelo.
 
 ## 1. Objetivo e arquitetura
 
@@ -116,3 +116,5 @@ Não é necessário iniciar a API, Docker ou PostgreSQL, nem executar migraçõe
 ## 7. Próxima parte
 
 Preparar a composição dos textos predefinidos com o perfil e o cálculo do expediente no fuso configurado. Depois, definir persistência da abertura, ordenação por conversa, adiamento e idempotência antes de conectar as decisões à execução real. A revisão em paralelo pode trazer ajustes às entregas anteriores ou a esta.
+
+A composição e a regra de expediente estão preparadas na etapa 4.16, ainda sem envio ou execução desses efeitos. O [documento 24](24-etapa-4-composicao-de-mensagens.md) apresenta as regras e a ordem de revisão.

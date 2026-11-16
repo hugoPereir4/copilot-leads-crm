@@ -144,6 +144,8 @@ Pontos importantes:
 
 **Implementação inicial — etapa 4.14:** o módulo `business-profile` define schema Zod estrito e tipo derivado, porta `BusinessProfileReader` e caso de uso `loadBusinessProfile`. `JsonBusinessProfileReader` lê e valida `apps/api/config/business-profile.json`; falhas são explícitas, sem fallback. Objetos com campos desconhecidos são rejeitados para detectar erros de edição. As mensagens são textos-base; o futuro compositor acrescentará opções, serviços, valores e horários estruturados, sem manter essas listas duplicadas no JSON. O [documento 22](22-etapa-4-perfil-do-negocio.md) apresenta as regras, os dados fictícios e o fluxo de revisão.
 
+**Composição — etapa 4.16:** `composeMessageResponse` recebe decisão, perfil validado e instante explícito, retornando `string[]` ordenado. Os blocos não contêm IDs de envio nem confirmação de efeitos. A abertura consulta `isBusinessOpen`, com início incluído e fim excluído no fuso do perfil. Preço nulo é apresentado como não informado; zero é exibido como zero, e centavos inteiros seguros são preservados. As intenções de recepção, qualificação, silêncio e adiamento retornam lista vazia, sem cancelar seus efeitos futuros. Não há mudança no schema do perfil ou nos contratos públicos de `shared`. O [documento 24](24-etapa-4-composicao-de-mensagens.md) detalha a apresentação e os limites.
+
 ## 7. Contratos da API do painel
 
 | Operação | Entrada | Saída |

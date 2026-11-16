@@ -32,7 +32,9 @@ A etapa 4.13 foi enviada para revisão na branch `feat/message-processing-contex
 
 A etapa 4.14 foi enviada para revisão na branch `feat/business-profile`: perfil fictício em JSON versionado, contrato Zod, porta de leitura e implementação de arquivo. O perfil inclui serviços, valores, horários, menu e textos-base. `npm run check` passou em tipos, compilação e 78 registros sem banco. Não houve acesso ao PostgreSQL ou instalação de dependências. O [documento 22](docs/22-etapa-4-perfil-do-negocio.md) apresenta a ordem de revisão e os limites desta entrega.
 
-A etapa 4.15 está preparada para revisão na branch `feat/message-processing-decision`: decisão pura por estado, com abertura explícita, menu configurável, intenção de encaminhamento/qualificação e silêncio ou adiamento conforme o contexto. Passaram tipos, compilação e 93 registros sem banco. A decisão ainda não executa efeitos ou chama IA. O [documento 23](docs/23-etapa-4-decisao-de-processamento.md) apresenta o fluxo de revisão.
+A etapa 4.15 foi enviada para revisão na branch `feat/message-processing-decision`: decisão pura por estado, com abertura explícita, menu configurável, intenção de encaminhamento/qualificação e silêncio ou adiamento conforme o contexto. Passaram tipos, compilação e 93 registros sem banco. A decisão ainda não executa efeitos ou chama IA. O [documento 23](docs/23-etapa-4-decisao-de-processamento.md) apresenta o fluxo de revisão.
+
+A etapa 4.16 está preparada para revisão na branch `feat/message-composition`: composição dos textos predefinidos com o perfil e verificação de expediente no fuso configurado, para um instante explícito. Passaram tipos, compilação e 115 registros sem banco. Não há envio de respostas ou execução do worker. O [documento 24](docs/24-etapa-4-composicao-de-mensagens.md) apresenta as regras e o fluxo de revisão.
 
 ## Ambiente
 
@@ -76,6 +78,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Composição e expediente](docs/24-etapa-4-composicao-de-mensagens.md): etapa 4.16, textos do perfil, preços e cálculo de horários com instante explícito.
 - [Decisão por estado](docs/23-etapa-4-decisao-de-processamento.md): etapa 4.15, intenções, abertura explícita e limites para a execução futura.
 - [Perfil do negócio](docs/22-etapa-4-perfil-do-negocio.md): etapa 4.14, configuração JSON, validação e porta de leitura.
 - [Contexto da mensagem](docs/21-etapa-4-contexto-da-mensagem.md): etapa 4.13, leitura por vínculo original, schema e limites de concorrência.
