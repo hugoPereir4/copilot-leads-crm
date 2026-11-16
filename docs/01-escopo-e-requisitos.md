@@ -10,7 +10,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 
 **Estratégia atual — fluxos completos:** priorizar funcionalidades demonstráveis que integrem os componentes existentes, mantendo as garantias críticas e testes direcionados durante o desenvolvimento. Executar a suíte completa nos marcos da entrega; adiar abstrações opcionais e documentação extensa. Não há mudança nos requisitos finais abaixo.
 
-**Primeiro MVP demonstrável:** simulador visual → webhook → processamento de jobs → menu e respostas predefinidas persistidas → lead Novo → painel de leitura e botão WhatsApp. IA desabilitada, com marcação Revisar quando a solicitação exigiria qualificação. Login, qualificação real, movimentação/assunção/encerramento e atualização por SSE continuam pendentes para completar a V1. O [guia da entrega](29-mvp-fluxo-simulador.md) distingue implementação e pendências.
+**MVP demonstrável:** simulador visual → webhook → processamento de jobs → menu e respostas predefinidas persistidas → lead Novo → painel e botão WhatsApp. A entrega de [assunção humana](30-assuncao-de-atendimento-humano.md) acrescenta a ação de assumir, movendo o lead para Em atendimento e mantendo o bot silencioso. Atende RF12 no simulador e parte de RF09: movimentação restrita por ação, sem arrastar cards. IA desabilitada, com marcação Revisar quando a solicitação exigiria qualificação. Login, qualificação real, demais movimentações, encerramento e atualização por SSE continuam pendentes para completar a V1. O [guia do primeiro fluxo](29-mvp-fluxo-simulador.md) preserva o registro da entrega inicial.
 
 ## 2. Decisões já tomadas
 

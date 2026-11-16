@@ -6,6 +6,8 @@ O backend seguirá um monólito modular. O código está organizado em um monore
 
 ## Estado atual
 
+A entrega mais recente, `feat/human-handoff`, acrescenta **Assumir atendimento** ao painel da UI Sálvia & Esmeralda. O comando muda lead e conversa juntos, cancela respostas pendentes e mantém o bot silencioso. Não exige nova migração nem identifica um funcionário autenticado. O [guia de assunção](docs/30-assuncao-de-atendimento-humano.md) reúne os arquivos para revisão e os testes manuais. Os parágrafos seguintes registram as entregas anteriores.
+
 A entrega atual integra um **MVP local demonstrável**, na branch `feat/simulator-demo-flow`: webhook → job → decisão → plano → resposta simulada persistida → lead → painel. Há simulador visual em `/simulator` e painel de leitura em `/admin`, iniciados por `npm run start:demo`. **A IA permanece desabilitada**: pedidos que exigiriam qualificação criam um lead Novo com indicação Revisar. Isso ainda não corresponde à V1 completa.
 
 O [guia do fluxo demonstrável](docs/29-mvp-fluxo-simulador.md) contém a preparação, os limites e a ordem de revisão. A nova migração de `leads` precisa ser revisada e aplicada pelo autor antes de iniciar a demonstração; não foi executada no banco principal durante o desenvolvimento. O histórico abaixo descreve as entregas anteriores.
