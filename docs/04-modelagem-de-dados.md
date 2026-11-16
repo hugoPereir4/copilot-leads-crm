@@ -187,50 +187,239 @@ Mover o lead para `ganho` ou `perdido` e encerrar sua conversa deve ocorrer na m
 
 ## 6. Código DBML (para colar no dbdiagram.io)
 
-Cole o bloco abaixo em https://dbdiagram.io/d para ver o diagrama.
+Atualizado em 16/11/2026. Copie **todo o bloco abaixo** para o [dbdiagram.io](https://dbdiagram.io/d).
+
+- **Implementadas no PostgreSQL:** `contacts`, `conversations`, `messages`, `jobs`, `response_plans` e `response_blocks`. As cinco migrações de `apps/api/migrations` são a fonte de verdade para colunas, tipos, defaults, chaves, índices e checks desse grupo.
+- **Propostas futuras, sem migração:** `business_profile`, `users`, `leads`, `ai_extractions` e `lead_events`. Seus campos e relacionamentos conceituais já documentados foram preservados em outro grupo, com notas explícitas. O perfil atual continua em JSON; `lead_events` é opcional na V1.
+- `conversations.assigned_user_id` é uma proposta futura e não aparece na tabela implementada nem como FK no diagrama. Não existe FK direta dos planos/blocos para `conversations`: o vínculo já é garantido pelas FKs compostas que passam por `messages` e pelo plano. Não foi acrescentada uma referência SQL fictícia.
+- O DBML representa nativamente as quatro FKs compostas, as chaves compostas e os `CHECK` nomeados. As expressões PostgreSQL dos checks permanecem na notação de expressão, e as notas explicam suas consequências; o parser DBML não executa essas validações. Os três índices únicos parciais ficam **somente em notas com nome e predicado**, pois não se deve transformar uma unicidade condicional em global.
+- Este bloco serve à visualização e contém propostas futuras; não deve ser exportado e aplicado como substituto das migrações. A tabela interna `pgmigrations`, mantida pelo migrador, fica fora do modelo de domínio.
+
+Sintaxe de referência: [DBML — checks, índices e FKs compostas](https://dbml.dbdiagram.io/docs/) e [grupos e notas](https://dbml.dbdiagram.io/syntax/enrichment-visualization/).
 
 ```dbml
-// Copiloto de Leads WhatsApp - Modelagem de dados (v1)
+// Copiloto de Leads WhatsApp — estrutura implementada e propostas futuras.
+// Tabelas sem prefixo pertencem ao schema public.
+// Fonte de verdade do grupo implementado: cinco migrações SQL, etapas 4.3–4.18.
+// Os grupos abaixo são apenas visuais; não criam schemas ou tabelas adicionais.
 
-Enum conversation_status {
-  aguardando_menu
-  aguardando_detalhes
-  qualificando
-  aguardando_humano
-  em_atendimento_humano
-  encerrada
+Project copiloto_leads_whatsapp {
+  database_type: 'PostgreSQL'
+  Note: '''
+  IMPLEMENTADAS: contacts, conversations, messages, jobs, response_plans, response_blocks.
+  PLANEJADAS: business_profile, users, leads, ai_extractions, lead_events.
+  Os índices únicos parciais estão descritos nas notas, sem índices globais substitutos.
+  Checks são expressões PostgreSQL; DBML não os executa.
+  As quatro FKs compostas são declaradas uma vez, sem refs simples duplicadas.
+  Não usar este diagrama misto para migrar o banco.
+  '''
 }
 
+// ==================== IMPLEMENTADAS NO POSTGRESQL ====================
+
+Table contacts {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  phone text [not null]
+  display_name text
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    phone [unique, name: 'contacts_phone_key']
+  }
+
+  checks {
+    `phone ~ '^[+][1-9][0-9]{1,14}$'` [name: 'contacts_phone_format_check']
+  }
+
+  Note: 'IMPLEMENTADA — etapa 4.3. PK contacts_pkey. CHECK: + seguido de 2 a 15 dígitos, sem zero inicial; não prova que o telefone existe.'
+}
+
+Table conversations {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  contact_id uuid [not null]
+  status text [not null, default: 'aguardando_menu']
+  last_message_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  closed_at timestamptz
+
+  indexes {
+    (contact_id, status) [name: 'conversations_contact_status_idx']
+  }
+
+  checks {
+    `status IN ('aguardando_menu', 'aguardando_detalhes', 'qualificando', 'aguardando_humano', 'em_atendimento_humano', 'encerrada')` [name: 'conversations_status_check']
+    `(status = 'encerrada' AND closed_at IS NOT NULL) OR (status <> 'encerrada' AND closed_at IS NULL)` [name: 'conversations_closed_at_status_check']
+  }
+
+  Note: '''
+  IMPLEMENTADA — etapa 4.4. PK conversations_pkey. Estado é text com CHECK, não enum nativo.
+  ÍNDICE ÚNICO PARCIAL, somente anotado: conversations_one_open_per_contact_idx
+  ON (contact_id) WHERE status <> 'encerrada'. Garante no máximo uma conversa aberta por contato.
+  CHECK: closed_at obrigatório em encerrada e nulo nos demais estados.
+  assigned_user_id e a FK para users são futuros; não integram esta tabela.
+  '''
+}
+
+Table messages {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  conversation_id uuid [not null]
+  provider text [not null, note: 'Provedor; não vazio após btrim']
+  external_id text [not null, note: 'ID no provedor; não vazio após btrim']
+  direction text [not null]
+  sender_type text [not null]
+  kind text [not null]
+  body text
+  raw_payload jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (provider, external_id) [unique, name: 'messages_provider_external_id_key']
+    (conversation_id, created_at) [name: 'messages_conversation_created_at_idx']
+    (id, conversation_id) [unique, name: 'messages_id_conversation_id_key']
+  }
+
+  checks {
+    `btrim(provider) <> ''` [name: 'messages_provider_not_blank_check']
+    `btrim(external_id) <> ''` [name: 'messages_external_id_not_blank_check']
+    `direction IN ('entrada', 'saida')` [name: 'messages_direction_check']
+    `sender_type IN ('contato', 'bot', 'atendente')` [name: 'messages_sender_type_check']
+    `kind IN ('texto', 'audio', 'outro')` [name: 'messages_kind_check']
+  }
+
+  Note: '''
+  IMPLEMENTADA — etapa 4.5, com chave de apoio acrescentada na 4.18. PK messages_pkey.
+  Direção, remetente e tipo são text com CHECK. created_at registra a persistência, não o horário do provedor.
+  UNIQUE (id, conversation_id) apoia as FKs compostas da origem e da confirmação dos blocos.
+  '''
+}
+
+Table jobs {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  type text [not null, note: 'Ex.: processar_mensagem; não vazio após btrim']
+  message_id uuid [not null]
+  status text [not null, default: 'pendente']
+  attempts integer [not null, default: 0]
+  max_attempts integer [not null, default: 3]
+  run_at timestamptz [not null, default: `now()`]
+  locked_at timestamptz
+  last_error text
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (type, message_id) [unique, name: 'jobs_type_message_id_key']
+    (status, run_at) [name: 'jobs_status_run_at_idx']
+    (id, message_id) [unique, name: 'jobs_id_message_id_key']
+  }
+
+  checks {
+    `btrim(type) <> ''` [name: 'jobs_type_not_blank_check']
+    `status IN ('pendente', 'processando', 'concluido', 'falhou')` [name: 'jobs_status_check']
+    `max_attempts > 0` [name: 'jobs_max_attempts_check']
+    `attempts >= 0 AND attempts <= max_attempts` [name: 'jobs_attempts_check']
+    `(status = 'processando' AND locked_at IS NOT NULL) OR (status <> 'processando' AND locked_at IS NULL)` [name: 'jobs_locked_at_status_check']
+  }
+
+  Note: '''
+  IMPLEMENTADA — etapa 4.6, com chave de apoio acrescentada na 4.18. PK jobs_pkey.
+  Status é text com CHECK. locked_at existe apenas em processando e não é um lock de linha.
+  UNIQUE (type, message_id) mantém um job por tarefa/mensagem; UNIQUE (id, message_id) apoia a FK composta do plano.
+  '''
+}
+
+Table response_plans {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  conversation_id uuid [not null]
+  source_message_id uuid [not null]
+  source_job_id uuid [not null]
+  action text [not null]
+  expected_status text [not null]
+  next_status text [not null]
+  reference_at timestamptz [not null]
+  status text [not null, default: 'pendente']
+  created_at timestamptz [not null, default: `now()`]
+  finished_at timestamptz
+
+  indexes {
+    (id, conversation_id) [unique, name: 'response_plans_id_conversation_id_key']
+    source_message_id [unique, name: 'response_plans_source_message_id_key']
+  }
+
+  checks {
+    `expected_status = 'aguardando_menu'` [name: 'response_plans_expected_status_check']
+    `(action IN ('enviar_abertura', 'reapresentar_menu') AND next_status = 'aguardando_menu') OR (action IN ('informar_servicos', 'informar_valores_horarios') AND next_status = 'aguardando_detalhes')` [name: 'response_plans_action_next_status_check']
+    `status IN ('pendente', 'enviado', 'cancelado')` [name: 'response_plans_status_check']
+    `isfinite(reference_at) AND isfinite(created_at)` [name: 'response_plans_finite_dates_check']
+    `(status = 'pendente' AND finished_at IS NULL) OR (status <> 'pendente' AND finished_at IS NOT NULL)` [name: 'response_plans_finished_status_check']
+    `finished_at IS NULL OR (isfinite(finished_at) AND finished_at >= created_at)` [name: 'response_plans_finished_at_check']
+  }
+
+  Note: '''
+  IMPLEMENTADA — etapa 4.18. PK response_plans_pkey. Um plano por mensagem, inclusive enviado/cancelado.
+  ÍNDICES ÚNICOS PARCIAIS, somente anotados:
+  response_plans_opening_conversation_key ON (conversation_id) WHERE action = 'enviar_abertura'.
+  response_plans_pending_conversation_key ON (conversation_id) WHERE status = 'pendente'.
+  Abertura permanece única após envio/cancelamento; no máximo um plano pendente por conversa.
+  FKs COMPOSTAS, declaradas abaixo: (source_message_id, conversation_id) referencia messages;
+  (source_job_id, source_message_id) referencia jobs. Conferem também a correspondência das origens.
+  A conversa é vinculada por messages; não há FK direta para conversations.
+  CHECKs ligam ação/próximo estado e status/data de término; datas devem ser finitas e término não anterior à criação.
+  Não há CHECK entre linhas que exija blocos ou que confira todos os blocos ao terminar o plano.
+  '''
+}
+
+Table response_blocks {
+  plan_id uuid [not null]
+  conversation_id uuid [not null]
+  position integer [not null]
+  text text [not null]
+  status text [not null, default: 'pendente']
+  sent_message_id uuid
+  sent_at timestamptz
+
+  indexes {
+    (plan_id, position) [pk, name: 'response_blocks_pkey']
+    sent_message_id [unique, name: 'response_blocks_sent_message_id_key']
+  }
+
+  checks {
+    `position > 0` [name: 'response_blocks_position_check']
+    `text ~ '[^[:space:]]'` [name: 'response_blocks_text_not_blank_check']
+    `status IN ('pendente', 'enviado', 'cancelado')` [name: 'response_blocks_status_check']
+    `(status = 'enviado' AND sent_message_id IS NOT NULL AND sent_at IS NOT NULL) OR (status <> 'enviado' AND sent_message_id IS NULL AND sent_at IS NULL)` [name: 'response_blocks_sent_status_check']
+    `sent_at IS NULL OR isfinite(sent_at)` [name: 'response_blocks_sent_at_check']
+  }
+
+  Note: '''
+  IMPLEMENTADA — etapa 4.18. Não possui coluna id: a PK é (plan_id, position).
+  FKs COMPOSTAS, declaradas abaixo: (plan_id, conversation_id) referencia response_plans;
+  (sent_message_id, conversation_id) referencia messages e impede confirmação em outra conversa.
+  A FK opcional de confirmação usa MATCH SIMPLE padrão: sent_message_id nulo não exige correspondência.
+  UNIQUE (sent_message_id) permite vários NULLs; uma mensagem confirmada não pode ser usada em dois blocos.
+  CHECKs: posição positiva, texto com caractere fora de espaços POSIX e data finita quando informada.
+  Enviado exige mensagem/data; pendente e cancelado exigem ambas nulas.
+  Contiguidade 1…N, ordem de envio e direção/remetente da mensagem confirmada não são garantidos por esses CHECKs.
+  '''
+}
+
+// FKs implementadas: cada constraint aparece exatamente uma vez.
+// Todas mantêm ON DELETE RESTRICT; ON UPDATE usa NO ACTION padrão do PostgreSQL.
+Ref conversations_contact_id_fkey: conversations.contact_id > contacts.id [delete: restrict]
+Ref messages_conversation_id_fkey: messages.conversation_id > conversations.id [delete: restrict]
+Ref jobs_message_id_fkey: jobs.message_id > messages.id [delete: restrict]
+Ref response_plans_source_message_conversation_fkey: response_plans.(source_message_id, conversation_id) > messages.(id, conversation_id) [delete: restrict]
+Ref response_plans_source_job_message_fkey: response_plans.(source_job_id, source_message_id) > jobs.(id, message_id) [delete: restrict]
+Ref response_blocks_plan_conversation_fkey: response_blocks.(plan_id, conversation_id) > response_plans.(id, conversation_id) [delete: restrict]
+Ref response_blocks_sent_message_conversation_fkey: response_blocks.(sent_message_id, conversation_id) > messages.(id, conversation_id) [delete: restrict]
+
+// ==================== PROPOSTAS FUTURAS — SEM MIGRAÇÃO ====================
+// Mantêm os campos/índices conceituais já documentados; não descrevem tabelas existentes.
+// lead_stage é apenas enum conceitual da proposta, sem enum PostgreSQL criado.
 Enum lead_stage {
   novo
   qualificado
   em_atendimento
   ganho
   perdido
-}
-
-Enum message_direction {
-  entrada
-  saida
-}
-
-Enum sender_type {
-  contato
-  bot
-  atendente
-}
-
-Enum message_kind {
-  texto
-  audio
-  outro
-}
-
-Enum job_status {
-  pendente
-  processando
-  concluido
-  falhou
 }
 
 Table business_profile {
@@ -244,7 +433,7 @@ Table business_profile {
   messages jsonb [note: 'Textos pré-definidos: saudação, menu, opção inválida']
   created_at timestamptz [not null, default: `now()`]
 
-  Note: 'Uma linha na v1 (single-tenant). Configuração do negócio como dados.'
+  Note: 'PLANEJADA, sem migração. Perfil único na V1. A implementação atual usa config/business-profile.json, não esta tabela.'
 }
 
 Table users {
@@ -254,50 +443,7 @@ Table users {
   password_hash varchar [not null]
   created_at timestamptz [not null, default: `now()`]
 
-  Note: 'Atendentes do painel'
-}
-
-Table contacts {
-  id uuid [pk, default: `gen_random_uuid()`]
-  phone text [not null, unique, note: '+ seguido de 2 a 15 dígitos, sem zero inicial; CHECK na migração SQL']
-  display_name text
-  created_at timestamptz [not null, default: `now()`]
-}
-
-Table conversations {
-  id uuid [pk, default: `gen_random_uuid()`]
-  contact_id uuid [not null]
-  status conversation_status [not null, default: 'aguardando_menu', note: 'Enum conceitual; proposta SQL 4.4 usa text com CHECK']
-  assigned_user_id uuid [note: 'Planejado para a entrega de users; ausente na migração 4.4']
-  last_message_at timestamptz
-  created_at timestamptz [not null, default: `now()`]
-  closed_at timestamptz
-
-  indexes {
-    (contact_id, status)
-  }
-
-  Note: 'Proposta 4.4 em revisão. D16: no máximo uma aberta por contato; índice parcial e coerência de closed_at definidos no SQL. assigned_user_id é futuro.'
-}
-
-Table messages {
-  id uuid [pk, default: `gen_random_uuid()`]
-  conversation_id uuid [not null]
-  provider varchar [not null, note: 'Ex.: simulador, evolution']
-  external_id varchar [not null, note: 'ID da mensagem no provedor']
-  direction message_direction [not null]
-  sender_type sender_type [not null]
-  kind message_kind [not null, note: 'Etapa 4.5 usa text com CHECK para tipo, direção e remetente']
-  body text
-  raw_payload jsonb
-  created_at timestamptz [not null, default: `now()`]
-
-  indexes {
-    (provider, external_id) [unique, note: 'Garante a idempotência']
-    (conversation_id, created_at)
-  }
-
-  Note: 'Etapa 4.5 em revisão. FK com ON DELETE RESTRICT; provider e external_id não vazios após btrim. created_at registra a persistência, não o horário do provedor.'
+  Note: 'PLANEJADA, sem migração. Atendentes do painel; demais colunas e vínculos ainda dependem da entrega própria.'
 }
 
 Table leads {
@@ -308,7 +454,7 @@ Table leads {
   needs_review boolean [not null, default: false, note: 'Indicador Revisar (fallback humano)']
   intent varchar
   service_interest varchar
-  desired_timeframe text [note: 'Prazo desejado informado pelo contato; não representa urgência clínica (D15)']
+  desired_timeframe text [note: 'Prazo desejado pelo contato; não representa urgência clínica (D15)']
   summary text
   confidence numeric(3,2)
   extracted_data jsonb [note: 'Campos extras que variam por negócio']
@@ -321,7 +467,11 @@ Table leads {
     (stage, position)
   }
 
-  Note: 'Estágio comercial do funil. D16: no máximo um lead aberto por contato; encerrados ficam no histórico e no filtro de encerrados.'
+  Note: '''
+  PLANEJADA, sem migração. Estágio comercial do funil; um lead por conversa.
+  D16: no máximo um lead aberto por contato; encerrados permanecem no histórico.
+  A unicidade parcial por contact_id para os estágios abertos também é proposta futura, não índice implementado.
+  '''
 }
 
 Table ai_extractions {
@@ -336,27 +486,7 @@ Table ai_extractions {
   latency_ms integer
   created_at timestamptz [not null, default: `now()`]
 
-  Note: 'Auditoria de cada chamada à IA'
-}
-
-Table jobs {
-  id uuid [pk, default: `gen_random_uuid()`]
-  type text [not null, note: 'Ex.: processar_mensagem; não vazio após btrim']
-  message_id uuid [not null]
-  status job_status [not null, default: 'pendente', note: 'SQL 4.6 usa text com CHECK']
-  attempts integer [not null, default: 0, note: 'Entre zero e max_attempts']
-  max_attempts integer [not null, default: 3, note: 'Positivo; total de tentativas']
-  run_at timestamptz [not null, default: `now()`]
-  locked_at timestamptz
-  last_error text
-  created_at timestamptz [not null, default: `now()`]
-
-  indexes {
-    (status, run_at)
-    (type, message_id) [unique]
-  }
-
-  Note: 'Etapa 4.6 em revisão. FK com ON DELETE RESTRICT. locked_at preenchido apenas em processando. Worker e gravação conjunta com mensagem ainda pendentes (D4).'
+  Note: 'PLANEJADA, sem migração. Auditoria das chamadas à IA; nenhuma tabela de extração foi criada.'
 }
 
 Table lead_events {
@@ -368,18 +498,33 @@ Table lead_events {
   to_stage lead_stage
   created_at timestamptz [not null, default: `now()`]
 
-  Note: 'Opcional na v1: histórico de mudanças do lead'
+  Note: 'PLANEJADA, sem migração e opcional na V1. Histórico de mudanças do lead.'
 }
 
-Ref: conversations.contact_id > contacts.id
-Ref: conversations.assigned_user_id > users.id
-Ref: messages.conversation_id > conversations.id
-Ref: leads.conversation_id - conversations.id
+// Relacionamentos somente propostos: NÃO são constraints PostgreSQL existentes.
+// Em refs 1:1, a coluna da direita é a FK; leads.conversation_id é a origem.
+Ref: conversations.id - leads.conversation_id
 Ref: leads.contact_id > contacts.id
 Ref: leads.assigned_user_id > users.id
 Ref: ai_extractions.conversation_id > conversations.id
 Ref: ai_extractions.lead_id > leads.id
-Ref: jobs.message_id > messages.id
 Ref: lead_events.lead_id > leads.id
 Ref: lead_events.user_id > users.id
+
+TableGroup implementadas_no_postgresql {
+  contacts
+  conversations
+  messages
+  jobs
+  response_plans
+  response_blocks
+}
+
+TableGroup propostas_futuras_sem_migracao {
+  business_profile
+  users
+  leads
+  ai_extractions
+  lead_events
+}
 ```
