@@ -1,4 +1,4 @@
-import type { DemoConversation, DemoMessage } from "@copilot-leads/shared";
+import type { DemoConversation, DemoMessage, HumanHandoffReceipt } from "@copilot-leads/shared";
 
 function element<T extends HTMLElement>(id: string) { return document.getElementById(id) as T; }
 const admin = location.pathname === "/admin";
@@ -10,11 +10,16 @@ const conversation = element<HTMLSelectElement>("conversation"), history = eleme
 const status = element("status"), sendButton = element<HTMLButtonElement>("send"), resend = element<HTMLButtonElement>("resend");
 const themeToggle = element<HTMLButtonElement>("theme-toggle"), themeLabel = element("theme-label");
 let selected = "", lastHistory = "", lastBoard = "";
+const assuming = new Set<string>();
+let boardRevision = 0;
 let previous: { id: string; from: string; fromMe: false; type: "text"; body: string; timestamp: string } | undefined;
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
-  if (!response.ok) throw new Error(`Falha HTTP ${response.status}. Confira a API e tente novamente.`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => null) as { message?: unknown } | null;
+    throw new Error(typeof error?.message === "string" ? error.message : `Falha HTTP ${response.status}. Confira a API e tente novamente.`);
+  }
   return response.json() as Promise<T>;
 }
 function report(text: string, error = false) {
@@ -66,6 +71,27 @@ resend.addEventListener("click", () => { if (previous) void submit(previous); })
 conversation.addEventListener("change", () => { selected = conversation.value; lastHistory = ""; });
 phone.addEventListener("change", () => { selected = ""; lastHistory = ""; });
 
+async function assumeAttendance(leadId: string, button: HTMLButtonElement) {
+  if (assuming.has(leadId)) return;
+  assuming.add(leadId); button.disabled = true; button.textContent = "Assumindo…";
+  const feedback = element("handoff-status"); feedback.setAttribute("role", "status");
+  feedback.textContent = "Solicitando atendimento humano…";
+  try {
+    await request<HumanHandoffReceipt>(`/api/demo/leads/${encodeURIComponent(leadId)}/assume`, { method: "POST" });
+    boardRevision++;
+    feedback.textContent = "Atendimento assumido. O bot permanecerá silencioso.";
+    // Só apresentar a nova etapa após confirmação da transação.
+    const rows = await request<DemoConversation[]>("/api/demo/conversations");
+    renderBoard(rows); lastBoard = JSON.stringify(rows);
+  } catch (error) {
+    feedback.setAttribute("role", "alert");
+    feedback.textContent = error instanceof Error ? error.message : "Não foi possível assumir o atendimento.";
+  } finally {
+    assuming.delete(leadId); button.disabled = false; button.textContent = "Assumir atendimento";
+    lastBoard = ""; // Atualizar inclusive após conflito com outro painel ou falha de rede.
+  }
+}
+
 function renderBoard(rows: DemoConversation[]) {
   const board = element("board"); board.replaceChildren();
   for (const [stage, label] of [["novo", "Novo"], ["qualificado", "Qualificado"], ["em_atendimento", "Em atendimento"]]) {
@@ -95,7 +121,19 @@ function renderBoard(rows: DemoConversation[]) {
       details.textContent = row.lead?.summary ?? "Pedido direto à recepção. Aguardando atendimento humano.";
       const link = document.createElement("a"); link.className = "whatsapp-link"; link.textContent = "Abrir no WhatsApp";
       link.href = `https://wa.me/${row.phone.replace(/\D/g, "")}`; link.target = "_blank"; link.rel = "noopener noreferrer";
-      card.append(cardTop, details, link); cardList.append(card);
+      const actions = document.createElement("div"); actions.className = "lead-actions";
+      if (row.lead && ["novo", "qualificado"].includes(row.lead.stage)
+        && ["aguardando_menu", "aguardando_detalhes", "qualificando", "aguardando_humano"].includes(row.status)) {
+        const leadId = row.lead.id;
+        const assume = document.createElement("button"); assume.className = "button button-primary assume-button";
+        assume.type = "button"; assume.disabled = assuming.has(leadId);
+        assume.textContent = assume.disabled ? "Assumindo…" : "Assumir atendimento";
+        assume.setAttribute("aria-label", `Assumir atendimento de ${row.phone}`);
+        assume.onclick = () => { void assumeAttendance(leadId, assume); };
+        actions.append(assume);
+      }
+      actions.append(link);
+      card.append(cardTop, details, actions); cardList.append(card);
     }
     column.append(heading, cardList); board.append(column);
   }
@@ -104,7 +142,9 @@ async function refresh() {
   const board = element("board"), adminStatus = element("admin-status");
   board.setAttribute("aria-busy", "true");
   try {
+    const revision = boardRevision;
     const rows = await request<DemoConversation[]>("/api/demo/conversations");
+    if (revision !== boardRevision) return;
     if (!Array.isArray(rows)) throw new Error("Resposta inválida do painel.");
     if (!selected) selected = (admin ? rows[0] : rows.find((row) => row.phone === phone.value))?.id ?? "";
     const previousValue = selected;
@@ -118,7 +158,9 @@ async function refresh() {
     const boardVersion = JSON.stringify(rows);
     if (admin && boardVersion !== lastBoard) { renderBoard(rows); lastBoard = boardVersion; }
     if (selected) {
-      const messages = await request<DemoMessage[]>(`/api/demo/conversations/${encodeURIComponent(selected)}/messages`);
+      const historyConversation = selected;
+      const messages = await request<DemoMessage[]>(`/api/demo/conversations/${encodeURIComponent(historyConversation)}/messages`);
+      if (historyConversation !== selected) return; // Não mostrar histórico da seleção anterior.
       const version = JSON.stringify(messages);
       if (version !== lastHistory) {
         history.replaceChildren();

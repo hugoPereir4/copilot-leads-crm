@@ -6,7 +6,8 @@
   "exports": {},
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-styles.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test scripts/demo-ui.test.js"
   },
   "dependencies": {
     "@copilot-leads/shared": "0.0.0"

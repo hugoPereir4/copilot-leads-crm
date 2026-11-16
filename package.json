@@ -18,7 +18,7 @@
     "simulate:message": "npm run build --workspace=@copilot-leads/api && npm run simulate:message --workspace=@copilot-leads/api",
     "build": "npm run build --workspaces",
     "typecheck": "npm run build --workspace=@copilot-leads/shared && npm run typecheck --workspaces",
-    "check": "npm run typecheck && npm run build && npm run test --workspace=@copilot-leads/api",
+    "check": "npm run typecheck && npm run build && npm run test --workspace=@copilot-leads/api && npm run test --workspace=@copilot-leads/web",
     "test": "npm run build --workspace=@copilot-leads/api && npm run test --workspace=@copilot-leads/api",
     "test:integration": "npm run build && npm run test:integration --workspace=@copilot-leads/api",
     "db:check": "npm run build --workspace=@copilot-leads/api && npm run db:check --workspace=@copilot-leads/api",
