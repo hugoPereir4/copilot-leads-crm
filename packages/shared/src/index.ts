@@ -1,2 +1,1 @@
-// Os contratos públicos de API e eventos serão implementados nas próximas entregas.
-export {};
+export type { DemoConversation, DemoMessage } from "./demo.js";
