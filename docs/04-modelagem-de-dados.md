@@ -16,6 +16,8 @@ Modelo relacional mínimo para sustentar o fluxo do documento 3. Pensado para Po
 | leads | Solicitação ou oportunidade, qualificada ou encaminhada diretamente à recepção; aparece como card no Kanban | 1 lead : 1 conversa; N leads : 1 contato |
 | ai_extractions | Registro de cada chamada à IA, para auditoria e depuração | N extrações : 1 lead (ou conversa) |
 | jobs | Fila de processamento em tabela (D4) | Refere-se a uma mensagem |
+| response_plans (proposta 4.17) | Intenção durável de resposta, ainda sem migração | No máximo um plano por mensagem; abertura única por conversa |
+| response_blocks (proposta 4.17) | Textos e progresso de envio do plano, ainda sem migração | N blocos ordenados : 1 plano |
 | lead_events | Histórico de mudanças do lead (opcional na v1) | N eventos : 1 lead |
 
 ## 2. Campos por tabela
@@ -129,6 +131,14 @@ A etapa 4.11 acrescenta conclusão e registro de falha com updates condicionados
 A etapa 4.12 usa as colunas existentes para recuperar `processando` com `locked_at` expirado. A seleção limitada com `FOR UPDATE SKIP LOCKED` e o update pertencem à mesma instrução. Com saldo, muda para `pendente` e define `run_at` pelo relógio do banco; sem saldo, marca `falhou` preservando o agendamento. Ambos limpam `locked_at`, registram `processing_reservation_expired` e mantêm `attempts`. O prazo inicial é de 120 segundos, com lote de 100 no caso de uso. Nenhuma migração foi necessária. Execução periódica, consumo automático e idempotência dos efeitos continuam pendentes. O [documento 20](20-etapa-4-recuperacao-de-jobs.md) apresenta a ordem de revisão e os testes.
 
 A etapa 4.13 lê o contexto pelo ID de `messages`, seguindo `conversation_id` e depois `contact_id` em um único SELECT. Não escolhe a conversa aberta mais recente e não altera nenhuma tabela. `messages.body` e `contacts.display_name` preservam nulos; `messages.created_at` continua sendo a data de persistência, sem inferir a data de origem do provedor. O schema Zod valida a representação interna da leitura. Nenhuma mudança de estrutura foi necessária. O [documento 21](21-etapa-4-contexto-da-mensagem.md) detalha os campos e o comportamento concorrente.
+
+### Proposta 4.17: response_plans e response_blocks
+
+O primeiro recorte implementa somente o contrato do rascunho e a preparação pela aplicação. As tabelas ainda não existem. `response_plans` deverá vincular mensagem, conversa e job de origem, preservando ação, estado esperado/próximo, referência temporal e status do plano. `response_blocks` deverá guardar posição, texto congelado e progresso de cada bloco, com possível referência à mensagem de saída confirmada.
+
+A proposta exige unicidade da mensagem de origem, da abertura por conversa e de um plano pendente por conversa; posições são únicas dentro do plano. O vínculo mensagem/conversa e job/mensagem também precisa de proteção estrutural. Gravar plano e todos os blocos exige uma transação. A sequência completa dos blocos não será tratada como um `CHECK` simples entre linhas.
+
+Preparação não altera o estado da conversa ou confirma o envio. Abertura pendente, enviada e cancelada terão tratamentos distintos na futura orquestração. Cancelar não apaga o histórico ou autoriza segunda abertura automática. O [documento 25](25-etapa-4-contrato-do-plano-de-resposta.md) descreve os campos, as restrições propostas e as provas de concorrência/rollback ainda pendentes. Os diagramas gerais continuam sendo planejamento; nenhuma migração desse modelo foi criada.
 
 ### business_profile e users
 

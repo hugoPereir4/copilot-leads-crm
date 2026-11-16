@@ -98,6 +98,12 @@ O UUID consultado é o ID interno da mensagem. O contexto segue os vínculos ori
 
 Ausência retorna `undefined`; falhas rejeitam a Promise. Dados incompatíveis com o schema recebem erro genérico sem valores dos campos. A fotografia retornada não autoriza envios nem protege contra mudanças posteriores do estado. Esse contrato permanece interno ao backend, sem acréscimos em `packages/shared`. O [documento 21](21-etapa-4-contexto-da-mensagem.md) apresenta o fluxo de revisão.
 
+### Plano de resposta textual — etapa 4.17
+
+`MessageResponsePlanDraft` tem schema Zod estrito e tipo derivado: `messageId`, `conversationId`, `expectedStatus`, `decision`, `referenceAt` e `blocks`. Aceita somente as quatro ações com resposta textual, seus próximos estados e blocos com posições consecutivas de 1 até N. A referência temporal inicial é `message.createdAt`, data de persistência, e não a data de origem do provedor.
+
+A porta `MessageResponsePlanStore` recebe tentativa (`id + attempts`) e rascunho completo, retornando `preparado`, `existente`, `reserva_desatualizada`, `contexto_desatualizado` ou `adiado` por abertura/resposta pendente. O caso de uso preserva esses resultados. A futura transação deverá conferir a tentativa, os vínculos e o estado atual; em retomadas, deverá devolver o plano original sem sobrescrever textos. O resultado existente contém apenas o ID, não conteúdo recalculado para envio. Não há implementação de banco nesta etapa. O [documento 25](25-etapa-4-contrato-do-plano-de-resposta.md) apresenta o contrato, o modelo proposto e seus limites.
+
 ## 5. Resultado da qualificação pela IA
 
 ### Decisão anterior à qualificação — etapa 4.15

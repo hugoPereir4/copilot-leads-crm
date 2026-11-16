@@ -128,3 +128,11 @@ Passaram tipos, compilação e 93 registros sem banco, incluindo 15 testes novos
 As funções não consultam o relógio ou a infraestrutura e preservam as entradas. Dias sem faixas aparecem fechados. Preços nulos permanecem não informados; a formatação preserva centavos em todo o intervalo de inteiros seguros do contrato. Recepções, qualificações, silêncio e adiamento não produzem texto adicional.
 
 Passaram tipos, compilação e 115 registros sem banco, com 22 testes novos. Nenhuma dependência, credencial ou migração mudou; não houve acesso ao PostgreSQL ou Docker. Os testes PostgreSQL inalterados não foram repetidos. Não há ligação com webhook/worker ou envio de mensagens. O [guia da etapa 4.16](../../docs/24-etapa-4-composicao-de-mensagens.md) apresenta as regras de expediente, os limites da composição e a ordem de revisão.
+
+## Contrato do plano de resposta — etapa 4.17
+
+`modules/messaging/contracts/message-response-plan.ts` valida o rascunho: origem interna, estado esperado, ação textual, instante de referência e blocos não vazios com posições consecutivas. `MessageResponsePlanStore` define a futura gravação atômica e seus resultados. `prepareMessageResponsePlan` confere a reserva/mensagem, usa a data de persistência da mensagem como referência de expediente, compõe os textos e entrega o plano inteiro à porta.
+
+O caso de uso preserva resultados de plano existente, conflitos e adiamentos; não confirma envio ou conclusão de job. A modelagem propõe `response_plans` e `response_blocks`, diferencia abertura preparada de enviada e exige preservação do primeiro snapshot salvo. Não há implementação da porta, tabela ou migração nesta entrega.
+
+Passaram tipos, compilação e 131 registros sem banco, incluindo 16 testes novos. Os substitutos não comprovam concorrência, rollback ou idempotência PostgreSQL. Não houve acesso ao banco, Docker, dependências novas ou mudanças de credenciais. O [guia da etapa 4.17](../../docs/25-etapa-4-contrato-do-plano-de-resposta.md) apresenta o modelo proposto, os limites e o fluxo de revisão.

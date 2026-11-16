@@ -4,7 +4,7 @@ Preparada em 16/11/2026 na branch `feat/message-composition`, sobre a etapa 4.15
 
 **Validação executada:** `npm run check` passou em tipos, compilação e **115 registros sem banco**, sem falhas, cancelamentos ou ignorados. São 22 testes novos: dez de expediente e doze de composição.
 
-Não houve acesso ao PostgreSQL, uso do Docker, instalação de dependências, migrações ou alterações de credenciais. A suíte PostgreSQL não foi repetida, pois seus caminhos e script não mudaram; o último resultado é de 111 registros na etapa 4.13. As alterações desta entrega ficam locais para revisão, sem commit ou push.
+Não houve acesso ao PostgreSQL, uso do Docker, instalação de dependências, migrações ou alterações de credenciais. A suíte PostgreSQL não foi repetida, pois seus caminhos e script não mudaram; o último resultado é de 111 registros na etapa 4.13. Após autorização, os commits `393381a`, `43857f6` e `14da32c` foram enviados para `origin/feat/message-composition`, com upstream e sincronização conferidos. Os testes não foram repetidos durante os commits. Não houve merge ou PR; a revisão técnica permanece em paralelo.
 
 ## 1. Responsabilidades e arquitetura
 
@@ -110,3 +110,5 @@ Não é necessário iniciar a API, Docker ou PostgreSQL, nem executar migraçõe
 As funções não estão ligadas ao webhook, ao ponto de entrada da API ou ao consumo de jobs. Não há envio, persistência de respostas, transição de conversa, criação de lead ou chamada à IA. A API ainda não apresenta essas respostas no Postman. Também não foram definidos limites de tamanho ou divisão dos blocos para um provedor real de mensagens.
 
 A próxima preparação deve definir o controle persistido da abertura e dos efeitos de resposta, junto da ordenação por conversa e do adiamento. Será necessário coordenar estado, reserva atual do job e idempotência antes de ativar o executor/worker. Essa integração também deverá escolher o instante de referência usado na verificação de expediente. Provedor e modelo de IA continuam para sua entrega própria.
+
+O primeiro recorte da etapa 4.17 define a modelagem e os contratos desse plano, ainda sem banco. A referência inicial escolhida é a data de persistência da mensagem. O [documento 25](25-etapa-4-contrato-do-plano-de-resposta.md) apresenta a proposta, as limitações e a ordem de revisão.

@@ -16,6 +16,8 @@ A etapa 4.15 implementa a decisão pura para uma mensagem recebida: abertura exp
 
 A etapa 4.16 compõe os textos dessas intenções com os dados do perfil e verifica o expediente para um instante explícito. Retorna uma lista ordenada de textos; envio, controle persistido da abertura e execução das transições continuam pendentes. O [documento 24](24-etapa-4-composicao-de-mensagens.md) apresenta o fluxo de revisão.
 
+A etapa 4.17 prepara o contrato desse controle: um plano por mensagem, blocos ordenados e uma abertura por conversa. O caso de uso entrega o rascunho completo à porta, mas ainda não existe implementação PostgreSQL. A modelagem distingue abertura pendente de envio e abertura enviada: a primeira não autoriza avançar o menu. A referência inicial para o expediente é o instante de persistência da mensagem. O [documento 25](25-etapa-4-contrato-do-plano-de-resposta.md) detalha a futura transação, a retomada e os controles ainda necessários.
+
 ```mermaid
 flowchart TD
     A["Provedor WhatsApp ou simulador"] --> B["Webhook recebe a requisição"]
