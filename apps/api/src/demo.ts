@@ -14,6 +14,8 @@ import { PostgresMessageProcessingContextReader } from "./modules/messaging/infr
 import { PostgresMessageResponsePlanReader } from "./modules/messaging/infrastructure/postgres-message-response-plan-reader.js";
 import { PostgresMessageResponsePlanStore } from "./modules/messaging/infrastructure/postgres-message-response-plan-store.js";
 import { SimulatorProcessor } from "./modules/simulator/application/simulator-processor.js";
+import { PostgresHumanHandoffStore } from "./modules/leads/infrastructure/postgres-human-handoff-store.js";
+import { installHumanHandoffRoutes } from "./modules/leads/http/human-handoff-routes.js";
 
 async function main() {
   const pool = createDatabasePool(readDatabaseConfig(process.env));
@@ -28,7 +30,10 @@ async function main() {
     });
     const read = new PostgresDemoReadModel(pool);
     const app = createHttpApp(new PostgresIncomingMessageInbox(pool), undefined,
-      (app, sendError) => installDemoRoutes(app, sendError, read));
+      (app, sendError) => {
+        installDemoRoutes(app, sendError, read);
+        installHumanHandoffRoutes(app, sendError, new PostgresHumanHandoffStore(pool));
+      });
     const server = await listenHttp(app, readHttpConfig(process.env).port);
     let stopping = false;
     const worker = (async () => {

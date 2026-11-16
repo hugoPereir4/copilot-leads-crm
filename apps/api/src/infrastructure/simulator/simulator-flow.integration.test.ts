@@ -23,6 +23,8 @@ import { PostgresMessageResponsePlanStore } from "../../modules/messaging/infras
 import { SimulatorProcessor } from "../../modules/simulator/application/simulator-processor.js";
 import { PostgresSimulatorEffects } from "./postgres-simulator-effects.js";
 import { PostgresDemoReadModel } from "./postgres-demo-read-model.js";
+import { PostgresHumanHandoffStore } from "../../modules/leads/infrastructure/postgres-human-handoff-store.js";
+import { installHumanHandoffRoutes } from "../../modules/leads/http/human-handoff-routes.js";
 
 test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, async (t) => {
   const { runner } = await import("node-pg-migrate");
@@ -39,6 +41,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
   const planStore = new PostgresMessageResponsePlanStore(pool);
   const effects = new PostgresSimulatorEffects(pool);
   const read = new PostgresDemoReadModel(pool);
+  const handoff = new PostgresHumanHandoffStore(pool);
   const dependencies = { queue, profile, contexts, plans, planStore, effects };
   const processor = new SimulatorProcessor(dependencies);
   let created = false;
@@ -93,7 +96,10 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
     await admin.connect(); await admin.query(`CREATE DATABASE "${database}" TEMPLATE template0;`); created = true;
     await migrate("up");
     server = await listenHttp(createHttpApp(new PostgresIncomingMessageInbox(pool), () => {},
-      (app, sendError) => installDemoRoutes(app, sendError, read)), 0);
+      (app, sendError) => {
+        installDemoRoutes(app, sendError, read);
+        installHumanHandoffRoutes(app, sendError, handoff);
+      }), 0);
     const address = server.address(); ok(address && typeof address !== "string"); url = `http://127.0.0.1:${address.port}`;
 
     await t.test("webhook → abertura → recepção → card → silêncio, com HTTP e PostgreSQL reais", async () => {
@@ -288,6 +294,11 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       try {
         await until(async () => { equal((await fetch(`${demoUrl}/api/demo/conversations`)).status, 200); });
         equal((await fetch(`${demoUrl}/assets/demo.js`)).status, 200);
+        for (const style of ["tokens", "global", "layout", "components", "simulator", "kanban"]) {
+          const asset = await fetch(`${demoUrl}/assets/styles/${style}.css`);
+          equal(asset.status, 200); ok(asset.headers.get("Content-Type")?.includes("text/css"));
+          ok((await asset.text()).length > 0);
+        }
         const contact = phone();
         async function send(body: string) {
           const response = await fetch(`${demoUrl}/webhooks/simulator`, { method: "POST",
@@ -306,11 +317,178 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
           equal(conversation?.lead?.stage, "novo"); equal(conversation?.status, "aguardando_humano");
           equal((await pool.query("SELECT * FROM public.jobs WHERE status <> 'concluido';")).rowCount, 0);
         });
+        const lead = (await read.conversations())[0]?.lead; ok(lead);
+        equal((await fetch(`${demoUrl}/api/demo/leads/${lead.id}/assume`, { method: "POST" })).status, 200);
+        equal((await read.conversations())[0]?.status, "em_atendimento_humano");
+        const before = await outgoing(); await send("Mais uma mensagem sintética");
+        await until(async () => { equal((await pool.query("SELECT * FROM public.jobs WHERE status <> 'concluido';")).rowCount, 0); });
+        deepEqual(await outgoing(), before);
       } finally {
         if (child.exitCode === null && child.signalCode === null) child.kill();
         await exited;
       }
     });
+
+    async function receptionLead(stage = "novo") {
+      const contact = phone(); await receive(contact, "Olá"); await drain(); await receive(contact, "3"); await drain();
+      const row = (await read.conversations())[0]; ok(row?.lead);
+      await pool.query("UPDATE public.leads SET stage = $2 WHERE id = $1;", [row.lead.id, stage]);
+      return { contact, id: row.lead.id, conversationId: row.id };
+    }
+    async function assumeHttp(id: string) {
+      const response = await fetch(`${url}/api/demo/leads/${id}/assume`, { method: "POST" });
+      const body = await response.json() as { status?: string; code?: string; correlationId?: string };
+      return { response, body };
+    }
+    async function pendingLead() {
+      const receipt = await receive(phone(), "Olá");
+      const pending = await prepared(receipt.messageId);
+      const lead = (await pool.query(`INSERT INTO public.leads (conversation_id, contact_id)
+        VALUES ($1, $2) RETURNING id;`, [pending.context.conversation.id, pending.context.contact.id])).rows[0]; ok(lead);
+      return { ...pending, leadId: lead.id as string };
+    }
+    async function waitForBlocked(blockerPid: number, queryFragment: string) {
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        const result = await pool.query(`SELECT pid FROM pg_stat_activity
+          WHERE datname = $1 AND wait_event_type = 'Lock' AND $2 = ANY(pg_blocking_pids(pid))
+            AND query LIKE $3;`, [database, blockerPid, `%${queryFragment}%`]);
+        if (result.rowCount) return;
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      throw new Error("A operação não atingiu o bloqueio esperado.");
+    }
+
+    await t.test("assunção HTTP de Novo e Qualificado mantém identidade, mensagens e revisão", async () => {
+      for (const stage of ["novo", "qualificado"]) {
+        const lead = await receptionLead(stage);
+        await pool.query("UPDATE public.leads SET needs_review = true, summary = 'Resumo sintético' WHERE id = $1;", [lead.id]);
+        const messages = (await snapshot()).messages;
+        const result = await assumeHttp(lead.id.toUpperCase()); equal(result.response.status, 200); equal(result.body.status, "assumido");
+        ok(result.response.headers.get("X-Correlation-ID"));
+        const row = (await read.conversations()).find((item) => item.id === lead.conversationId); ok(row);
+        equal(row.status, "em_atendimento_humano"); equal(row.lead?.stage, "em_atendimento");
+        equal(row.lead?.id, lead.id); equal(row.lead?.needsReview, true); equal(row.lead?.summary, "Resumo sintético");
+        deepEqual((await snapshot()).messages, messages);
+      }
+    });
+
+    await t.test("repetição não altera timestamps e solicitações concorrentes convergem", async () => {
+      const lead = await receptionLead();
+      const results = await Promise.all([handoff.assume(lead.id), handoff.assume(lead.id)]);
+      deepEqual(results.map((item) => item.status).sort(), ["assumido", "ja_assumido"]);
+      const before = await snapshot();
+      const repeated = await assumeHttp(lead.id); equal(repeated.response.status, 200); equal(repeated.body.status, "ja_assumido");
+      deepEqual(await snapshot(), before);
+      equal((await pool.query("SELECT count(*)::integer AS count FROM public.leads;")).rows[0]?.count, 1);
+    });
+
+    await t.test("HTTP valida UUID, ausência e conflitos com correlação consistente", async () => {
+      for (const [id, status, code] of [["invalido", 400, "invalid_payload"], [randomUUID(), 404, "lead_not_found"]] as const) {
+        const result = await assumeHttp(id); equal(result.response.status, status); equal(result.body.code, code);
+        equal(result.body.correlationId, result.response.headers.get("X-Correlation-ID"));
+      }
+      const lead = await receptionLead();
+      for (const [stage, status] of [["ganho", "aguardando_humano"], ["perdido", "aguardando_humano"],
+        ["em_atendimento", "aguardando_humano"], ["novo", "em_atendimento_humano"], ["novo", "encerrada"]]) {
+        await pool.query("UPDATE public.leads SET stage = $2 WHERE id = $1;", [lead.id, stage]);
+        await pool.query(`UPDATE public.conversations SET status = $2,
+          closed_at = CASE WHEN $2 = 'encerrada' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id = $1;`, [lead.conversationId, status]);
+        const before = await snapshot(); const result = await assumeHttp(lead.id);
+        equal(result.response.status, 409); equal(result.body.code, "invalid_lead_state");
+        equal(result.body.correlationId, result.response.headers.get("X-Correlation-ID")); deepEqual(await snapshot(), before);
+      }
+    });
+
+    await t.test("falha da transação devolve 500 seguro e desfaz lead, conversa e cancelamentos", async () => {
+      const pending = await pendingLead(); const before = await snapshot();
+      await pool.query(`CREATE FUNCTION public.reject_handoff() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN IF NEW.status = 'em_atendimento_humano' THEN RAISE EXCEPTION 'segredo_sintetico'; END IF; RETURN NEW; END; $$;
+        CREATE TRIGGER reject_handoff BEFORE UPDATE ON public.conversations FOR EACH ROW EXECUTE FUNCTION public.reject_handoff();`);
+      try {
+        const result = await assumeHttp(pending.leadId); equal(result.response.status, 500); equal(result.body.code, "human_handoff_failed");
+        equal(result.body.correlationId, result.response.headers.get("X-Correlation-ID"));
+        ok(!JSON.stringify(result.body).includes("segredo_sintetico")); deepEqual(await snapshot(), before);
+      } finally { await pool.query("DROP TRIGGER reject_handoff ON public.conversations; DROP FUNCTION public.reject_handoff();"); }
+      equal((await handoff.assume(pending.leadId)).status, "assumido");
+    });
+
+    await t.test("assunção preserva bloco confirmado, cancela restante e impede retomada automática", async () => {
+      const pending = await pendingLead(); const original = await plans.findByMessageId(pending.context.message.id); ok(original);
+      const first = original.blocks[0]; ok(first); ok(original.blocks.length > 1);
+      const sent = (await pool.query(`INSERT INTO public.messages (conversation_id, provider, external_id, direction, sender_type, kind, body)
+        VALUES ($1, 'simulador', $2, 'saida', 'bot', 'texto', $3) RETURNING id;`,
+        [original.conversationId, `response:${original.id}:1`, first.text])).rows[0]; ok(sent);
+      await pool.query(`UPDATE public.response_blocks SET status = 'enviado', sent_message_id = $2, sent_at = CURRENT_TIMESTAMP
+        WHERE plan_id = $1 AND position = 1;`, [original.id, sent.id]);
+      const confirmed = (await plans.findByMessageId(pending.context.message.id))?.blocks[0];
+      equal((await handoff.assume(pending.leadId)).status, "assumido");
+      const canceled = await plans.findByMessageId(pending.context.message.id); equal(canceled?.status, "cancelado");
+      deepEqual(canceled?.blocks[0], confirmed); ok(canceled?.blocks.slice(1).every((block) => block.status === "cancelado"));
+      equal(await effects.apply({ ...pending, attempt: pending.job }), "concluido");
+      equal((await outgoing()).length, 1);
+      await receive(pending.context.contact.phone, "Nova mensagem após assunção"); await drain();
+      equal((await outgoing()).length, 1); equal((await read.conversations())[0]?.status, "em_atendimento_humano");
+    });
+
+    await t.test("mensagens após assunção são registradas sem resposta ou novo lead", async () => {
+      const lead = await receptionLead(); await handoff.assume(lead.id);
+      const before = await outgoing(); await receive(lead.contact, "1"); await receive(lead.contact, "Olá de novo"); await drain();
+      deepEqual(await outgoing(), before); equal((await read.conversations())[0]?.lead?.id, lead.id);
+      equal((await read.conversations())[0]?.status, "em_atendimento_humano");
+      equal((await pool.query("SELECT * FROM public.jobs WHERE status <> 'concluido';")).rowCount, 0);
+    });
+
+    await t.test("estado é revalidado depois da espera pela conversa", async () => {
+      const lead = await receptionLead(); const gate = await pool.connect();
+      let waiting: ReturnType<typeof handoff.assume> | undefined;
+      try {
+        await gate.query("BEGIN;");
+        const pid = (await gate.query("SELECT pg_backend_pid() AS pid;")).rows[0]?.pid as number;
+        await gate.query("UPDATE public.conversations SET status = 'encerrada', closed_at = CURRENT_TIMESTAMP WHERE id = $1;", [lead.conversationId]);
+        waiting = handoff.assume(lead.id);
+        await waitForBlocked(pid, "SELECT id, status, contact_id FROM public.conversations");
+        await gate.query("COMMIT;");
+        equal((await waiting).status, "estado_incompativel");
+        equal((await read.conversations())[0]?.lead?.stage, "novo");
+      } finally { await gate.query("ROLLBACK;"); gate.release(); await waiting; }
+    });
+
+    for (const first of ["humano", "worker"] as const) {
+      await t.test(`concorrência controlada: ${first} confirma primeiro sem envio após a transição`, async () => {
+        const pending = await pendingLead();
+        const gate = await pool.connect();
+        let winner: Promise<unknown> | undefined, loser: Promise<unknown> | undefined;
+        const target = first === "humano" ? "conversations" : "response_blocks";
+        const condition = first === "humano" ? "NEW.status = 'em_atendimento_humano'" : "NEW.status = 'enviado'";
+        try {
+          await gate.query("BEGIN;"); await gate.query("SELECT pg_advisory_xact_lock(73129);");
+          const pid = (await gate.query("SELECT pg_backend_pid() AS pid;")).rows[0]?.pid as number;
+          await pool.query(`CREATE FUNCTION public.pause_handoff_race() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN IF ${condition} THEN PERFORM pg_advisory_xact_lock(73129); END IF; RETURN NEW; END; $$;
+            CREATE TRIGGER pause_handoff_race BEFORE UPDATE ON public.${target} FOR EACH ROW EXECUTE FUNCTION public.pause_handoff_race();`);
+          const apply = () => effects.apply({ ...pending, attempt: pending.job });
+          winner = first === "humano" ? handoff.assume(pending.leadId) : apply();
+          // O vencedor já segura a conversa e está parado no trigger do banco.
+          await waitForBlocked(pid, `UPDATE public.${target}`);
+          const winnerPid = (await pool.query(`SELECT pid FROM pg_stat_activity WHERE datname = $1
+            AND $2 = ANY(pg_blocking_pids(pid)) AND query LIKE $3;`, [database, pid, `%UPDATE public.${target}%`])).rows[0]?.pid as number;
+          loser = first === "humano" ? apply() : handoff.assume(pending.leadId);
+          await waitForBlocked(winnerPid, first === "humano" ? "SELECT status, contact_id" : "SELECT id, status, contact_id");
+          await gate.query("COMMIT;"); await Promise.all([winner, loser]);
+          const row = (await read.conversations())[0]; equal(row?.status, "em_atendimento_humano"); equal(row?.lead?.stage, "em_atendimento");
+          const plan = await plans.findByMessageId(pending.context.message.id);
+          equal(plan?.status, first === "humano" ? "cancelado" : "enviado");
+          const before = await outgoing(); equal(before.length, first === "humano" ? 0 : plan?.blocks.length);
+          equal(await effects.apply({ ...pending, attempt: pending.job }), "reserva_desatualizada");
+          deepEqual(await outgoing(), before);
+        } finally {
+          await gate.query("ROLLBACK;"); gate.release();
+          await Promise.allSettled([winner, loser].filter((item) => item !== undefined));
+          await pool.query(`DROP TRIGGER IF EXISTS pause_handoff_race ON public.${target}; DROP FUNCTION IF EXISTS public.pause_handoff_race();`);
+        }
+      });
+    }
 
     await t.test("migração de leads reverte somente seus objetos e reaplica", async () => {
       await migrate("down");
