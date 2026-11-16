@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Copilot Leads · Demonstração</title>
+  <style>
+    :root{font-family:system-ui,sans-serif;color:#163630;background:#f4f6f3}*{box-sizing:border-box}body{margin:0}header{background:#153e35;color:#fff;padding:24px max(24px,calc((100vw - 1240px)/2))}header small{color:#bfe1d0}h1{font-size:26px;margin:8px 0 20px}nav{display:flex;gap:20px}nav a{color:white;text-decoration:none;padding-bottom:6px}nav a[aria-current]{border-bottom:3px solid #aee6c1}.notice{padding:12px 24px;background:#e5efdf;text-align:center;font-size:14px}main{max-width:1240px;margin:28px auto;padding:0 24px;display:grid;grid-template-columns:1fr 1fr;gap:24px}section{background:white;border:1px solid #dce5dc;border-radius:12px;padding:22px;min-width:0}h2{font-size:19px;margin:0 0 18px}label{display:block;margin:14px 0 7px;font-size:14px}input,textarea,select{width:100%;padding:12px;border:1px solid #a9bdb3;border-radius:7px;font:inherit}textarea{min-height:90px;resize:vertical}button,.wa{border:0;background:#23764d;color:white;padding:11px 16px;border-radius:7px;cursor:pointer;font:inherit}button:disabled{opacity:.5;cursor:wait}.secondary{background:#edf2ec;color:#24493a}.actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}#status{min-height:24px;font-size:14px;margin:16px 0;color:#44644f}#status[role=alert]{color:#a12828}#history{height:440px;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:8px}.bubble{background:#edf2ed;border-radius:10px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;max-width:90%;align-self:flex-end}.bubble.out{background:#d9f0df;align-self:flex-start}.bubble small{display:block;font-size:11px;color:#567061;margin-bottom:6px}.columns{display:grid;gap:12px}.column{background:#f5f7f3;border-radius:8px;padding:12px}.column h3{font-size:14px;margin:0 0 12px}.card{background:white;border:1px solid #d5e1d6;border-radius:8px;padding:14px;margin-top:10px}.card button{background:none;color:#163630;padding:0;font-weight:650}.card p{font-size:13px;line-height:1.5}.badge{display:inline-block;background:#fff0cc;color:#6d4b00;padding:3px 8px;border-radius:5px;font-size:12px;margin-left:8px}.wa{display:inline-block;font-size:13px;text-decoration:none;margin-top:8px}.muted{color:#687b70;font-size:14px}#simulator-panel[hidden],#admin-panel[hidden]{display:none}@media(max-width:760px){main{grid-template-columns:1fr;padding:0 14px}header{padding:20px}#history{height:350px}}
+  </style>
+</head>
+<body>
+  <header><small>CLÍNICA FICTÍCIA · RECEPÇÃO ADMINISTRATIVA</small><h1>Copilot Leads</h1>
+    <nav><a id="simulator-link" href="/simulator">Simulador</a><a id="admin-link" href="/admin">Painel de leads</a></nav>
+  </header>
+  <div class="notice">Demonstração local com dados sintéticos. IA desativada: texto livre é encaminhado para revisão humana.</div>
+  <main>
+    <section id="simulator-panel">
+      <h2>Converse com a recepção</h2><p class="muted">Envie “Olá”, aguarde o menu e escolha 1, 2 ou 3.</p>
+      <form id="message-form"><label for="phone">Contato sintético</label><input id="phone" value="+15550114921" required pattern="\+[1-9][0-9]{1,14}">
+        <label for="message">Mensagem</label><textarea id="message" required placeholder="Olá! Gostaria de informações."></textarea>
+        <div class="actions"><button id="send" type="submit">Enviar mensagem</button><button id="resend" class="secondary" type="button" disabled>Reenviar última</button></div>
+      </form><p id="status" role="status" aria-live="polite"></p>
+    </section>
+    <section id="admin-panel" hidden><h2>Leads em aberto</h2><p class="muted">Selecione um card para ver a conversa. A recepção continua pelo WhatsApp.</p><div id="board" class="columns"></div><p id="admin-status" class="muted" aria-live="polite"></p></section>
+    <section><h2>Histórico da conversa</h2><label for="conversation">Contato / ciclo</label><select id="conversation"><option value="">Aguardando mensagem</option></select><p id="conversation-status" class="muted"></p><div id="history" aria-live="polite"></div></section>
+  </main><script type="module" src="/assets/demo.js"></script>
+</body>
+</html>
