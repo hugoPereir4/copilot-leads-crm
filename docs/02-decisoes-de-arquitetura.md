@@ -50,6 +50,8 @@ Os casos de uso dependem de contratos de acesso a dados; as implementações con
 
 **Plano de resposta — recorte da etapa 4.17:** a idempotência da recepção não resolve os efeitos do processamento. Foi proposto um plano durável por mensagem, com blocos ordenados e abertura única por conversa. A porta exige preparação atômica e preservação do snapshot existente, protegendo a tentativa do job e o estado atual. Nesta etapa há somente modelagem, schema e aplicação; migrações e implementação PostgreSQL vêm depois da revisão. Preparação não significa envio, e a ordem de blocos não resolve sozinha FIFO entre mensagens. O [documento 25](25-etapa-4-contrato-do-plano-de-resposta.md) apresenta a proposta e suas limitações.
 
+**Estrutura — etapa 4.18:** a migração acrescenta as tabelas e as unicidades de origem, abertura e plano pendente, com FKs compostas para conferir os vínculos. Os blocos incluem a conversa para proteger a correspondência da mensagem confirmada. O SQL foi aplicado/revertido somente em bancos descartáveis; não implementa a porta ou o envio. O [documento 26](26-etapa-4-migracao-dos-planos-de-resposta.md) detalha as garantias estruturais e a validação.
+
 **Como funciona:** toda mensagem do provedor traz um ID externo. O banco tem uma restrição de unicidade sobre (provedor, ID externo). Se o mesmo webhook chegar duas vezes, a segunda inserção é simplesmente ignorada.
 
 **Por quê:** os provedores garantem entrega "pelo menos uma vez", ou seja, duplicatas **vão** acontecer. Sem idempotência você cria leads e qualificações duplicados.

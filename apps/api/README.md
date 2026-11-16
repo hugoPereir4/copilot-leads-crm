@@ -136,3 +136,11 @@ Passaram tipos, compilação e 115 registros sem banco, com 22 testes novos. Nen
 O caso de uso preserva resultados de plano existente, conflitos e adiamentos; não confirma envio ou conclusão de job. A modelagem propõe `response_plans` e `response_blocks`, diferencia abertura preparada de enviada e exige preservação do primeiro snapshot salvo. Não há implementação da porta, tabela ou migração nesta entrega.
 
 Passaram tipos, compilação e 131 registros sem banco, incluindo 16 testes novos. Os substitutos não comprovam concorrência, rollback ou idempotência PostgreSQL. Não houve acesso ao banco, Docker, dependências novas ou mudanças de credenciais. O [guia da etapa 4.17](../../docs/25-etapa-4-contrato-do-plano-de-resposta.md) apresenta o modelo proposto, os limites e o fluxo de revisão.
+
+## Migração dos planos e blocos — etapa 4.18
+
+`1794787200000_create_response_plans.sql` cria planos e blocos, adicionando chaves únicas de apoio em `messages` e `jobs` para conferir os vínculos compostos. Protege um plano por mensagem, abertura única e um pendente por conversa, além de posições e confirmações de bloco coerentes. `response_blocks.conversation_id` permite conferir também a conversa da mensagem confirmada.
+
+A suíte nova verifica as restrições, corridas de unicidade, rollback explícito, reaplicação e reversão, somente em banco descartável. Quatro suítes existentes passaram a incluir as duas tabelas na limpeza por `TRUNCATE`, sem `CASCADE` ou alterações de produção. Passaram tipos, compilação, 131 registros sem banco e 131 de integração. O banco principal manteve as mesmas contagens/hashes e quatro migrações; as novas tabelas não foram aplicadas nele. Não restaram bancos descartáveis.
+
+Não há implementação da porta, confirmação de envio ou worker nesta entrega. A migração não valida a tentativa atual, FIFO entre mensagens ou quantidade/contiguidade de todos os blocos. O [guia da etapa 4.18](../../docs/26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta as garantias, os limites e a ordem de revisão.

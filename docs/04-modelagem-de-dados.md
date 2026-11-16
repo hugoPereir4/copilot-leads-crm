@@ -16,8 +16,8 @@ Modelo relacional mínimo para sustentar o fluxo do documento 3. Pensado para Po
 | leads | Solicitação ou oportunidade, qualificada ou encaminhada diretamente à recepção; aparece como card no Kanban | 1 lead : 1 conversa; N leads : 1 contato |
 | ai_extractions | Registro de cada chamada à IA, para auditoria e depuração | N extrações : 1 lead (ou conversa) |
 | jobs | Fila de processamento em tabela (D4) | Refere-se a uma mensagem |
-| response_plans (proposta 4.17) | Intenção durável de resposta, ainda sem migração | No máximo um plano por mensagem; abertura única por conversa |
-| response_blocks (proposta 4.17) | Textos e progresso de envio do plano, ainda sem migração | N blocos ordenados : 1 plano |
+| response_plans (migração 4.18) | Intenção durável de resposta, verificada em banco descartável | No máximo um plano por mensagem; abertura única e um pendente por conversa |
+| response_blocks (migração 4.18) | Textos e progresso de envio, verificados em banco descartável | N blocos : 1 plano; posição positiva e única no plano |
 | lead_events | Histórico de mudanças do lead (opcional na v1) | N eventos : 1 lead |
 
 ## 2. Campos por tabela
@@ -132,13 +132,15 @@ A etapa 4.12 usa as colunas existentes para recuperar `processando` com `locked_
 
 A etapa 4.13 lê o contexto pelo ID de `messages`, seguindo `conversation_id` e depois `contact_id` em um único SELECT. Não escolhe a conversa aberta mais recente e não altera nenhuma tabela. `messages.body` e `contacts.display_name` preservam nulos; `messages.created_at` continua sendo a data de persistência, sem inferir a data de origem do provedor. O schema Zod valida a representação interna da leitura. Nenhuma mudança de estrutura foi necessária. O [documento 21](21-etapa-4-contexto-da-mensagem.md) detalha os campos e o comportamento concorrente.
 
-### Proposta 4.17: response_plans e response_blocks
+### response_plans e response_blocks — etapas 4.17 e 4.18
 
 O primeiro recorte implementa somente o contrato do rascunho e a preparação pela aplicação. As tabelas ainda não existem. `response_plans` deverá vincular mensagem, conversa e job de origem, preservando ação, estado esperado/próximo, referência temporal e status do plano. `response_blocks` deverá guardar posição, texto congelado e progresso de cada bloco, com possível referência à mensagem de saída confirmada.
 
 A proposta exige unicidade da mensagem de origem, da abertura por conversa e de um plano pendente por conversa; posições são únicas dentro do plano. O vínculo mensagem/conversa e job/mensagem também precisa de proteção estrutural. Gravar plano e todos os blocos exige uma transação. A sequência completa dos blocos não será tratada como um `CHECK` simples entre linhas.
 
-Preparação não altera o estado da conversa ou confirma o envio. Abertura pendente, enviada e cancelada terão tratamentos distintos na futura orquestração. Cancelar não apaga o histórico ou autoriza segunda abertura automática. O [documento 25](25-etapa-4-contrato-do-plano-de-resposta.md) descreve os campos, as restrições propostas e as provas de concorrência/rollback ainda pendentes. Os diagramas gerais continuam sendo planejamento; nenhuma migração desse modelo foi criada.
+Preparação não altera o estado da conversa ou confirma o envio. Abertura pendente, enviada e cancelada terão tratamentos distintos na futura orquestração. Cancelar não apaga o histórico ou autoriza segunda abertura automática. O [documento 25](25-etapa-4-contrato-do-plano-de-resposta.md) descreve os campos, as restrições propostas e as provas de concorrência/rollback da porta ainda pendentes. Na etapa 4.17, nenhuma migração desse modelo havia sido criada.
+
+**Migração da etapa 4.18:** o SQL das duas tabelas está preparado e foi aplicado/revertido em banco descartável. As chaves únicas `(id, conversation_id)` de `messages` e `(id, message_id)` de `jobs` apoiam as FKs compostas da origem. O plano tem também uma chave `(id, conversation_id)`; os blocos acrescentam `conversation_id` para conferir tanto a conversa do plano quanto a da mensagem confirmada. O status do plano/bloco e as respectivas datas têm checks locais, mas quantidade, contiguidade e coerência entre linhas continuam para a futura transação. O [documento 26](26-etapa-4-migracao-dos-planos-de-resposta.md) detalha os campos e a reversão. As tabelas continuam ausentes do banco principal.
 
 ### business_profile e users
 

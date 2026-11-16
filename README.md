@@ -36,7 +36,9 @@ A etapa 4.15 foi enviada para revisão na branch `feat/message-processing-decisi
 
 A etapa 4.16 foi enviada para revisão na branch `feat/message-composition`: composição dos textos predefinidos com o perfil e verificação de expediente no fuso configurado, para um instante explícito. Passaram tipos, compilação e 115 registros sem banco. Não há envio de respostas ou execução do worker. O [documento 24](docs/24-etapa-4-composicao-de-mensagens.md) apresenta as regras e o fluxo de revisão.
 
-A etapa 4.17 está preparada para revisão na branch `feat/response-plan-contract`: primeiro recorte do controle persistido, com modelagem do plano/blocos, schema do rascunho, porta de gravação atômica e caso de uso de preparação. Passaram tipos, compilação e 131 registros sem banco. Ainda não há tabelas, implementação PostgreSQL, envio ou worker para esse controle. O [documento 25](docs/25-etapa-4-contrato-do-plano-de-resposta.md) apresenta a proposta e a ordem de revisão.
+A etapa 4.17 foi enviada para revisão na branch `feat/response-plan-contract`: primeiro recorte do controle persistido, com modelagem do plano/blocos, schema do rascunho, porta de gravação atômica e caso de uso de preparação. Passaram tipos, compilação e 131 registros sem banco. O [documento 25](docs/25-etapa-4-contrato-do-plano-de-resposta.md) apresenta a proposta e a ordem de revisão.
+
+A etapa 4.18 está preparada para revisão na branch `feat/response-plans-migration`: migração das duas tabelas com vínculos compostos, restrições e índices de unicidade. Passaram tipos, compilação, 131 registros sem banco e 131 de integração. Aplicação e reversão ocorreram apenas em bancos descartáveis; o banco do projeto permaneceu intacto. A implementação da porta de preparação e o envio continuam pendentes. O [documento 26](docs/26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta o fluxo de revisão.
 
 ## Ambiente
 
@@ -80,6 +82,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Migração dos planos de resposta](docs/26-etapa-4-migracao-dos-planos-de-resposta.md): etapa 4.18, chaves compostas, unicidades e testes em bancos descartáveis.
 - [Contrato do plano de resposta](docs/25-etapa-4-contrato-do-plano-de-resposta.md): etapa 4.17, modelagem, abertura preparada/enviada e contrato de gravação atômica.
 - [Composição e expediente](docs/24-etapa-4-composicao-de-mensagens.md): etapa 4.16, textos do perfil, preços e cálculo de horários com instante explícito.
 - [Decisão por estado](docs/23-etapa-4-decisao-de-processamento.md): etapa 4.15, intenções, abertura explícita e limites para a execução futura.

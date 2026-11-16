@@ -18,6 +18,8 @@ A etapa 4.16 compõe os textos dessas intenções com os dados do perfil e verif
 
 A etapa 4.17 prepara o contrato desse controle: um plano por mensagem, blocos ordenados e uma abertura por conversa. O caso de uso entrega o rascunho completo à porta, mas ainda não existe implementação PostgreSQL. A modelagem distingue abertura pendente de envio e abertura enviada: a primeira não autoriza avançar o menu. A referência inicial para o expediente é o instante de persistência da mensagem. O [documento 25](25-etapa-4-contrato-do-plano-de-resposta.md) detalha a futura transação, a retomada e os controles ainda necessários.
 
+A etapa 4.18 prepara a migração dos planos/blocos e verifica suas restrições em bancos descartáveis. Nenhum plano é criado automaticamente pela aplicação, e o banco principal não recebeu a migração nesta entrega. A futura transação da porta ainda deverá proteger a tentativa e o estado atual e traduzir conflitos em resultados de negócio. O [documento 26](26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta a revisão.
+
 ```mermaid
 flowchart TD
     A["Provedor WhatsApp ou simulador"] --> B["Webhook recebe a requisição"]

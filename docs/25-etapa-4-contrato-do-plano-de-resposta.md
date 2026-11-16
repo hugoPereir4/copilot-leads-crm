@@ -4,7 +4,7 @@ Preparada em 16/11/2026 na branch `feat/response-plan-contract`, sobre a etapa 4
 
 **Validação executada:** `npm run check` passou em tipos, compilação e **131 registros sem banco**, sem falhas, cancelamentos ou ignorados. São 16 testes novos: seis de contrato e dez de aplicação. A suíte PostgreSQL não foi repetida; os caminhos e o script de integração não mudaram. Seu último resultado é de 111 registros na etapa 4.13.
 
-Não houve acesso ao PostgreSQL, uso do Docker, migrações, novas dependências ou alterações de credenciais. O caso de uso ainda não está conectado à API ou ao worker. As alterações ficam locais para revisão, sem commit ou push.
+Não houve acesso ao PostgreSQL, uso do Docker, migrações, novas dependências ou alterações de credenciais. O caso de uso ainda não está conectado à API ou ao worker. Após autorização, os commits `81ee7eb` e `f2e4fc7` foram enviados para `origin/feat/response-plan-contract`, com upstream e sincronização conferidos. Os arquivos foram preservados e os testes não foram repetidos durante os commits. Não houve merge ou PR; a revisão técnica permanece em paralelo.
 
 ## 1. O problema e o recorte
 
@@ -171,3 +171,5 @@ node --test apps/api/dist/modules/messaging/contracts/message-response-plan.test
 Não é necessário iniciar API, Docker ou PostgreSQL. Os testes não enviam mensagens nem executam migrações. O resultado `existente` e os conflitos são respostas de substitutos, não evidência de idempotência ou concorrência real no banco.
 
 Após a revisão deste modelo, a próxima entrega deverá criar e testar as migrações das tabelas propostas em banco descartável. Depois virá a implementação PostgreSQL da porta, com testes de corrida, rollback, reserva antiga, preservação do snapshot e planos conflitantes. Somente as entregas posteriores conectarão leitura do plano original, confirmação dos blocos, transições, ordenação, adiamento e consumo automático. Não há envio ou integração de IA nesta etapa.
+
+A migração está preparada na etapa 4.18 e foi verificada somente em bancos descartáveis, ainda sem implementar a porta. Os blocos ganharam `conversation_id` para proteção estrutural da conversa do plano e da mensagem confirmada. O [documento 26](26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta os ajustes do modelo e o fluxo de revisão.

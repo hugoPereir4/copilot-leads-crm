@@ -104,6 +104,8 @@ Ausência retorna `undefined`; falhas rejeitam a Promise. Dados incompatíveis c
 
 A porta `MessageResponsePlanStore` recebe tentativa (`id + attempts`) e rascunho completo, retornando `preparado`, `existente`, `reserva_desatualizada`, `contexto_desatualizado` ou `adiado` por abertura/resposta pendente. O caso de uso preserva esses resultados. A futura transação deverá conferir a tentativa, os vínculos e o estado atual; em retomadas, deverá devolver o plano original sem sobrescrever textos. O resultado existente contém apenas o ID, não conteúdo recalculado para envio. Não há implementação de banco nesta etapa. O [documento 25](25-etapa-4-contrato-do-plano-de-resposta.md) apresenta o contrato, o modelo proposto e seus limites.
 
+**Estrutura da etapa 4.18:** a migração cria tabelas para o plano e os blocos, sem mudar o schema do rascunho. O `conversation_id` adicional de cada bloco será derivado do plano na futura implementação, apoiando FKs compostas. Checks SQL e unicidades protegem a estrutura, mas não substituem a validação do rascunho e os guardas da transação. A porta continua sem implementação PostgreSQL. O [documento 26](26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta as restrições e seus testes.
+
 ## 5. Resultado da qualificação pela IA
 
 ### Decisão anterior à qualificação — etapa 4.15
