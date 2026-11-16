@@ -100,6 +100,14 @@ Ausência retorna `undefined`; falhas rejeitam a Promise. Dados incompatíveis c
 
 ## 5. Resultado da qualificação pela IA
 
+### Decisão anterior à qualificação — etapa 4.15
+
+O tipo interno `MessageProcessingDecision` representa uma intenção produzida pela aplicação, não uma resposta da IA. `decideMessageProcessing` recebe o contexto validado, as opções do perfil validado e `openingStatus` obrigatório (`pendente` ou `enviada`). Seu resultado é discriminado por `action`: abertura, reapresentação de menu, informações, recepção, solicitação de qualificação, silêncio ou adiamento.
+
+`nextStatus`, quando presente, é um estado proposto. `solicitar_recepcao` inclui a intenção de lead em `novo`, com `needsReview: false`, sem fabricar dados de qualificação. `adiar / qualificacao_em_andamento` não propõe transição ou descarte e exige tratamento posterior pelo executor. O tipo não atravessa uma nova fronteira externa, portanto é definido em TypeScript; contexto e perfil continuam validados por Zod nas respectivas entradas. Nenhum contrato público de `shared` mudou. O [documento 23](23-etapa-4-decisao-de-processamento.md) detalha as variantes e sua revisão.
+
+### Saída futura da IA
+
 Este é o contrato mais importante do projeto. O schema é enviado ao LLM e depois usado para validar a resposta.
 
 | Campo | Tipo | Regras |

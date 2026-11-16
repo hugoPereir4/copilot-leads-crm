@@ -4,7 +4,7 @@ Preparada em 13/11/2026 na branch `feat/business-profile`, sobre a etapa 4.13 en
 
 **Validação executada:** `npm run check` passou em tipos, compilação e **78 registros sem banco**, sem falhas, cancelamentos ou ignorados. São 16 testes novos: nove de contrato, dois de aplicação e cinco do leitor de arquivo. Os testes do leitor usam arquivos reais temporários e um processo Node iniciado fora da pasta do projeto.
 
-A suíte PostgreSQL não foi repetida: nenhum caminho de banco ou seu comando de integração foi alterado. O último resultado, na etapa 4.13, foi de 111 registros aprovados. Nesta entrega não houve acesso ao PostgreSQL, uso do Docker, novas dependências, migrações ou alterações de credenciais. Não foram feitos commits, push ou merge da etapa 4.14.
+A suíte PostgreSQL não foi repetida: nenhum caminho de banco ou seu comando de integração foi alterado. O último resultado, na etapa 4.13, foi de 111 registros aprovados. Nesta entrega não houve acesso ao PostgreSQL, uso do Docker, novas dependências, migrações ou alterações de credenciais. Após autorização, os commits `bf02558`, `cf7bae4` e `96d2a0f` foram enviados para `origin/feat/business-profile`, com upstream e sincronização conferidos. Os testes não foram repetidos durante os commits; não houve merge ou PR. O envio mantém a revisão técnica em paralelo.
 
 ## 1. Objetivo e recorte
 
@@ -125,3 +125,5 @@ São 16 registros novos. Não é necessário iniciar a API, Docker ou executar m
 ## 8. Próxima parte
 
 Preparar as decisões por estado usando o contexto da mensagem e o perfil validado. Antes de ativar o worker, ainda será necessário definir composição das mensagens, comparação do expediente no fuso configurado, ordenação por conversa, envio único da abertura e idempotência dos efeitos. A revisão em paralelo pode trazer ajustes à etapa 4.13 ou a esta entrega.
+
+A decisão pura por estado está preparada na etapa 4.15, ainda sem executar esses efeitos. O [documento 23](23-etapa-4-decisao-de-processamento.md) apresenta a matriz de regras e a ordem de revisão.

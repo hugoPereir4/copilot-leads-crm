@@ -30,7 +30,9 @@ A etapa 4.12 foi revisada e enviada ao remoto na branch `feat/job-recovery`: rec
 
 A etapa 4.13 foi enviada para revisão na branch `feat/message-processing-context`: leitura da mensagem com sua conversa original e contato, com contrato Zod e porta de aplicação separados da consulta PostgreSQL. Passaram tipos, compilação, 62 registros sem banco e 111 de integração. A revisão técnica continua em paralelo; o consumo automático continua pendente. O [documento 21](docs/21-etapa-4-contexto-da-mensagem.md) apresenta o fluxo de revisão.
 
-A etapa 4.14 está preparada para revisão na branch `feat/business-profile`: perfil fictício em JSON versionado, contrato Zod, porta de leitura e implementação de arquivo. O perfil inclui serviços, valores, horários, menu e textos-base. `npm run check` passou em tipos, compilação e 78 registros sem banco. Não houve acesso ao PostgreSQL ou instalação de dependências. O [documento 22](docs/22-etapa-4-perfil-do-negocio.md) apresenta a ordem de revisão e os limites desta entrega.
+A etapa 4.14 foi enviada para revisão na branch `feat/business-profile`: perfil fictício em JSON versionado, contrato Zod, porta de leitura e implementação de arquivo. O perfil inclui serviços, valores, horários, menu e textos-base. `npm run check` passou em tipos, compilação e 78 registros sem banco. Não houve acesso ao PostgreSQL ou instalação de dependências. O [documento 22](docs/22-etapa-4-perfil-do-negocio.md) apresenta a ordem de revisão e os limites desta entrega.
+
+A etapa 4.15 está preparada para revisão na branch `feat/message-processing-decision`: decisão pura por estado, com abertura explícita, menu configurável, intenção de encaminhamento/qualificação e silêncio ou adiamento conforme o contexto. Passaram tipos, compilação e 93 registros sem banco. A decisão ainda não executa efeitos ou chama IA. O [documento 23](docs/23-etapa-4-decisao-de-processamento.md) apresenta o fluxo de revisão.
 
 ## Ambiente
 
@@ -74,6 +76,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Decisão por estado](docs/23-etapa-4-decisao-de-processamento.md): etapa 4.15, intenções, abertura explícita e limites para a execução futura.
 - [Perfil do negócio](docs/22-etapa-4-perfil-do-negocio.md): etapa 4.14, configuração JSON, validação e porta de leitura.
 - [Contexto da mensagem](docs/21-etapa-4-contexto-da-mensagem.md): etapa 4.13, leitura por vínculo original, schema e limites de concorrência.
 - [Recuperação de jobs](docs/20-etapa-4-recuperacao-de-jobs.md): etapa 4.12, expiração, recuperação por lote e proteção contra tentativas antigas.

@@ -112,3 +112,11 @@ Passaram tipos, compilação, 62 registros sem banco e 111 de integração. As c
 O build TypeScript não copia o JSON: a pasta `config` deve acompanhar a estrutura da API. O perfil ainda não é carregado pela composição principal. Composição de mensagens, cálculo de expediente, decisões por estado e campos extras de qualificação por IA ficam para seus próprios blocos.
 
 Passaram tipos, compilação e 78 registros sem banco, incluindo 16 testes novos do contrato, aplicação e arquivos reais temporários. A integração PostgreSQL não foi repetida; seus caminhos e scripts não mudaram e não houve acesso ao banco. Nenhuma dependência, migração ou credencial mudou. O [guia da etapa 4.14](../../docs/22-etapa-4-perfil-do-negocio.md) contém os dados propostos, a ordem de revisão e os comandos.
+
+## Decisão de processamento por estado — etapa 4.15
+
+`modules/messaging/contracts/message-processing-decision.ts` define as intenções internas. `application/decide-message-processing.ts` recebe contexto, opções do perfil e indicação obrigatória de abertura pendente/enviada, retornando a ação e, quando aplicável, o estado proposto. Não realiza leituras, gravações, envios ou chamadas à IA.
+
+A regra usa o menu configurado, diferencia texto livre de escolha numérica e preserva silêncio nos estados humanos e encerrados. Em `qualificando`, retorna adiamento para não iniciar outra extração ou propor o descarte da mensagem. O tratamento desse adiamento e a fonte persistida do controle de abertura ficam para a integração com o executor.
+
+Passaram tipos, compilação e 93 registros sem banco, incluindo 15 testes novos. Não houve dependências novas, acesso ao PostgreSQL ou Docker; os testes PostgreSQL inalterados não foram repetidos. A função ainda não está ligada ao webhook, à composição principal ou ao worker. O [guia da etapa 4.15](../../docs/23-etapa-4-decisao-de-processamento.md) contém a matriz de regras, os limites e a ordem de revisão.

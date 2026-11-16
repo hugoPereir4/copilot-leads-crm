@@ -12,6 +12,8 @@ A etapa 4.11 acrescenta operações internas para concluir a tentativa atual, re
 
 A etapa 4.12 acrescenta a operação interna de recuperação por lote: reservas com 120 segundos ou mais voltam a pendente quando há saldo, ou falham quando as tentativas se esgotaram. O contador é preservado; apenas a nova reserva o incrementa. A operação não está agendada ou conectada ao consumo automático. O [documento 20](20-etapa-4-recuperacao-de-jobs.md) explica a proteção contra finalizações antigas e os limites para efeitos externos.
 
+A etapa 4.15 implementa a decisão pura para uma mensagem recebida: abertura explicitamente pendente, opções do menu configurado, solicitação de qualificação, encaminhamento à recepção, silêncio e adiamento durante qualificação em andamento. Retorna intenções e estados propostos, sem executar as transições ou efeitos do diagrama. O [documento 23](23-etapa-4-decisao-de-processamento.md) apresenta as regras e os controles ainda necessários antes do worker.
+
 ```mermaid
 flowchart TD
     A["Provedor WhatsApp ou simulador"] --> B["Webhook recebe a requisição"]
@@ -103,6 +105,10 @@ O histórico do painel mostra as mensagens registradas pelo sistema. As resposta
 | Encerrada | Lead movido para Ganho ou Perdido | Não é reaberta por novas mensagens; o retorno inicia outra conversa no mesmo contato | Não |
 
 Transições fora desta tabela devem ser recusadas pelo código. Essa é a utilidade da máquina de estados.
+
+Na decisão da etapa 4.15, uma nova mensagem elegível em `qualificando` retorna `adiar`, sem solicitar outra extração e sem propor descarte. O executor ainda precisará implementar esse adiamento e coordenar a ordem das mensagens. O controle de abertura é uma entrada explícita, usada apenas em `aguardando_menu`; sua persistência permanece pendente. Não há inferência de abertura pela idade da conversa.
+
+No menu, espaços externos são desconsiderados e a escolha é comparada ao número configurado. Somente uma sequência isolada de dígitos ASCII é tratada como opção numérica: um número não configurado reapresenta o menu, sem converter `01` em `1`. Frases como `opção 1` seguem como texto livre. Em `aguardando_detalhes`, qualquer texto elegível alimenta a qualificação, inclusive uma resposta numérica.
 
 O tempo sem resposta do cliente não é um evento de transição na v1: a conversa preserva seu estado, sem lembretes ou encerramento automático por inatividade (D18).
 
