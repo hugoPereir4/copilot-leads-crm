@@ -22,29 +22,35 @@ class Element {
 const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
 function nodes(element) { return [element, ...element.children.flatMap(nodes)]; }
 
-async function page({ saved = "light", blockedStorage = false } = {}) {
+async function page({ saved = "light", blockedStorage = false, inAttendance = false, confirm = true } = {}) {
   const elements = new Map();
   const element = (id) => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   const document = { documentElement: new Element(), body: new Element(), getElementById: element, createElement: () => new Element() };
   const storage = new Map([["copilot-leads-theme", saved]]);
-  const timers = []; let calls = 0, finish;
-  let rows = [{ id: "conversation", phone: "+15550114921", status: "aguardando_humano", failedJobs: 0,
-    lead: { id: "lead", stage: "novo", needsReview: true, summary: null } }];
+  const timers = []; let calls = 0, finish, lastPost, confirmations = 0;
+  let rows = [{ id: "conversation", phone: "+15550114921", status: inAttendance ? "em_atendimento_humano" : "aguardando_humano", failedJobs: 0,
+    lead: { id: "lead", stage: inAttendance ? "em_atendimento" : "novo", needsReview: true, summary: null } }];
   const fetch = async (url, options) => {
-    if (options?.method === "POST") { calls++; return new Promise((resolve) => { finish = resolve; }); }
+    if (options?.method === "POST") { calls++; lastPost = { url, ...options }; return new Promise((resolve) => { finish = resolve; }); }
     return { ok: true, json: async () => url.endsWith("/messages") ? [] : structuredClone(rows) };
   };
   const context = { document, location: { pathname: "/admin" }, fetch, console, setTimeout: (callback) => timers.push(callback),
+    window: { confirm: () => { confirmations++; return confirm; } },
     matchMedia: () => ({ matches: true }), localStorage: {
       getItem(key) { if (blockedStorage) throw Error("Storage bloqueado"); return storage.get(key); },
       setItem(key, value) { if (blockedStorage) throw Error("Storage bloqueado"); storage.set(key, value); },
     } };
   runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
   runInNewContext(compiled, context); await flush();
-  return { document, element, storage, timers, calls: () => calls,
+  return { document, element, storage, timers, calls: () => calls, confirmations: () => confirmations, lastPost: () => lastPost,
     buttons: () => nodes(element("board")).filter((node) => node.className.includes("assume-button")),
+    closeButtons: () => nodes(element("board")).filter((node) => node.className.includes("close-button")),
     async complete(success) {
-      if (success) rows = rows.map((row) => ({ ...row, status: "em_atendimento_humano", lead: { ...row.lead, stage: "em_atendimento" } }));
+      if (success) {
+        const result = lastPost.url.endsWith("/close") ? JSON.parse(lastPost.body).result : undefined;
+        rows = rows.map((row) => ({ ...row, status: result ? "encerrada" : "em_atendimento_humano",
+          lead: { ...row.lead, stage: result ?? "em_atendimento" } }));
+      }
       finish({ ok: success, status: success ? 200 : 409, json: async () => success ? { status: "assumido" } : { message: "Estado incompatível." } });
       await flush();
     },
@@ -86,4 +92,31 @@ test("falha mantém o card e informa erro acessível sem afirmar assunção", as
   equal(ui.element("handoff-status").getAttribute("role"), "alert");
   equal(ui.element("handoff-status").textContent, "Estado incompatível."); equal(button.disabled, false);
   equal(ui.buttons().length, 1);
+});
+
+test("encerramento confirma, bloqueia ambas as opções e preserva acesso aos encerrados", async () => {
+  for (const result of ["ganho", "perdido"]) {
+    const ui = await page({ inAttendance: true });
+    const [gain, loss] = ui.closeButtons(); ok(gain && loss);
+    (result === "ganho" ? gain : loss).onclick(); gain.onclick(); loss.onclick();
+    equal(ui.calls(), 1); equal(ui.confirmations(), 1);
+    ok(ui.closeButtons().every((button) => button.disabled && button.textContent === "Encerrando…"));
+    equal(JSON.parse(ui.lastPost().body).result, result);
+    equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 1);
+    await ui.complete(true);
+    equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 0);
+    ui.element("show-closed").checked = true; ui.element("show-closed").events.get("change")();
+    equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 1);
+    equal(ui.closeButtons().length, 0); equal(ui.element("admin-title").textContent, "Leads encerrados");
+    ok(nodes(ui.element("board")).some((node) => node.textContent === "Abrir no WhatsApp"));
+  }
+});
+
+test("cancelar confirmação não faz POST; falha conserva card e habilita nova tentativa", async () => {
+  const canceled = await page({ inAttendance: true, confirm: false });
+  canceled.closeButtons()[0].onclick(); equal(canceled.calls(), 0); equal(canceled.closeButtons().length, 2);
+  const failed = await page({ inAttendance: true }); failed.closeButtons()[0].onclick(); await failed.complete(false);
+  equal(failed.element("handoff-status").getAttribute("role"), "alert");
+  equal(failed.element("handoff-status").textContent, "Estado incompatível.");
+  equal(failed.closeButtons().length, 2); ok(failed.closeButtons().every((button) => !button.disabled));
 });

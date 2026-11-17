@@ -1,4 +1,4 @@
-import type { DemoConversation, DemoMessage, HumanHandoffReceipt } from "@copilot-leads/shared";
+import type { DemoConversation, DemoMessage, HumanHandoffReceipt, LeadClosureOutcome, LeadClosureReceipt } from "@copilot-leads/shared";
 
 function element<T extends HTMLElement>(id: string) { return document.getElementById(id) as T; }
 const admin = location.pathname === "/admin";
@@ -11,6 +11,9 @@ const status = element("status"), sendButton = element<HTMLButtonElement>("send"
 const themeToggle = element<HTMLButtonElement>("theme-toggle"), themeLabel = element("theme-label");
 let selected = "", lastHistory = "", lastBoard = "";
 const assuming = new Set<string>();
+const closing = new Set<string>();
+const closedFilter = element<HTMLInputElement>("show-closed");
+let boardRows: DemoConversation[] = [];
 let boardRevision = 0;
 let previous: { id: string; from: string; fromMe: false; type: "text"; body: string; timestamp: string } | undefined;
 
@@ -69,6 +72,7 @@ element<HTMLFormElement>("message-form").addEventListener("submit", (event) => {
 });
 resend.addEventListener("click", () => { if (previous) void submit(previous); });
 conversation.addEventListener("change", () => { selected = conversation.value; lastHistory = ""; });
+closedFilter.addEventListener("change", () => { renderBoard(boardRows); });
 phone.addEventListener("change", () => { selected = ""; lastHistory = ""; });
 
 async function assumeAttendance(leadId: string, button: HTMLButtonElement) {
@@ -92,9 +96,38 @@ async function assumeAttendance(leadId: string, button: HTMLButtonElement) {
   }
 }
 
+async function closeAttendance(leadId: string, result: LeadClosureOutcome, button: HTMLButtonElement) {
+  if (closing.has(leadId)) return;
+  if (!window.confirm(`Encerrar este atendimento como ${result === "ganho" ? "Ganho" : "Perdido"}?`)) return;
+  closing.add(leadId);
+  renderBoard(boardRows); // Desabilita as duas opções do mesmo card durante o pedido.
+  button.disabled = true;
+  const feedback = element("handoff-status"); feedback.setAttribute("role", "status");
+  feedback.textContent = "Encerrando atendimento…";
+  try {
+    await request<LeadClosureReceipt>(`/api/demo/leads/${encodeURIComponent(leadId)}/close`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ result }),
+    });
+    boardRevision++;
+    feedback.textContent = `Atendimento encerrado como ${result === "ganho" ? "Ganho" : "Perdido"}. Histórico preservado.`;
+    const rows = await request<DemoConversation[]>("/api/demo/conversations");
+    renderBoard(rows); lastBoard = JSON.stringify(rows);
+  } catch (error) {
+    feedback.setAttribute("role", "alert");
+    feedback.textContent = error instanceof Error ? error.message : "Não foi possível encerrar o atendimento.";
+  } finally {
+    closing.delete(leadId); renderBoard(boardRows); lastBoard = "";
+  }
+}
+
 function renderBoard(rows: DemoConversation[]) {
+  boardRows = rows;
+  const showClosed = closedFilter.checked;
+  element("admin-title").textContent = showClosed ? "Leads encerrados" : "Leads em aberto";
   const board = element("board"); board.replaceChildren();
-  for (const [stage, label] of [["novo", "Novo"], ["qualificado", "Qualificado"], ["em_atendimento", "Em atendimento"]]) {
+  const columns = showClosed ? [["ganho", "Ganho"], ["perdido", "Perdido"]]
+    : [["novo", "Novo"], ["qualificado", "Qualificado"], ["em_atendimento", "Em atendimento"]];
+  for (const [stage, label] of columns) {
     const column = document.createElement("section"); column.className = "kanban-column";
     const heading = document.createElement("div"); heading.className = "kanban-column-header";
     const title = document.createElement("h2"); title.textContent = label!;
@@ -118,7 +151,8 @@ function renderBoard(rows: DemoConversation[]) {
       cardTop.append(select);
       if (row.lead?.needsReview) { const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = "Revisar"; cardTop.append(badge); }
       const details = document.createElement("p"); details.className = "lead-summary";
-      details.textContent = row.lead?.summary ?? "Pedido direto à recepção. Aguardando atendimento humano.";
+      details.textContent = row.lead?.summary ?? (showClosed ? `Resultado: ${label}. Histórico preservado.`
+        : row.lead?.stage === "em_atendimento" ? "Atendimento humano em andamento." : "Pedido direto à recepção. Aguardando atendimento humano.");
       const link = document.createElement("a"); link.className = "whatsapp-link"; link.textContent = "Abrir no WhatsApp";
       link.href = `https://wa.me/${row.phone.replace(/\D/g, "")}`; link.target = "_blank"; link.rel = "noopener noreferrer";
       const actions = document.createElement("div"); actions.className = "lead-actions";
@@ -131,6 +165,17 @@ function renderBoard(rows: DemoConversation[]) {
         assume.setAttribute("aria-label", `Assumir atendimento de ${row.phone}`);
         assume.onclick = () => { void assumeAttendance(leadId, assume); };
         actions.append(assume);
+      }
+      if (row.lead?.stage === "em_atendimento" && row.status === "em_atendimento_humano") {
+        const leadId = row.lead.id;
+        for (const result of ["ganho", "perdido"] as const) {
+          const close = document.createElement("button"); close.className = "button button-secondary close-button";
+          close.type = "button"; close.disabled = closing.has(leadId);
+          close.textContent = close.disabled ? "Encerrando…" : result === "ganho" ? "Ganho" : "Perdido";
+          close.setAttribute("aria-label", `Encerrar atendimento de ${row.phone} como ${result}`);
+          close.onclick = () => { void closeAttendance(leadId, result, close); };
+          actions.append(close);
+        }
       }
       actions.append(link);
       card.append(cardTop, details, actions); cardList.append(card);
@@ -150,7 +195,8 @@ async function refresh() {
     const previousValue = selected;
     conversation.replaceChildren();
     for (const row of rows) {
-      const option = document.createElement("option"); option.value = row.id; option.textContent = `${row.phone} · ${row.status}`; conversation.append(option);
+      const option = document.createElement("option"); option.value = row.id;
+      option.textContent = `${row.phone} · ${row.status}${row.lead ? ` · ${row.lead.stage}` : ""}`; conversation.append(option);
     }
     conversation.value = previousValue;
     const row = rows.find((row) => row.id === selected);
