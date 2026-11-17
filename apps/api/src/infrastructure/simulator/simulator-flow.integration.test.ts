@@ -27,6 +27,12 @@ import { PostgresHumanHandoffStore } from "../../modules/leads/infrastructure/po
 import { installHumanHandoffRoutes } from "../../modules/leads/http/human-handoff-routes.js";
 import { installLeadClosureRoutes } from "../../modules/leads/http/lead-closure-routes.js";
 import { PostgresLeadClosureStore } from "../../modules/leads/infrastructure/postgres-lead-closure-store.js";
+import { QualifyMessage } from "../../modules/leads/application/qualify-message.js";
+import { SimulatedLeadQualifier } from "../../modules/leads/infrastructure/simulated-lead-qualifier.js";
+import { PostgresQualificationExecutionStore } from "../../modules/leads/infrastructure/postgres-qualification-execution-store.js";
+import { readQualificationConfig } from "../../config/qualification.js";
+import { buildQualificationInput, evaluateQualification } from "../../modules/leads/application/qualification-rules.js";
+import type { LeadQualifier } from "../../modules/leads/contracts/qualification.js";
 
 test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, async (t) => {
   const { runner } = await import("node-pg-migrate");
@@ -45,19 +51,21 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
   const read = new PostgresDemoReadModel(pool);
   const handoff = new PostgresHumanHandoffStore(pool);
   const closure = new PostgresLeadClosureStore(pool);
-  const dependencies = { queue, profile, contexts, plans, planStore, effects };
+  const qualificationStore = new PostgresQualificationExecutionStore(pool);
+  const qualification = new QualifyMessage(qualificationStore, new SimulatedLeadQualifier(), readQualificationConfig({}));
+  const dependencies = { queue, profile, contexts, plans, planStore, effects, qualification };
   const processor = new SimulatorProcessor(dependencies);
   let created = false;
   let server: Awaited<ReturnType<typeof listenHttp>> | undefined;
   let url = "";
   let sequence = 0;
   const phone = () => `+1555${String(++sequence).padStart(7, "0")}`;
-  async function migrate(direction: "up" | "down") {
+  async function migrate(direction: "up" | "down", count = 1) {
     const client = new Client({ ...testConfig, connectionTimeoutMillis: 5000 });
     try {
       await client.connect();
       await runner({ dbClient: client, dir: fileURLToPath(new URL("../../../migrations/", import.meta.url)), direction,
-        ...(direction === "down" ? { count: 1 } : {}), schema: "public", migrationsTable: "pgmigrations",
+        ...(direction === "down" ? { count } : {}), schema: "public", migrationsTable: "pgmigrations",
         checkOrder: true, singleTransaction: true, logger: { info: () => {}, warn: () => {}, error: () => {} } });
     } finally { await client.end(); }
   }
@@ -75,7 +83,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
   }
   async function snapshot() {
     const result: Record<string, unknown> = {};
-    for (const table of ["contacts", "conversations", "messages", "jobs", "response_plans", "response_blocks", "leads"]) {
+    for (const table of ["contacts", "conversations", "messages", "jobs", "response_plans", "response_blocks", "leads", "qualification_runs"]) {
       result[table] = (await pool.query(`SELECT to_jsonb(t) AS row FROM public.${table} t ORDER BY to_jsonb(t)::text;`)).rows;
     }
     return result;
@@ -93,7 +101,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
     return { job, context, decision, planId: result.planId };
   }
   t.beforeEach(async () => {
-    await pool.query("TRUNCATE public.leads, public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
+    await pool.query("TRUNCATE public.qualification_runs, public.leads, public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
   });
   try {
     await admin.connect(); await admin.query(`CREATE DATABASE "${database}" TEMPLATE template0;`); created = true;
@@ -128,7 +136,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       ok((await history.json() as unknown[]).length >= 5);
     });
 
-    await t.test("serviços e valores conduzem detalhes ao fallback Revisar sem simular IA", async () => {
+    await t.test("serviços e valores conduzem detalhes vagos à qualificação simulada com Revisar", async () => {
       for (const action of ["informar_servicos", "informar_valores_horarios"]) {
         const contact = phone(); await receive(contact, "Oi"); await drain();
         const option = (await profile.read()).menuOptions.find((option) => option.action === action); ok(option);
@@ -138,7 +146,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
         await receive(contact, "Gostaria de solicitar um horário fictício"); await drain();
         const row = (await read.conversations()).find((row) => row.phone === contact);
         equal(row?.status, "aguardando_humano"); equal(row?.lead?.stage, "novo"); equal(row?.lead?.needsReview, true);
-        ok(row?.lead?.summary?.includes("não habilitada"));
+        equal(row?.lead?.qualification?.source, "simulated"); equal(row?.lead?.qualification?.status, "revisao");
       }
     });
 
@@ -279,7 +287,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       const demoUrl = `http://127.0.0.1:${address.port}`;
       await new Promise<void>((resolve, reject) => portProbe.close((error) => error ? reject(error) : resolve()));
       const child = spawn(process.execPath, [fileURLToPath(new URL("../../demo.js", import.meta.url))], {
-        env: { ...process.env, POSTGRES_DB: database, API_PORT: String(address.port) },
+        env: { ...process.env, POSTGRES_DB: database, API_PORT: String(address.port), QUALIFIER_PROVIDER: "simulated" },
         stdio: "ignore", windowsHide: true,
       });
       const exited = once(child, "exit");
@@ -330,6 +338,16 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
         const closed = await fetch(`${demoUrl}/api/demo/leads/${lead.id}/close`, { method: "POST",
           headers: { "Content-Type": "application/json" }, body: JSON.stringify({ result: "ganho" }) });
         equal(closed.status, 200); equal((await read.conversations())[0]?.status, "encerrada");
+        await send("Olá novamente");
+        await until(async () => {
+          equal((await read.conversations())[0]?.status, "aguardando_menu");
+          equal((await pool.query("SELECT * FROM public.jobs WHERE status <> 'concluido';")).rowCount, 0);
+        });
+        const deterministic = await outgoing(); await send("Quero agendar avaliação amanhã à tarde");
+        await until(async () => {
+          const row = (await read.conversations())[0]; equal(row?.lead?.stage, "qualificado"); equal(row.lead.qualification?.source, "simulated");
+        });
+        deepEqual(await outgoing(), deterministic);
       } finally {
         if (child.exitCode === null && child.signalCode === null) child.kill();
         await exited;
@@ -657,8 +675,164 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       }
     });
 
+    const qualificationText = "Quero agendar avaliação amanhã à tarde";
+    async function qualificationWork() {
+      const contact = phone(); await receive(contact, "Olá"); await drain(); const receipt = await receive(contact, qualificationText);
+      const job = await queue.claimNext("processar_mensagem"); ok(job); equal(job.messageId, receipt.messageId);
+      const context = await contexts.findByMessageId(receipt.messageId); ok(context); return { job, context };
+    }
+    async function validQualification() {
+      const input = buildQualificationInput(qualificationText, [], await profile.read(), 8000);
+      return evaluateQualification(await new SimulatedLeadQualifier().qualify(input), input, "simulated");
+    }
+    function processorUsing(qualifier: LeadQualifier, timeoutMs = 100) {
+      return new SimulatorProcessor({ ...dependencies, qualification: new QualifyMessage(qualificationStore, qualifier, { timeoutMs, maxContextChars: 8000 }) });
+    }
+
+    await t.test("qualificação completa persiste campos, não envia texto livre e é idempotente", async () => {
+      const contact = phone(); await receive(contact, "Olá"); await drain(); const outgoingBefore = await outgoing();
+      const receipt = await receive(contact, qualificationText); await drain();
+      const row = (await read.conversations())[0]; ok(row?.lead); equal(row.lead.stage, "qualificado"); equal(row.lead.needsReview, false);
+      equal(row.lead.qualification?.intent, "agendamento"); equal(row.lead.qualification?.serviceId, "avaliacao");
+      equal(row.lead.qualification?.period, "amanha a tarde"); equal(row.lead.qualification?.status, "qualificado"); equal(row.lead.qualification?.source, "simulated");
+      const run = (await pool.query("SELECT status, result FROM public.qualification_runs WHERE message_id = $1;", [receipt.messageId])).rows[0];
+      equal(run?.status, "concluida"); deepEqual(run?.result, row.lead.qualification); deepEqual(await outgoing(), outgoingBefore);
+      const before = await snapshot(); equal((await receive(contact, qualificationText, receipt.payload.id)).status, "duplicada"); await drain(); deepEqual(await snapshot(), before);
+      const originalLead = (await pool.query("SELECT to_jsonb(l) AS row FROM public.leads l;")).rows;
+      await pool.query("UPDATE public.jobs SET status = 'pendente', locked_at = NULL, run_at = CURRENT_TIMESTAMP WHERE message_id = $1;", [receipt.messageId]);
+      await drain(); deepEqual((await pool.query("SELECT to_jsonb(l) AS row FROM public.leads l;")).rows, originalLead);
+      equal((await pool.query("SELECT * FROM public.qualification_runs;")).rowCount, 1);
+    });
+
+    await t.test("menu, mídia e conversa humana não chamam qualificador; texto elegível chama uma vez", async () => {
+      let calls = 0;
+      const simulated = new SimulatedLeadQualifier();
+      const counting = processorUsing({ source: "simulated", async qualify(input) { calls++; return simulated.qualify(input); } });
+      async function run() { for (let index = 0; index < 20; index++) if (!await counting.processOne()) return; throw Error("Fila não esvaziou"); }
+      const contact = phone(); await receive(contact, "Olá"); await run(); await receive(contact, "1"); await run(); equal(calls, 0);
+      await receive(contact, qualificationText); await run(); equal(calls, 1);
+      await receive(contact, "Outra mensagem"); await run(); equal(calls, 1);
+      const direct = phone(); await receive(direct, "Olá"); await run(); await receive(direct, "3"); await run(); equal(calls, 1);
+      const lead = (await read.conversations()).find((item) => item.phone === direct)?.lead; ok(lead); await handoff.assume(lead.id);
+      await receive(direct, qualificationText); await run(); equal(calls, 1);
+      const response = await fetch(`${url}/webhooks/simulator`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: randomUUID(), from: direct, fromMe: false, type: "audio", timestamp: new Date().toISOString() }) });
+      equal(response.status, 200); await run(); equal(calls, 1);
+    });
+
+    await t.test("contexto PostgreSQL usa só os dez anteriores do ciclo atual em ordem", async () => {
+      const old = await attendanceLead(); await closeHttp(old.id);
+      await receive(old.contact, "Olá"); await drain(); const receipt = await receive(old.contact, qualificationText);
+      const job = await queue.claimNext("processar_mensagem"); ok(job); const context = await contexts.findByMessageId(receipt.messageId); ok(context);
+      await pool.query("UPDATE public.messages SET created_at = $2 WHERE conversation_id = $1 AND id <> $3;",
+        [context.conversation.id, new Date(context.message.createdAt.getTime() - 3600000), receipt.messageId]);
+      for (let index = 0; index < 12; index++) await pool.query(`INSERT INTO public.messages
+        (conversation_id, provider, external_id, direction, sender_type, kind, body, created_at)
+        VALUES ($1, 'simulador', $2, 'entrada', 'contato', 'texto', $3, $4);`,
+        [context.conversation.id, randomUUID(), `anterior ${index}`, new Date(context.message.createdAt.getTime() - (12 - index) * 1000)]);
+      const work = { job, context }; const reserved = await qualificationStore.begin(work, "simulated"); ok(reserved.status === "reservada");
+      deepEqual(reserved.previousMessages, Array.from({ length: 10 }, (_, index) => `anterior ${index + 2}`));
+      await qualificationStore.finish(work, await validQualification(), null);
+    });
+
+    await t.test("falha ou timeout gera Novo Revisar sem perder campos e revisão anteriores", async () => {
+      for (const timeout of [false, true]) {
+        const contact = phone(); await receive(contact, "Olá"); await drain();
+        const conversation = (await read.conversations()).find((item) => item.phone === contact); ok(conversation);
+        const message = (await pool.query("SELECT contact_id FROM public.conversations WHERE id = $1;", [conversation.id])).rows[0]; ok(message);
+        const previous = { ...await validQualification(), status: "revisao", needsReview: true, period: null, summary: "Resumo administrativo anterior." };
+        await pool.query(`INSERT INTO public.leads (conversation_id, contact_id, summary, needs_review, qualification)
+          VALUES ($1, $2, $3, true, $4::jsonb);`, [conversation.id, message.contact_id, previous.summary, JSON.stringify(previous)]);
+        let calls = 0;
+        const failing = processorUsing({ source: "simulated", async qualify(_input, signal) {
+          calls++; if (!timeout) throw Error("Falha sintética");
+          return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(Error("abort"))));
+        } }, 20);
+        await receive(contact, qualificationText); await failing.processOne();
+        const row = (await read.conversations()).find((item) => item.id === conversation.id); ok(row?.lead);
+        equal(calls, 1); equal(row.lead.stage, "novo"); equal(row.lead.needsReview, true); equal(row.lead.summary, previous.summary);
+        equal(row.lead.qualification?.serviceId, "avaliacao"); equal(row.lead.qualification?.status, "falha");
+        equal((await pool.query("SELECT * FROM public.jobs WHERE status <> 'concluido';")).rowCount, 0);
+      }
+    });
+
+    await t.test("rollback de resultado parcial mantém reserva; retry cai em revisão sem repetir chamada", async () => {
+      const contact = phone(); await receive(contact, "Olá"); await drain(); await receive(contact, qualificationText);
+      let calls = 0; const simulated = new SimulatedLeadQualifier();
+      const processing = processorUsing({ source: "simulated", async qualify(input) { calls++; return simulated.qualify(input); } });
+      await pool.query(`CREATE FUNCTION public.reject_qualification() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN IF NEW.qualification IS NOT NULL THEN RAISE EXCEPTION 'falha_sintetica'; END IF; RETURN NEW; END; $$;
+        CREATE TRIGGER reject_qualification AFTER UPDATE ON public.leads FOR EACH ROW EXECUTE FUNCTION public.reject_qualification();`);
+      try {
+        await processing.processOne();
+        equal((await read.conversations())[0]?.status, "aguardando_menu");
+        const lead = (await pool.query("SELECT stage, qualification FROM public.leads;")).rows[0]; equal(lead?.stage, "novo"); equal(lead?.qualification, null);
+        equal((await pool.query("SELECT status FROM public.qualification_runs;")).rows[0]?.status, "processando");
+        equal((await pool.query("SELECT * FROM public.jobs WHERE status = 'pendente';")).rowCount, 1);
+      } finally { await pool.query("DROP TRIGGER reject_qualification ON public.leads; DROP FUNCTION public.reject_qualification();"); }
+      await due(); await processing.processOne(); equal(calls, 1);
+      equal((await read.conversations())[0]?.lead?.qualification?.status, "falha");
+      equal((await pool.query("SELECT error_code FROM public.qualification_runs;")).rows[0]?.error_code, "interrupted");
+    });
+
+    await t.test("reserva recuperada não repete API e rejeita resultado da tentativa antiga", async () => {
+      const work = await qualificationWork(); equal((await qualificationStore.begin(work, "simulated")).status, "reservada");
+      await pool.query("UPDATE public.jobs SET locked_at = CURRENT_TIMESTAMP - INTERVAL '121 seconds' WHERE id = $1;", [work.job.id]);
+      await recoverExpiredJobs(queue); const replacement = await queue.claimNext("processar_mensagem"); ok(replacement);
+      let calls = 0;
+      await new QualifyMessage(qualificationStore, { source: "gemini", async qualify() { calls++; throw Error("Não chamar"); } }, readQualificationConfig({})).execute({ ...work, job: replacement }, await profile.read());
+      equal(calls, 0); equal((await read.conversations())[0]?.lead?.qualification?.source, "simulated");
+      const before = await snapshot(); await qualificationStore.finish(work, await validQualification(), null); deepEqual(await snapshot(), before);
+    });
+
+    for (const humanAction of ["assumir", "encerrar"] as const) {
+      await t.test(`resultado atrasado não altera lead após ${humanAction}, sem locks durante o qualificador`, async () => {
+        const contact = phone(); await receive(contact, "Olá"); await drain(); await receive(contact, qualificationText);
+        let release!: (value: unknown) => void, started!: () => void;
+        const began = new Promise<void>((resolve) => { started = resolve; });
+        const processing = processorUsing({ source: "simulated", async qualify() { started(); return new Promise((resolve) => { release = resolve; }); } }, 10000);
+        const running = processing.processOne(); await began;
+        const row = (await read.conversations())[0]; ok(row?.lead); equal(row.lead.qualification?.status, "processando");
+        const candidateInput = buildQualificationInput(qualificationText, [], await profile.read(), 8000);
+        try {
+          equal((await handoff.assume(row.lead.id)).status, "assumido");
+          if (humanAction === "encerrar") equal((await closeHttp(row.lead.id)).response.status, 200);
+          const leadBefore = (await pool.query("SELECT to_jsonb(l) AS row FROM public.leads l WHERE id = $1;", [row.lead.id])).rows;
+          release(await new SimulatedLeadQualifier().qualify(candidateInput)); await running;
+          deepEqual((await pool.query("SELECT to_jsonb(l) AS row FROM public.leads l WHERE id = $1;", [row.lead.id])).rows, leadBefore);
+          equal((await pool.query("SELECT status FROM public.qualification_runs;")).rows[0]?.status, "descartada");
+          equal((await read.conversations())[0]?.status, humanAction === "encerrar" ? "encerrada" : "em_atendimento_humano");
+        } finally { release({}); await running; }
+      });
+    }
+
+    await t.test("qualificação preserva Revisar existente e não herda dados de ciclos encerrados", async () => {
+      const contact = phone(); await receive(contact, "Olá"); await drain();
+      const conversation = (await read.conversations())[0]; ok(conversation);
+      await pool.query(`INSERT INTO public.leads (conversation_id, contact_id, needs_review)
+        SELECT id, contact_id, true FROM public.conversations WHERE id = $1;`, [conversation.id]);
+      await receive(contact, qualificationText); await drain();
+      const row = (await read.conversations())[0]; ok(row?.lead); equal(row.lead.stage, "qualificado"); equal(row.lead.needsReview, true);
+      await handoff.assume(row.lead.id); await closeHttp(row.lead.id);
+      const history = await read.messages(row.id);
+      await receive(contact, "Olá"); await drain(); await receive(contact, "Quero agendar avaliação"); await drain();
+      const next = (await read.conversations())[0]; ok(next?.lead); ok(next.id !== row.id); equal(next.lead.stage, "novo"); equal(next.lead.qualification?.period, null);
+      equal(next.lead.qualification?.status, "revisao"); deepEqual(await read.messages(row.id), history);
+    });
+
+    await t.test("migração de qualificação aplica, valida vínculos e reverte sem apagar leads", async () => {
+      const lead = await receptionLead(); const before = (await pool.query("SELECT id, stage, summary FROM public.leads ORDER BY id;")).rows;
+      await rejects(pool.query("UPDATE public.leads SET qualification = '{}'::jsonb WHERE id = $1;", [lead.id]), { code: "23514" });
+      const job = (await pool.query("SELECT id, message_id FROM public.jobs LIMIT 1;")).rows[0]; ok(job);
+      await rejects(pool.query(`INSERT INTO public.qualification_runs (message_id, conversation_id, job_id, reserved_attempt, source)
+        VALUES ($1, $2, $3, 1, 'simulated');`, [job.message_id, randomUUID(), job.id]), { code: "23503" });
+      await migrate("down"); equal((await pool.query("SELECT to_regclass('public.qualification_runs') AS relation;")).rows[0]?.relation, null);
+      deepEqual((await pool.query("SELECT id, stage, summary FROM public.leads ORDER BY id;")).rows, before);
+      await migrate("up"); equal((await pool.query("SELECT * FROM public.qualification_runs;")).rowCount, 0);
+    });
+
     await t.test("migração de leads reverte somente seus objetos e reaplica", async () => {
-      await migrate("down");
+      await migrate("down", 2);
       equal((await pool.query("SELECT to_regclass('public.leads') AS relation;")).rows[0]?.relation, null);
       equal((await pool.query("SELECT * FROM pg_constraint WHERE conname = 'conversations_id_contact_id_key';")).rowCount, 0);
       equal((await pool.query("SELECT count(*)::integer AS count FROM public.pgmigrations;")).rows[0]?.count, 5);

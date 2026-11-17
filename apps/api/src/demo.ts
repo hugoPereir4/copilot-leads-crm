@@ -18,16 +18,24 @@ import { PostgresHumanHandoffStore } from "./modules/leads/infrastructure/postgr
 import { installHumanHandoffRoutes } from "./modules/leads/http/human-handoff-routes.js";
 import { installLeadClosureRoutes } from "./modules/leads/http/lead-closure-routes.js";
 import { PostgresLeadClosureStore } from "./modules/leads/infrastructure/postgres-lead-closure-store.js";
+import { readQualificationConfig, QualificationConfigurationError } from "./config/qualification.js";
+import { createLeadQualifier } from "./modules/leads/infrastructure/create-lead-qualifier.js";
+import { QualifyMessage } from "./modules/leads/application/qualify-message.js";
+import { PostgresQualificationExecutionStore } from "./modules/leads/infrastructure/postgres-qualification-execution-store.js";
 
 async function main() {
+  const qualificationConfig = readQualificationConfig(process.env);
+  const qualifier = await createLeadQualifier(qualificationConfig);
   const pool = createDatabasePool(readDatabaseConfig(process.env));
   try {
     // Falhar antes de consumir jobs se a migração da entrega não foi aplicada.
     await pool.query("SELECT id FROM public.leads LIMIT 0;");
+    await pool.query("SELECT message_id FROM public.qualification_runs LIMIT 0;");
     const queue = new PostgresJobQueue(pool, true);
     const processor = new SimulatorProcessor({ queue, profile: new JsonBusinessProfileReader(),
       contexts: new PostgresMessageProcessingContextReader(pool), plans: new PostgresMessageResponsePlanReader(pool),
       planStore: new PostgresMessageResponsePlanStore(pool), effects: new PostgresSimulatorEffects(pool),
+      qualification: new QualifyMessage(new PostgresQualificationExecutionStore(pool), qualifier, qualificationConfig),
       report: (jobId, code) => console.error(JSON.stringify({ level: "warn", code, jobId })),
     });
     const read = new PostgresDemoReadModel(pool);
@@ -60,8 +68,8 @@ async function main() {
     console.info(`Demonstração local: http://127.0.0.1:${readHttpConfig(process.env).port}/simulator e /admin`);
   } catch {
     await pool.end();
-    console.error("Não foi possível iniciar a demonstração. Confira PostgreSQL, migração de leads e porta HTTP.");
+    console.error("Não foi possível iniciar a demonstração. Confira PostgreSQL, migrações de leads/qualificação e porta HTTP.");
     process.exitCode = 1;
   }
 }
-void main().catch(() => { console.error("Configuração da demonstração inválida."); process.exitCode = 1; });
+void main().catch((error: unknown) => { console.error(error instanceof QualificationConfigurationError ? error.message : "Configuração da demonstração inválida."); process.exitCode = 1; });

@@ -8,6 +8,7 @@ import type { MessageResponsePlanStore } from "../../messaging/application/messa
 import { decideMessageProcessing } from "../../messaging/application/decide-message-processing.js";
 import { prepareMessageResponsePlan } from "../../messaging/application/prepare-message-response-plan.js";
 import type { SimulatorEffects } from "./simulator-effects.js";
+import type { QualifyMessage } from "../../leads/application/qualify-message.js";
 
 export class SimulatorProcessor {
   constructor(private readonly dependencies: {
@@ -17,6 +18,7 @@ export class SimulatorProcessor {
     plans: MessageResponsePlanReader;
     planStore: MessageResponsePlanStore;
     effects: SimulatorEffects;
+    qualification: Pick<QualifyMessage, "execute">;
     report?: (jobId: string, code: string) => void;
   }) {}
 
@@ -39,6 +41,10 @@ export class SimulatorProcessor {
         decision = { action: "solicitar_qualificacao", nextStatus: "qualificando" };
       }
       if (decision.action === "adiar") throw new Error("Processamento anterior ainda em andamento.");
+      if (decision.action === "solicitar_qualificacao") {
+        await d.qualification.execute({ job, context }, profile!);
+        return true;
+      }
       let planId = original?.id;
       if (!original && (decision.action === "enviar_abertura" || decision.action === "reapresentar_menu"
         || decision.action === "informar_servicos" || decision.action === "informar_valores_horarios")) {

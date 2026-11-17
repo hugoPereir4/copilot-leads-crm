@@ -67,7 +67,7 @@ test("reivindicação de jobs em banco descartável", { timeout: 60000 }, async 
 
   // A limpeza usa somente o pool conectado ao banco criado por esta suíte.
   t.beforeEach(async () => {
-    await pool.query("TRUNCATE public.leads, public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
+    await pool.query("TRUNCATE public.qualification_runs, public.leads, public.response_blocks, public.response_plans, public.jobs, public.messages, public.conversations, public.contacts;");
   });
 
   try {

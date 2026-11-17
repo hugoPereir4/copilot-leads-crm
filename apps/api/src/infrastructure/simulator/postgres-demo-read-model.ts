@@ -10,7 +10,10 @@ export class PostgresDemoReadModel implements DemoReadModel {
         (SELECT count(*)::integer FROM public.jobs j JOIN public.messages m ON m.id = j.message_id
           WHERE m.conversation_id = c.id AND j.status = 'falhou') AS "failedJobs",
         CASE WHEN l.id IS NULL THEN NULL ELSE jsonb_build_object('id', l.id, 'stage', l.stage,
-          'needsReview', l.needs_review, 'summary', l.summary) END AS lead
+          'needsReview', l.needs_review, 'summary', l.summary, 'qualification', COALESCE(l.qualification,
+            (SELECT jsonb_build_object('intent', NULL, 'serviceId', NULL, 'serviceName', NULL, 'period', NULL, 'summary', NULL,
+              'needsReview', l.needs_review, 'source', q.source, 'status', 'processando') FROM public.qualification_runs q
+              WHERE q.conversation_id = c.id AND q.status = 'processando' ORDER BY q.created_at DESC, q.message_id DESC LIMIT 1))) END AS lead
       FROM public.conversations c JOIN public.contacts p ON p.id = c.contact_id
       LEFT JOIN public.leads l ON l.conversation_id = c.id
       WHERE EXISTS (SELECT 1 FROM public.messages m WHERE m.conversation_id = c.id AND m.provider = 'simulador')
