@@ -89,19 +89,31 @@ test("modo padrão não exige chave nem carrega inicializador Gemini", async () 
 test("schema JSON e cliente usam configuracao compativel com Gemini API sem retry", () => {
   const schema = geminiResponseJsonSchema() as Record<string, unknown>;
   equal("$schema" in schema, false);
-  const visit = (value: unknown) => {
-    if (Array.isArray(value)) { for (const item of value) visit(item); return; }
-    if (!value || typeof value !== "object") return;
+  const visit = (value: unknown): number => {
+    if (Array.isArray(value)) return value.reduce<number>((count: number, item: unknown) => count + visit(item), 0);
+    if (!value || typeof value !== "object") return 0;
     const object = value as Record<string, unknown>;
-    equal("anyOf" in object, false); equal("$schema" in object, false);
+    equal("$schema" in object, false);
     equal("minLength" in object, false); equal("maxLength" in object, false);
-    for (const item of Object.values(object)) visit(item);
+    return ("anyOf" in object ? 1 : 0) + Object.values(object).reduce<number>((count: number, item: unknown) => count + visit(item), 0);
   };
-  visit(schema);
+  equal(visit(schema), 1);
   const properties = schema.properties as Record<string, Record<string, unknown>>;
-  deepEqual(properties.intent?.type, ["string", "null"]);
-  deepEqual(properties.intent?.enum, ["agendamento", "informacoes", null]);
+  const intentSchema = properties.intent as { anyOf: Array<Record<string, unknown>> };
+  deepEqual(intentSchema.anyOf, [
+    { type: "string", enum: ["agendamento", "informacoes"] },
+    { type: "null" },
+  ]);
+  ok(!(intentSchema.anyOf[0]!.enum as unknown[]).includes(null));
   deepEqual(properties.serviceId?.type, ["string", "null"]);
+  const evidence = properties.evidence as Record<string, unknown>;
+  equal(evidence.additionalProperties, false);
+  const evidenceProperties = evidence.properties as Record<string, Record<string, unknown>>;
+  deepEqual(evidenceProperties.intent?.type, ["string", "null"]);
+  deepEqual(evidenceProperties.service?.type, ["string", "null"]);
+  deepEqual(evidenceProperties.period?.type, ["string", "null"]);
+  deepEqual(properties.period?.type, ["string", "null"]);
+  deepEqual(properties.summary?.type, ["string", "null"]);
   equal(properties.needsReview?.type, "boolean"); equal(schema.additionalProperties, false);
   const options = geminiClientOptions({ ...config, apiKey: "key-for-test" });
   equal(options.vertexai, false); equal(options.httpOptions.timeout, config.timeoutMs);
@@ -138,13 +150,31 @@ test("diagnostico extrai categoria, status e codigos tecnicos permitidos sem dad
   equal(unknown.providerCode, undefined);
 });
 
+test("diagnostico inclui caminho de violacao e detalhe sanitizado, descartando texto e caminhos inseguros", () => {
+  const secret = "SENSITIVE_API_KEY_AND_CONTACT_TEXT";
+  const safe = diagnoseGeminiError({ status: 400, message: JSON.stringify({ error: { status: "INVALID_ARGUMENT", details: [
+    { fieldViolations: [{ field: "generation_config.response_schema.properties[0].value.enum",
+      description: `Invalid enum value in ${secret}; prompt and Authorization: Bearer ${secret}` }] },
+  ] } }) });
+  equal(safe.providerField, "generation_config.response_schema.properties[0].value.enum");
+  equal(safe.providerDetail, "invalid_enum");
+  ok(!JSON.stringify(safe).includes(secret));
+  const unsafe = diagnoseGeminiError({ status: 400, message: JSON.stringify({ error: { details: [
+    { fieldViolations: [{ field: `contents.${secret}`, description: `Invalid value ${secret}` }] },
+  ] } }) });
+  equal(unsafe.providerField, undefined); equal(unsafe.providerDetail, undefined);
+  ok(!JSON.stringify(unsafe).includes(secret));
+});
+
 test("caso de uso registra diagnostico seguro e persiste fallback Novo + Revisar", async () => {
-  let reported: { jobId: string; diagnostic: { diagnosticId: string; category: string; httpStatus?: number } } | undefined;
+  let reported: unknown;
   const store: QualificationExecutionStore = {
     async begin() { return { status: "reservada", source: "gemini", previousMessages: [] }; },
     async finish(_work, result, errorCode) { equal(result.status, "falha"); equal(result.needsReview, true); equal(errorCode, "qualifier_failure"); },
   };
-  const diagnostic = { diagnosticId: "f0f0f0f0-1234-4123-8123-123456789abc", category: "http_400" as const, httpStatus: 400 };
+  const diagnostic = { diagnosticId: "f0f0f0f0-1234-4123-8123-123456789abc", category: "http_400" as const,
+    httpStatus: 400, providerField: "generation_config.response_schema.properties[0].value.enum",
+    providerDetail: "invalid_enum" as const };
   const useCase = new QualifyMessage(store, { source: "gemini", async qualify() {
     throw new QualificationError("qualifier_failure", diagnostic);
   } }, { timeoutMs: 1000, maxContextChars: 8000 }, (jobId, safe) => { reported = { jobId, diagnostic: safe }; });

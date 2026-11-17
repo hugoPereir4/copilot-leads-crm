@@ -11,22 +11,60 @@ const safeProviderCodes = new Set(["API_KEY_INVALID", "ACCESS_TOKEN_EXPIRED", "A
   "INTERNAL", "UNAVAILABLE", "DEADLINE_EXCEEDED"]);
 const safeNetworkCodes = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "ECONNRESET",
   "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_SOCKET"]);
+const safeFieldSegments = new Set(["GenerateContentRequest", "generation_config", "response_schema", "response_json_schema",
+  "generationConfig", "responseSchema", "responseJsonSchema", "responseMimeType", "maxOutputTokens",
+  "response_mime_type", "model", "contents", "temperature", "max_output_tokens", "properties", "required",
+  "additionalProperties", "additional_properties", "enum", "type", "nullable", "items", "value", "intent",
+  "serviceId", "period", "summary", "needsReview", "evidence", "service", "minLength", "maxLength"]);
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" ? value as Record<string, unknown> : undefined;
 }
 
-function providerCode(error: unknown): string | undefined {
+function providerErrorBody(error: unknown): Record<string, unknown> | undefined {
   const message = record(error)?.message;
   if (typeof message !== "string" || message.length > 64_000) return undefined;
   try {
     const parsed: unknown = JSON.parse(message);
     const root = record(parsed);
-    const details = record(root?.error);
-    const values = [...(Array.isArray(details?.details)
-      ? details.details.map((item: unknown) => record(item)?.reason) : []), details?.status];
-    return values.find((value): value is string => typeof value === "string" && safeProviderCodes.has(value));
+    return record(root?.error);
   } catch { return undefined; }
+}
+
+function providerCode(error: unknown): string | undefined {
+  const details = providerErrorBody(error);
+  const values = [...(Array.isArray(details?.details)
+    ? details.details.map((item: unknown) => record(item)?.reason) : []), details?.status];
+  return values.find((value): value is string => typeof value === "string" && safeProviderCodes.has(value));
+}
+
+function safeProviderField(field: unknown): string | undefined {
+  if (typeof field !== "string" || field.length > 200
+    || !/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/.test(field)) return undefined;
+  const segments = field.match(/[A-Za-z_][A-Za-z0-9_]*|\[\d+\]/g) ?? [];
+  if (segments.some((segment) => !segment.startsWith("[") && !safeFieldSegments.has(segment))) return undefined;
+  return field;
+}
+
+function providerViolation(error: unknown): Pick<QualificationDiagnostic, "providerField" | "providerDetail"> {
+  const body = providerErrorBody(error);
+  const details = Array.isArray(body?.details) ? body.details : [];
+  for (const detail of details) {
+    const violations = record(detail)?.fieldViolations;
+    if (!Array.isArray(violations)) continue;
+    for (const violation of violations) {
+      const item = record(violation);
+      const providerField = safeProviderField(item?.field);
+      if (!providerField) continue;
+      const description = typeof item?.description === "string" ? item.description.slice(0, 4000).toLowerCase() : "";
+      const providerDetail: NonNullable<QualificationDiagnostic["providerDetail"]> = /unknown name|cannot find field|unsupported|not supported/.test(description)
+        ? "unsupported_schema_field" : /enum/.test(description) ? "invalid_enum"
+          : /nullable|\bnull\b|\btype\b/.test(description) ? "invalid_schema_type"
+            : /required|missing/.test(description) ? "required_field_invalid" : "request_field_invalid";
+      return { providerField, providerDetail };
+    }
+  }
+  return {};
 }
 
 function networkCode(error: unknown): string | undefined {
@@ -50,7 +88,8 @@ export function diagnoseGeminiError(error: unknown): QualificationDiagnostic {
         : httpStatus !== undefined ? "http_other" : network ? "network_error" : "internal_error";
   const code = providerCode(error);
   return { diagnosticId: randomUUID(), category, ...(httpStatus === undefined ? {} : { httpStatus }),
-    ...(code === undefined ? {} : { providerCode: code }), ...(network === undefined ? {} : { networkCode: network }) };
+    ...(code === undefined ? {} : { providerCode: code }), ...(network === undefined ? {} : { networkCode: network }),
+    ...providerViolation(error) };
 }
 
 export function geminiResponseJsonSchema() {
@@ -63,11 +102,10 @@ export function geminiResponseJsonSchema() {
       const nullableIndex = anyOf.findIndex((item: unknown) => record(item)?.type === "null");
       if (nullableIndex >= 0) {
         const base = convert(anyOf[1 - nullableIndex]) as Record<string, unknown>;
-        const type = base.type;
         const enumValues = base.enum;
-        return { ...base,
-          ...(typeof type === "string" ? { type: [type, "null"] } : {}),
-          ...(Array.isArray(enumValues) && !enumValues.includes(null) ? { enum: [...enumValues, null] } : {}) };
+        if (Array.isArray(enumValues)) return { anyOf: [base, { type: "null" }] };
+        const type = base.type;
+        return { ...base, ...(typeof type === "string" ? { type: [type, "null"] } : {}) };
       }
     }
     return Object.fromEntries(Object.entries(rest).map(([key, item]) => [key, convert(item)]));

@@ -35,6 +35,8 @@ export type QualificationDiagnostic = {
   httpStatus?: number;
   providerCode?: string;
   networkCode?: string;
+  providerField?: string;
+  providerDetail?: "unsupported_schema_field" | "invalid_enum" | "invalid_schema_type" | "required_field_invalid" | "request_field_invalid";
 };
 export class QualificationError extends Error {
   constructor(readonly code: QualificationFailureCode, readonly diagnostic?: QualificationDiagnostic) {

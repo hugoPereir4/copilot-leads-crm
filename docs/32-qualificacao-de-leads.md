@@ -73,7 +73,9 @@ Falhas do provedor continuam sendo persistidas com os codigos de dominio ja supo
 
 Categorias `http_400`, `http_401`, `http_403`, `http_404`, `http_429` e `http_5xx` distinguem respostas HTTP; `network_error`, `timeout`, `configuration_error` e `internal_error` ajudam a separar falhas locais. Para investigar uma nova tentativa real, localize no terminal a linha `gemini_qualification_failure` pelo `jobId` ou `diagnosticId`; um 400 pode trazer `providerCode` seguro, como `API_KEY_INVALID` ou `INVALID_ARGUMENT`. O codigo persistido no banco permanece propositalmente mais amplo. As duas tentativas anteriores nao foram suficientes para estabelecer a causa: a implementacao anterior descartava esse diagnostico.
 
-O schema derivado do Zod é adaptado ao subconjunto documentado pelo Gemini: campos anuláveis usam o tipo string/null; metadados de draft e limites de comprimento não suportados são removidos do schema enviado. O Zod continua aplicando todos os limites e regras no retorno do modelo. Para `gemini-3.1-flash-lite`, o adapter deixa a temperatura no padrão recomendado pelo provedor; preserva `maxOutputTokens: 768`, timeout configurado e uma tentativa do SDK, sem retry automático.
+O schema derivado do Zod é adaptado ao subconjunto documentado pelo Gemini: campos de texto anuláveis usam o tipo string/null e o enum anulável `intent` usa `anyOf` com um ramo string enumerado e outro null. Metadados de draft e limites de comprimento não suportados são removidos do schema enviado. O Zod continua aplicando todos os limites e regras no retorno do modelo. Para `gemini-3.1-flash-lite`, o adapter deixa a temperatura no padrão recomendado pelo provedor; preserva `maxOutputTokens: 768`, timeout configurado e uma tentativa do SDK, sem retry automático.
+
+Quando o erro do provedor trouxer `fieldViolations`, o diagnóstico pode acrescentar `providerField` se o caminho contiver apenas campos técnicos conhecidos e `providerDetail` como código sanitizado. A descrição original permanece fora dos logs.
 
 ## Interface e Postman
 
