@@ -1,12 +1,14 @@
+import { randomUUID } from "node:crypto";
 import type { QualificationConfig } from "../../../config/qualification.js";
 import type { BusinessProfile } from "../../business-profile/contracts/business-profile.js";
-import { QualificationError, failedQualification, type LeadQualifier } from "../contracts/qualification.js";
+import { QualificationError, failedQualification, type LeadQualifier, type QualificationDiagnostic } from "../contracts/qualification.js";
 import { buildQualificationInput, evaluateQualification } from "./qualification-rules.js";
 import type { QualificationExecutionStore, QualificationWork } from "./qualification-execution-store.js";
 
 export class QualifyMessage {
   constructor(private readonly store: QualificationExecutionStore, private readonly qualifier: LeadQualifier,
-    private readonly config: Pick<QualificationConfig, "timeoutMs" | "maxContextChars">) {}
+    private readonly config: Pick<QualificationConfig, "timeoutMs" | "maxContextChars">,
+    private readonly report?: (jobId: string, diagnostic: QualificationDiagnostic) => void) {}
 
   async execute(work: QualificationWork, profile: BusinessProfile): Promise<void> {
     const reservation = await this.store.begin(work, this.qualifier.source);
@@ -29,6 +31,11 @@ export class QualifyMessage {
         errorCode = null;
       } catch (error) {
         errorCode = error instanceof QualificationError ? error.code : "qualifier_failure";
+        if (error instanceof QualificationError && error.diagnostic) {
+          try { this.report?.(work.job.id, error.diagnostic); } catch { /* diagnóstico não interfere na transação. */ }
+        } else if (errorCode === "timeout") {
+          try { this.report?.(work.job.id, { diagnosticId: randomUUID(), category: "timeout" }); } catch { /* diagnóstico não interfere na transação. */ }
+        }
       } finally { if (timeout) clearTimeout(timeout); }
     }
     // Somente esta transação aplica campos/estado e conclui o job.

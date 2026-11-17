@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readDatabaseConfig } from "./config/database.js";
 import { readHttpConfig } from "./config/http.js";
 import { createHttpApp } from "./http/app.js";
@@ -22,6 +23,7 @@ import { readQualificationConfig, QualificationConfigurationError } from "./conf
 import { createLeadQualifier } from "./modules/leads/infrastructure/create-lead-qualifier.js";
 import { QualifyMessage } from "./modules/leads/application/qualify-message.js";
 import { PostgresQualificationExecutionStore } from "./modules/leads/infrastructure/postgres-qualification-execution-store.js";
+import { QualificationError } from "./modules/leads/contracts/qualification.js";
 
 async function main() {
   const qualificationConfig = readQualificationConfig(process.env);
@@ -35,7 +37,8 @@ async function main() {
     const processor = new SimulatorProcessor({ queue, profile: new JsonBusinessProfileReader(),
       contexts: new PostgresMessageProcessingContextReader(pool), plans: new PostgresMessageResponsePlanReader(pool),
       planStore: new PostgresMessageResponsePlanStore(pool), effects: new PostgresSimulatorEffects(pool),
-      qualification: new QualifyMessage(new PostgresQualificationExecutionStore(pool), qualifier, qualificationConfig),
+      qualification: new QualifyMessage(new PostgresQualificationExecutionStore(pool), qualifier, qualificationConfig,
+        (jobId, diagnostic) => console.error(JSON.stringify({ level: "error", event: "gemini_qualification_failure", jobId, ...diagnostic }))),
       report: (jobId, code) => console.error(JSON.stringify({ level: "warn", code, jobId })),
     });
     const read = new PostgresDemoReadModel(pool);
@@ -72,4 +75,9 @@ async function main() {
     process.exitCode = 1;
   }
 }
-void main().catch((error: unknown) => { console.error(error instanceof QualificationConfigurationError ? error.message : "Configuração da demonstração inválida."); process.exitCode = 1; });
+void main().catch((error: unknown) => {
+  if (error instanceof QualificationConfigurationError) console.error(JSON.stringify({ level: "error", category: "configuration_error", diagnosticId: randomUUID() }));
+  else if (error instanceof QualificationError && error.diagnostic) console.error(JSON.stringify({ level: "error", ...error.diagnostic }));
+  else console.error("Configuração da demonstração inválida.");
+  process.exitCode = 1;
+});

@@ -67,6 +67,14 @@ Os limites de 15 RPM, 250 mil TPM e 500 requisições/dia foram observados pelo 
 
 Referências oficiais consultadas: [modelo exato](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite), [JSON estruturado](https://ai.google.dev/gemini-api/docs/structured-output), [timeout](https://googleapis.github.io/js-genai/release_docs/interfaces/types.HttpOptions.html) e [retries](https://googleapis.github.io/js-genai/release_docs/interfaces/types.HttpRetryOptions.html). A API inclui tipos DOM no tsconfig exclusivamente para verificar os tipos HTTP/eventos do SDK; a chave e o SDK permanecem no backend.
 
+## Diagnostico seguro do Gemini
+
+Falhas do provedor continuam sendo persistidas com os codigos de dominio ja suportados (por exemplo, `qualifier_failure` e `rate_limited`) para manter o contrato e o fallback Novo + Revisar. O terminal agora registra um objeto JSON com `category`, `httpStatus` quando houver, `providerCode` de uma lista permitida, `networkCode` de uma lista permitida, `diagnosticId` e o UUID do job. O log nunca inclui mensagem original da excecao, chave, cabecalhos, prompt, resposta bruta ou dados do contato.
+
+Categorias `http_400`, `http_401`, `http_403`, `http_404`, `http_429` e `http_5xx` distinguem respostas HTTP; `network_error`, `timeout`, `configuration_error` e `internal_error` ajudam a separar falhas locais. Para investigar uma nova tentativa real, localize no terminal a linha `gemini_qualification_failure` pelo `jobId` ou `diagnosticId`; um 400 pode trazer `providerCode` seguro, como `API_KEY_INVALID` ou `INVALID_ARGUMENT`. O codigo persistido no banco permanece propositalmente mais amplo. As duas tentativas anteriores nao foram suficientes para estabelecer a causa: a implementacao anterior descartava esse diagnostico.
+
+O schema derivado do Zod é adaptado ao subconjunto documentado pelo Gemini: campos anuláveis usam o tipo string/null; metadados de draft e limites de comprimento não suportados são removidos do schema enviado. O Zod continua aplicando todos os limites e regras no retorno do modelo. Para `gemini-3.1-flash-lite`, o adapter deixa a temperatura no padrão recomendado pelo provedor; preserva `maxOutputTokens: 768`, timeout configurado e uma tentativa do SDK, sem retry automático.
+
 ## Interface e Postman
 
 Abra `/simulator` e `/admin`. Novo telefone fictício → “Olá” → aguarde menu → texto completo acima. Confira card Qualificado, serviço/período, resumo e origem **Simulada (sem IA externa)**. Outro contato com texto incompleto deve ficar Novo/Revisar. Opção 3 continua sem qualificação. Assumir, encerrar, consultar encerrados e iniciar novo ciclo continuam disponíveis. A revisão visual do navegador permanece a cargo do autor; os testes web usam DOM mínimo.

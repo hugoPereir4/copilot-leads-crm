@@ -3,7 +3,8 @@ import { test } from "node:test";
 import { readQualificationConfig } from "../../../config/qualification.js";
 import { JsonBusinessProfileReader } from "../../business-profile/infrastructure/json-business-profile-reader.js";
 import { createLeadQualifier } from "../infrastructure/create-lead-qualifier.js";
-import { GeminiLeadQualifier, geminiQualificationRequest } from "../infrastructure/gemini-lead-qualifier.js";
+import { diagnoseGeminiError, GeminiLeadQualifier, geminiClientOptions, geminiQualificationRequest,
+  geminiResponseJsonSchema } from "../infrastructure/gemini-lead-qualifier.js";
 import { SimulatedLeadQualifier } from "../infrastructure/simulated-lead-qualifier.js";
 import { qualificationCandidateSchema, QualificationError, type QualificationCandidate } from "../contracts/qualification.js";
 import { buildQualificationInput, evaluateQualification } from "./qualification-rules.js";
@@ -61,6 +62,7 @@ test("prompt injection e texto clínico não comandam classificação nem narrat
   }
   const request = geminiQualificationRequest(complete, config.model, new AbortController().signal);
   equal(request.model, "gemini-3.1-flash-lite"); equal(request.config.responseMimeType, "application/json");
+  equal("temperature" in request.config, false); equal(request.config.maxOutputTokens, 768);
   ok(request.config.systemInstruction.includes("não confiáveis"));
   ok(!request.contents.includes(work.context.contact.phone));
 });
@@ -82,6 +84,72 @@ test("modo padrão não exige chave nem carrega inicializador Gemini", async () 
   throws(() => readQualificationConfig({ QUALIFIER_PROVIDER: "gemini" }), /GEMINI_API_KEY/);
   throws(() => readQualificationConfig({ QUALIFIER_PROVIDER: "gemini", GEMINI_API_KEY: "segredo_sintetico", GEMINI_MODEL: "outro_modelo" }), (error: unknown) =>
     error instanceof Error && error.message.includes("GEMINI_MODEL") && !error.message.includes("segredo_sintetico"));
+});
+
+test("schema JSON e cliente usam configuracao compativel com Gemini API sem retry", () => {
+  const schema = geminiResponseJsonSchema() as Record<string, unknown>;
+  equal("$schema" in schema, false);
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) { for (const item of value) visit(item); return; }
+    if (!value || typeof value !== "object") return;
+    const object = value as Record<string, unknown>;
+    equal("anyOf" in object, false); equal("$schema" in object, false);
+    equal("minLength" in object, false); equal("maxLength" in object, false);
+    for (const item of Object.values(object)) visit(item);
+  };
+  visit(schema);
+  const properties = schema.properties as Record<string, Record<string, unknown>>;
+  deepEqual(properties.intent?.type, ["string", "null"]);
+  deepEqual(properties.intent?.enum, ["agendamento", "informacoes", null]);
+  deepEqual(properties.serviceId?.type, ["string", "null"]);
+  equal(properties.needsReview?.type, "boolean"); equal(schema.additionalProperties, false);
+  const options = geminiClientOptions({ ...config, apiKey: "key-for-test" });
+  equal(options.vertexai, false); equal(options.httpOptions.timeout, config.timeoutMs);
+  equal(options.httpOptions.retryOptions.attempts, 1);
+  throws(() => geminiClientOptions({ ...config, apiKey: undefined }));
+  throws(() => new GeminiLeadQualifier({ ...config, apiKey: undefined }), (error: unknown) =>
+    error instanceof QualificationError && error.diagnostic?.category === "configuration_error");
+});
+
+test("diagnostico extrai categoria, status e codigos tecnicos permitidos sem dados sensiveis", async () => {
+  for (const [status, category, code] of [[400, "http_400", "API_KEY_INVALID"], [401, "http_401", undefined],
+    [403, "http_403", undefined], [404, "http_404", undefined], [429, "http_429", undefined],
+    [503, "http_5xx", undefined]] as const) {
+    const secret = "SENSITIVE_SYNTHETIC_API_KEY";
+    const adapter = new GeminiLeadQualifier(config, { async generateContent() {
+      const statusCode = ({ 401: "UNAUTHENTICATED", 403: "PERMISSION_DENIED", 404: "NOT_FOUND", 429: "RESOURCE_EXHAUSTED", 503: "UNAVAILABLE" } as Record<number, string>)[status] ?? "INVALID_ARGUMENT";
+      throw { status, message: JSON.stringify({ error: { status: code ?? statusCode,
+        message: `contains ${secret} and prompt data`, details: [{ reason: code ?? "UNRECOGNIZED_PRIVATE_VALUE" }] } }) };
+    } });
+    await rejects(adapter.qualify(complete, new AbortController().signal), (error: unknown) => {
+      ok(error instanceof QualificationError);
+      equal(error.code, status === 429 ? "rate_limited" : "qualifier_failure");
+      equal(error.diagnostic?.category, category); equal(error.diagnostic?.httpStatus, status);
+      if (code) equal(error.diagnostic?.providerCode, code);
+      ok(!error.message.includes(secret)); ok(!JSON.stringify(error.diagnostic).includes(secret));
+      ok(!JSON.stringify(error.diagnostic).includes("prompt data")); return true;
+    });
+  }
+  const network = diagnoseGeminiError({ message: "request contained secret", cause: { code: "ENOTFOUND", message: "private host" } });
+  equal(network.category, "network_error"); equal(network.networkCode, "ENOTFOUND");
+  const internal = diagnoseGeminiError(new TypeError("private SDK message"));
+  equal(internal.category, "internal_error");
+  const unknown = diagnoseGeminiError({ status: 503, message: JSON.stringify({ error: { status: "PRIVATE_CODE" } }) });
+  equal(unknown.providerCode, undefined);
+});
+
+test("caso de uso registra diagnostico seguro e persiste fallback Novo + Revisar", async () => {
+  let reported: { jobId: string; diagnostic: { diagnosticId: string; category: string; httpStatus?: number } } | undefined;
+  const store: QualificationExecutionStore = {
+    async begin() { return { status: "reservada", source: "gemini", previousMessages: [] }; },
+    async finish(_work, result, errorCode) { equal(result.status, "falha"); equal(result.needsReview, true); equal(errorCode, "qualifier_failure"); },
+  };
+  const diagnostic = { diagnosticId: "f0f0f0f0-1234-4123-8123-123456789abc", category: "http_400" as const, httpStatus: 400 };
+  const useCase = new QualifyMessage(store, { source: "gemini", async qualify() {
+    throw new QualificationError("qualifier_failure", diagnostic);
+  } }, { timeoutMs: 1000, maxContextChars: 8000 }, (jobId, safe) => { reported = { jobId, diagnostic: safe }; });
+  await useCase.execute(work, profile);
+  deepEqual(reported, { jobId: work.job.id, diagnostic });
 });
 
 test("adapter Gemini trata JSON inválido, excesso de saída, 429 e falha de rede sem retries", async () => {

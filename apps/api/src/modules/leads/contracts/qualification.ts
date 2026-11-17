@@ -27,8 +27,19 @@ export type QualificationInput = {
 };
 export type QualificationProfile = Pick<BusinessProfile, "name" | "services">;
 export type QualificationFailureCode = "timeout" | "rate_limited" | "invalid_output" | "qualifier_failure" | "interrupted" | "context_limit";
+export type QualificationDiagnosticCategory = "configuration_error" | "network_error" | "timeout" | "http_400" | "http_401" | "http_403"
+  | "http_404" | "http_429" | "http_5xx" | "http_other" | "internal_error";
+export type QualificationDiagnostic = {
+  diagnosticId: string;
+  category: QualificationDiagnosticCategory;
+  httpStatus?: number;
+  providerCode?: string;
+  networkCode?: string;
+};
 export class QualificationError extends Error {
-  constructor(readonly code: QualificationFailureCode) { super(`Falha de qualificação: ${code}.`); }
+  constructor(readonly code: QualificationFailureCode, readonly diagnostic?: QualificationDiagnostic) {
+    super(`Falha de qualificação: ${code}.`);
+  }
 }
 export interface LeadQualifier {
   readonly source: QualificationSource;
