@@ -25,6 +25,8 @@ import { PostgresSimulatorEffects } from "./postgres-simulator-effects.js";
 import { PostgresDemoReadModel } from "./postgres-demo-read-model.js";
 import { PostgresHumanHandoffStore } from "../../modules/leads/infrastructure/postgres-human-handoff-store.js";
 import { installHumanHandoffRoutes } from "../../modules/leads/http/human-handoff-routes.js";
+import { installLeadClosureRoutes } from "../../modules/leads/http/lead-closure-routes.js";
+import { PostgresLeadClosureStore } from "../../modules/leads/infrastructure/postgres-lead-closure-store.js";
 
 test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, async (t) => {
   const { runner } = await import("node-pg-migrate");
@@ -42,6 +44,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
   const effects = new PostgresSimulatorEffects(pool);
   const read = new PostgresDemoReadModel(pool);
   const handoff = new PostgresHumanHandoffStore(pool);
+  const closure = new PostgresLeadClosureStore(pool);
   const dependencies = { queue, profile, contexts, plans, planStore, effects };
   const processor = new SimulatorProcessor(dependencies);
   let created = false;
@@ -99,6 +102,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       (app, sendError) => {
         installDemoRoutes(app, sendError, read);
         installHumanHandoffRoutes(app, sendError, handoff);
+        installLeadClosureRoutes(app, sendError, closure);
       }), 0);
     const address = server.address(); ok(address && typeof address !== "string"); url = `http://127.0.0.1:${address.port}`;
 
@@ -323,6 +327,9 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
         const before = await outgoing(); await send("Mais uma mensagem sintética");
         await until(async () => { equal((await pool.query("SELECT * FROM public.jobs WHERE status <> 'concluido';")).rowCount, 0); });
         deepEqual(await outgoing(), before);
+        const closed = await fetch(`${demoUrl}/api/demo/leads/${lead.id}/close`, { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ result: "ganho" }) });
+        equal(closed.status, 200); equal((await read.conversations())[0]?.status, "encerrada");
       } finally {
         if (child.exitCode === null && child.signalCode === null) child.kill();
         await exited;
@@ -347,16 +354,16 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
         VALUES ($1, $2) RETURNING id;`, [pending.context.conversation.id, pending.context.contact.id])).rows[0]; ok(lead);
       return { ...pending, leadId: lead.id as string };
     }
-    async function waitForBlocked(blockerPid: number, queryFragment: string) {
+    async function waitForBlocked(blockerPid: number | number[], queryFragment: string) {
       const deadline = Date.now() + 5000;
       while (Date.now() < deadline) {
         const result = await pool.query(`SELECT pid FROM pg_stat_activity
-          WHERE datname = $1 AND wait_event_type = 'Lock' AND $2 = ANY(pg_blocking_pids(pid))
-            AND query LIKE $3;`, [database, blockerPid, `%${queryFragment}%`]);
+          WHERE datname = $1 AND wait_event_type = 'Lock' AND $2::integer[] && pg_blocking_pids(pid)
+            AND query LIKE $3;`, [database, Array.isArray(blockerPid) ? blockerPid : [blockerPid], `%${queryFragment}%`]);
         if (result.rowCount) return;
         await new Promise<void>((resolve) => setImmediate(resolve));
       }
-      throw new Error("A operação não atingiu o bloqueio esperado.");
+      throw new Error(`A operação não atingiu o bloqueio esperado: ${queryFragment}.`);
     }
 
     await t.test("assunção HTTP de Novo e Qualificado mantém identidade, mensagens e revisão", async () => {
@@ -489,6 +496,166 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
         }
       });
     }
+
+    async function closeHttp(id: string, result: unknown = "ganho") {
+      const response = await fetch(`${url}/api/demo/leads/${id}/close`, { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ result }) });
+      return { response, body: await response.json() as Record<string, unknown> };
+    }
+    async function attendanceLead() {
+      const lead = await receptionLead(); await handoff.assume(lead.id); return lead;
+    }
+    async function pendingAttendance() {
+      const pending = await pendingLead();
+      // Simula estado legado/interrompido: plano ainda pendente durante atendimento.
+      await pool.query("UPDATE public.leads SET stage = 'em_atendimento' WHERE id = $1;", [pending.leadId]);
+      await pool.query("UPDATE public.conversations SET status = 'em_atendimento_humano' WHERE id = $1;", [pending.context.conversation.id]);
+      return pending;
+    }
+
+    await t.test("Ganho e Perdido encerram atomicamente e preservam histórico e timestamps na repetição", async () => {
+      for (const result of ["ganho", "perdido"] as const) {
+        const lead = await attendanceLead(); const messages = (await snapshot()).messages;
+        const closed = await closeHttp(lead.id.toUpperCase(), result); equal(closed.response.status, 200);
+        equal(closed.body.status, "encerrado"); equal(closed.body.result, result); equal(closed.body.leadId, lead.id);
+        equal(typeof closed.body.closedAt, "string"); ok(closed.response.headers.get("X-Correlation-ID"));
+        const row = (await pool.query("SELECT status, closed_at FROM public.conversations WHERE id = $1;", [lead.conversationId])).rows[0]; ok(row);
+        equal(row.status, "encerrada"); equal((row.closed_at as Date).toISOString(), closed.body.closedAt);
+        equal((await read.conversations()).find((item) => item.id === lead.conversationId)?.lead?.stage, result);
+        deepEqual((await snapshot()).messages, messages);
+        const history = await fetch(`${url}/api/demo/conversations/${lead.conversationId}/messages`); equal(history.status, 200);
+        ok((await history.json() as unknown[]).length > 0);
+        const before = await snapshot(); const repeated = await closeHttp(lead.id, result);
+        equal(repeated.response.status, 200); equal(repeated.body.status, "ja_encerrado"); equal(repeated.body.closedAt, closed.body.closedAt);
+        deepEqual(await snapshot(), before);
+        equal((await closeHttp(lead.id, result === "ganho" ? "perdido" : "ganho")).response.status, 409);
+        equal((await assumeHttp(lead.id)).response.status, 409); deepEqual(await snapshot(), before);
+      }
+    });
+
+    await t.test("encerramentos concorrentes iguais são idempotentes; resultados opostos conflitam", async () => {
+      const lead = await attendanceLead();
+      const same = await Promise.all([closeHttp(lead.id), closeHttp(lead.id)]);
+      deepEqual(same.map((item) => item.body.status).sort(), ["encerrado", "ja_encerrado"]);
+      equal(same[0]?.body.closedAt, same[1]?.body.closedAt);
+      const other = await attendanceLead();
+      const opposite = await Promise.all([closeHttp(other.id, "ganho"), closeHttp(other.id, "perdido")]);
+      deepEqual(opposite.map((item) => item.response.status).sort(), [200, 409]);
+      const winner = opposite.find((item) => item.response.status === 200); ok(winner);
+      equal((await read.conversations()).find((item) => item.id === other.conversationId)?.lead?.stage, winner.body.result);
+    });
+
+    await t.test("encerramento recusa UUID, payload, JSON e estados inválidos com correlação", async () => {
+      const lead = await receptionLead(); const before = await snapshot();
+      for (const [id, result, status, code] of [["invalido", "ganho", 400, "invalid_payload"], [randomUUID(), "ganho", 404, "lead_not_found"],
+        [lead.id, "outro", 400, "invalid_payload"], [lead.id, null, 400, "invalid_payload"], [lead.id, "ganho", 409, "invalid_lead_state"]] as const) {
+        const failed = await closeHttp(id, result); equal(failed.response.status, status); equal(failed.body.code, code);
+        equal(failed.body.correlationId, failed.response.headers.get("X-Correlation-ID"));
+      }
+      for (const body of ["{}", "[]", '{"result":"ganho","extra":true}', '{"result":']) {
+        const response = await fetch(`${url}/api/demo/leads/${lead.id}/close`, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+        equal(response.status, 400);
+        const error = await response.json() as { correlationId: string }; equal(error.correlationId, response.headers.get("X-Correlation-ID"));
+      }
+      const unsupported = await fetch(`${url}/api/demo/leads/${lead.id}/close`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: "ganho" });
+      equal(unsupported.status, 415);
+      deepEqual(await snapshot(), before);
+      for (const [stage, status] of [["qualificado", "aguardando_humano"], ["em_atendimento", "aguardando_humano"], ["novo", "em_atendimento_humano"]]) {
+        await pool.query("UPDATE public.leads SET stage = $2 WHERE id = $1;", [lead.id, stage]);
+        await pool.query("UPDATE public.conversations SET status = $2 WHERE id = $1;", [lead.conversationId, status]);
+        equal((await closeHttp(lead.id)).response.status, 409);
+      }
+    });
+
+    await t.test("falha no encerramento reverte lead, conversa e cancelamento de planos", async () => {
+      const pending = await pendingAttendance(); const before = await snapshot();
+      await pool.query(`CREATE FUNCTION public.reject_closure() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN IF NEW.status = 'encerrada' THEN RAISE EXCEPTION 'segredo_sintetico'; END IF; RETURN NEW; END; $$;
+        CREATE TRIGGER reject_closure AFTER UPDATE ON public.conversations FOR EACH ROW EXECUTE FUNCTION public.reject_closure();`);
+      try {
+        const failed = await closeHttp(pending.leadId); equal(failed.response.status, 500); equal(failed.body.code, "lead_closure_failed");
+        equal(failed.body.correlationId, failed.response.headers.get("X-Correlation-ID"));
+        ok(!JSON.stringify(failed.body).includes("segredo_sintetico")); deepEqual(await snapshot(), before);
+      } finally { await pool.query("DROP TRIGGER reject_closure ON public.conversations; DROP FUNCTION public.reject_closure();"); }
+      equal((await closeHttp(pending.leadId)).response.status, 200);
+    });
+
+    await t.test("encerramento cancela somente blocos pendentes e protege retomada antiga", async () => {
+      const pending = await pendingAttendance(); const original = await plans.findByMessageId(pending.context.message.id); ok(original);
+      const block = original.blocks[0]; ok(block); ok(original.blocks.length > 1);
+      const sent = (await pool.query(`INSERT INTO public.messages (conversation_id, provider, external_id, direction, sender_type, kind, body)
+        VALUES ($1, 'simulador', $2, 'saida', 'bot', 'texto', $3) RETURNING id;`,
+        [original.conversationId, `response:${original.id}:1`, block.text])).rows[0]; ok(sent);
+      await pool.query(`UPDATE public.response_blocks SET status = 'enviado', sent_message_id = $2, sent_at = CURRENT_TIMESTAMP
+        WHERE plan_id = $1 AND position = 1;`, [original.id, sent.id]);
+      const confirmed = (await plans.findByMessageId(pending.context.message.id))?.blocks[0];
+      equal((await closeHttp(pending.leadId)).response.status, 200);
+      const canceled = await plans.findByMessageId(pending.context.message.id); equal(canceled?.status, "cancelado");
+      deepEqual(canceled?.blocks[0], confirmed); ok(canceled?.blocks.slice(1).every((item) => item.status === "cancelado"));
+      const before = await outgoing(); equal(await effects.apply({ ...pending, attempt: pending.job }), "concluido");
+      deepEqual(await outgoing(), before); equal((await read.conversations())[0]?.status, "encerrada");
+    });
+
+    await t.test("retorno abre nova conversa no mesmo contato, preservando lead e mensagens encerrados", async () => {
+      const lead = await attendanceLead(); await closeHttp(lead.id, "perdido");
+      const oldLead = (await pool.query("SELECT to_jsonb(l) AS row FROM public.leads l WHERE id = $1;", [lead.id])).rows;
+      const historyBefore = await read.messages(lead.conversationId);
+      // Duas mensagens de retorno concorrentes devem compartilhar a nova conversa.
+      await Promise.all([receive(lead.contact, "9"), receive(lead.contact, "9")]); await drain();
+      const current = (await read.conversations()).find((item) => item.status !== "encerrada"); ok(current); ok(current.id !== lead.conversationId);
+      equal(current.lead, null);
+      await receive(lead.contact, "3"); await drain();
+      const active = (await read.conversations()).find((item) => item.id === current.id); ok(active?.lead); ok(active.lead.id !== lead.id);
+      equal((await pool.query("SELECT * FROM public.contacts;")).rowCount, 1);
+      equal((await pool.query("SELECT * FROM public.conversations WHERE status <> 'encerrada';")).rowCount, 1);
+      equal((await pool.query("SELECT * FROM public.leads WHERE stage IN ('novo', 'qualificado', 'em_atendimento');")).rowCount, 1);
+      deepEqual(await read.messages(lead.conversationId), historyBefore);
+      deepEqual((await pool.query("SELECT to_jsonb(l) AS row FROM public.leads l WHERE id = $1;", [lead.id])).rows, oldLead);
+    });
+
+    await t.test("fechamento revalida estado após esperar pelo bloqueio", async () => {
+      const lead = await attendanceLead(); const gate = await pool.connect(); let waiting: ReturnType<typeof closeHttp> | undefined;
+      try {
+        await gate.query("BEGIN;");
+        const pid = (await gate.query("SELECT pg_backend_pid() AS pid;")).rows[0]?.pid as number;
+        await gate.query("UPDATE public.conversations SET status = 'aguardando_humano' WHERE id = $1;", [lead.conversationId]);
+        waiting = closeHttp(lead.id); await waitForBlocked(pid, "SELECT id, contact_id, status, closed_at");
+        await gate.query("COMMIT;"); equal((await waiting).response.status, 409);
+        equal((await read.conversations())[0]?.lead?.stage, "em_atendimento");
+      } finally { await gate.query("ROLLBACK;"); gate.release(); await waiting; }
+    });
+
+    await t.test("encerramento antes do worker e da recepção mantém silêncio antigo e novo ciclo íntegro", async () => {
+      const pending = await pendingAttendance(); const gate = await pool.connect();
+      let closing: ReturnType<typeof closeHttp> | undefined, applying: ReturnType<typeof effects.apply> | undefined;
+      let receiving: ReturnType<typeof receive> | undefined;
+      try {
+        await gate.query("BEGIN;"); await gate.query("SELECT pg_advisory_xact_lock(73130);");
+        const pid = (await gate.query("SELECT pg_backend_pid() AS pid;")).rows[0]?.pid as number;
+        await pool.query(`CREATE FUNCTION public.pause_closure() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN IF NEW.status = 'encerrada' THEN PERFORM pg_advisory_xact_lock(73130); END IF; RETURN NEW; END; $$;
+          CREATE TRIGGER pause_closure BEFORE UPDATE ON public.conversations FOR EACH ROW EXECUTE FUNCTION public.pause_closure();`);
+        closing = closeHttp(pending.leadId); await waitForBlocked(pid, "UPDATE public.conversations");
+        const closerPid = (await pool.query(`SELECT pid FROM pg_stat_activity WHERE datname = $1
+          AND $2 = ANY(pg_blocking_pids(pid)) AND query LIKE '%UPDATE public.conversations%';`, [database, pid])).rows[0]?.pid as number;
+        applying = effects.apply({ ...pending, attempt: pending.job });
+        await waitForBlocked(closerPid, "SELECT status, contact_id");
+        const workerPid = (await pool.query(`SELECT pid FROM pg_stat_activity WHERE datname = $1
+          AND wait_event_type = 'Lock' AND query LIKE '%SELECT status, contact_id%';`, [database])).rows[0]?.pid as number;
+        receiving = receive(pending.context.contact.phone, "Retorno concorrente");
+        // O PostgreSQL também informa o waiter anterior como bloqueador (fila de locks).
+        await waitForBlocked([closerPid, workerPid], "SELECT id FROM public.conversations");
+        await gate.query("COMMIT;"); equal((await closing).response.status, 200); equal(await applying, "concluido"); await receiving;
+        equal((await outgoing()).length, 0); equal((await pool.query("SELECT * FROM public.conversations;")).rowCount, 2);
+        const rows = await read.conversations(); equal(rows.filter((item) => item.status === "encerrada").length, 1);
+        await drain();
+        equal((await read.messages(pending.context.conversation.id)).filter((item) => item.direction === "saida").length, 0);
+        ok((await outgoing()).length > 0); // Abertura pertence somente à nova conversa.
+      } finally {
+        await gate.query("ROLLBACK;"); gate.release(); await Promise.allSettled([closing, applying, receiving].filter((item) => item !== undefined));
+        await pool.query("DROP TRIGGER IF EXISTS pause_closure ON public.conversations; DROP FUNCTION IF EXISTS public.pause_closure();");
+      }
+    });
 
     await t.test("migração de leads reverte somente seus objetos e reaplica", async () => {
       await migrate("down");

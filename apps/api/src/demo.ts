@@ -16,6 +16,8 @@ import { PostgresMessageResponsePlanStore } from "./modules/messaging/infrastruc
 import { SimulatorProcessor } from "./modules/simulator/application/simulator-processor.js";
 import { PostgresHumanHandoffStore } from "./modules/leads/infrastructure/postgres-human-handoff-store.js";
 import { installHumanHandoffRoutes } from "./modules/leads/http/human-handoff-routes.js";
+import { installLeadClosureRoutes } from "./modules/leads/http/lead-closure-routes.js";
+import { PostgresLeadClosureStore } from "./modules/leads/infrastructure/postgres-lead-closure-store.js";
 
 async function main() {
   const pool = createDatabasePool(readDatabaseConfig(process.env));
@@ -33,6 +35,7 @@ async function main() {
       (app, sendError) => {
         installDemoRoutes(app, sendError, read);
         installHumanHandoffRoutes(app, sendError, new PostgresHumanHandoffStore(pool));
+        installLeadClosureRoutes(app, sendError, new PostgresLeadClosureStore(pool));
       });
     const server = await listenHttp(app, readHttpConfig(process.env).port);
     let stopping = false;
