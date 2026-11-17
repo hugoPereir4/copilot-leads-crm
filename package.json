@@ -21,6 +21,7 @@
     "check": "npm run typecheck && npm run build && npm run test --workspace=@copilot-leads/api && npm run test --workspace=@copilot-leads/web",
     "test": "npm run build --workspace=@copilot-leads/api && npm run test --workspace=@copilot-leads/api",
     "test:integration": "npm run build && npm run test:integration --workspace=@copilot-leads/api",
+    "diagnose:gemini": "npm run build --workspace=@copilot-leads/api && node --env-file-if-exists=.env apps/api/dist/scripts/diagnose-gemini-cli.js",
     "db:check": "npm run build --workspace=@copilot-leads/api && npm run db:check --workspace=@copilot-leads/api",
     "db:migrate": "npm run build --workspace=@copilot-leads/api && npm run db:migrate --workspace=@copilot-leads/api",
     "start:demo": "npm run build && npm run start:demo --workspace=@copilot-leads/api"

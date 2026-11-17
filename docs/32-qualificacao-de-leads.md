@@ -77,6 +77,20 @@ O schema derivado do Zod é adaptado ao subconjunto documentado pelo Gemini: cam
 
 Quando o erro do provedor trouxer `fieldViolations`, o diagnóstico pode acrescentar `providerField` se o caminho contiver apenas campos técnicos conhecidos e `providerDetail` como código sanitizado. A descrição original permanece fora dos logs.
 
+### Diagnóstico isolado de requisições Gemini
+
+Para localizar em qual camada a API rejeita a chamada, execute manualmente na raiz:
+
+```powershell
+npm run diagnose:gemini
+```
+
+O comando compila a API e inicia um diagnóstico independente; não inicia o worker, não acessa PostgreSQL e não aplica migrações. Antes de chamar a API, mostra o aviso de consumo e exige digitar `EXECUTAR`. Ele exige `GEMINI_API_KEY` e `GEMINI_MODEL` explícitos no `.env`, usa o SDK 3.4.0 e as opções de produção (timeout e uma tentativa, sem retry). Não altere nem compartilhe a chave.
+
+As etapas são sequenciais e param na primeira falha: A testa autenticação/modelo com texto; B acrescenta `responseMimeType`; C acrescenta um schema mínimo; D usa `geminiQualificationRequest()` e `geminiResponseJsonSchema()` reais, com contexto sintético e limite de 768 tokens igual ao adapter. A–C limitam a saída a 24 tokens. Portanto serão feitas de uma a quatro chamadas, no máximo, com até 840 tokens de saída configurados no total; tokens de entrada também podem consumir cota. A cobrança/cota depende do modelo e da conta. Recusar a confirmação não envia requisição. As respostas do modelo, prompt, chave e corpo do erro não são impressos. “Aprovado” significa que a chamada foi aceita e respondeu sem erro de transporte/API, não que o texto gerado foi validado para uso em produção.
+
+Cada linha JSON informa etapa, modelo, resultado, duração e, quando disponível, status HTTP, código permitido, campo de schema seguro e categoria técnica. Se A falhar, investigue chave, acesso ao modelo, rede ou disponibilidade antes do schema. Se A passar e B falhar, a rejeição está associada ao modo JSON. Se B passar e C falhar, investigue suporte a schema estruturado. Se C passar e D falhar, a evidência aponta para o schema/configuração completa do adapter. Se D passar, o schema e configuração isolados foram aceitos; compare então o caminho real do worker e seus dados/contexto sintético, sem concluir que o fluxo de produção foi validado. O comando não executa chamadas reais em `npm run check`, `npm run test` ou `npm run test:integration`.
+
 ## Interface e Postman
 
 Abra `/simulator` e `/admin`. Novo telefone fictício → “Olá” → aguarde menu → texto completo acima. Confira card Qualificado, serviço/período, resumo e origem **Simulada (sem IA externa)**. Outro contato com texto incompleto deve ficar Novo/Revisar. Opção 3 continua sem qualificação. Assumir, encerrar, consultar encerrados e iniciar novo ciclo continuam disponíveis. A revisão visual do navegador permanece a cargo do autor; os testes web usam DOM mínimo.
