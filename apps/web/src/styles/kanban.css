@@ -89,6 +89,16 @@
   gap: 8px;
 }
 
+.qualification-fields {
+  margin: 10px 0;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.qualification-fields dt { font-weight: 700; margin-top: 4px; }
+.qualification-fields dd { margin: 0; }
+
 .assume-button {
   min-height: 38px;
   font-size: 0.76rem;

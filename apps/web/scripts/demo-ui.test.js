@@ -22,14 +22,14 @@ class Element {
 const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
 function nodes(element) { return [element, ...element.children.flatMap(nodes)]; }
 
-async function page({ saved = "light", blockedStorage = false, inAttendance = false, confirm = true } = {}) {
+async function page({ saved = "light", blockedStorage = false, inAttendance = false, confirm = true, qualification = null, qualified = false } = {}) {
   const elements = new Map();
   const element = (id) => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   const document = { documentElement: new Element(), body: new Element(), getElementById: element, createElement: () => new Element() };
   const storage = new Map([["copilot-leads-theme", saved]]);
   const timers = []; let calls = 0, finish, lastPost, confirmations = 0;
   let rows = [{ id: "conversation", phone: "+15550114921", status: inAttendance ? "em_atendimento_humano" : "aguardando_humano", failedJobs: 0,
-    lead: { id: "lead", stage: inAttendance ? "em_atendimento" : "novo", needsReview: true, summary: null } }];
+    lead: { id: "lead", stage: inAttendance ? "em_atendimento" : qualified ? "qualificado" : "novo", needsReview: true, summary: qualification?.summary ?? null, qualification } }];
   const fetch = async (url, options) => {
     if (options?.method === "POST") { calls++; lastPost = { url, ...options }; return new Promise((resolve) => { finish = resolve; }); }
     return { ok: true, json: async () => url.endsWith("/messages") ? [] : structuredClone(rows) };
@@ -119,4 +119,19 @@ test("cancelar confirmação não faz POST; falha conserva card e habilita nova 
   equal(failed.element("handoff-status").getAttribute("role"), "alert");
   equal(failed.element("handoff-status").textContent, "Estado incompatível.");
   equal(failed.closeButtons().length, 2); ok(failed.closeButtons().every((button) => !button.disabled));
+});
+
+test("campos de qualificação são texto seguro, com origem simulada explícita e ações preservadas", async () => {
+  const qualification = { intent: "agendamento", serviceId: "avaliacao", serviceName: "Avaliação de fisioterapia", period: "amanhã",
+    summary: "<script>exemplo sintético</script>", needsReview: true, source: "simulated", status: "qualificado" };
+  const ui = await page({ qualification, qualified: true });
+  const text = nodes(ui.element("board")).map((node) => node.textContent);
+  for (const value of ["Simulada (sem IA externa)", "Qualificado", qualification.serviceName, qualification.period, qualification.summary, "Revisar"]) ok(text.includes(value));
+  equal(ui.buttons().length, 1);
+  const human = await page({ inAttendance: true, qualification: { ...qualification, source: "gemini", status: "revisao" } });
+  equal(human.closeButtons().length, 2);
+  ok(nodes(human.element("board")).some((node) => node.textContent === "Gemini"));
+  const failed = await page({ qualification: { ...qualification, intent: null, serviceName: null, period: null, status: "falha" } });
+  ok(nodes(failed.element("board")).some((node) => node.textContent === "Falha — revisar"));
+  const absent = await page(); ok(!nodes(absent.element("board")).some((node) => node.className === "qualification-fields"));
 });

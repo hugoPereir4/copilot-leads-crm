@@ -153,6 +153,20 @@ function renderBoard(rows: DemoConversation[]) {
       const details = document.createElement("p"); details.className = "lead-summary";
       details.textContent = row.lead?.summary ?? (showClosed ? `Resultado: ${label}. Histórico preservado.`
         : row.lead?.stage === "em_atendimento" ? "Atendimento humano em andamento." : "Pedido direto à recepção. Aguardando atendimento humano.");
+      card.append(cardTop, details);
+      const qualification = row.lead?.qualification;
+      if (qualification) {
+        const fields = document.createElement("dl"); fields.className = "qualification-fields";
+        for (const [label, value] of [["Origem", qualification.source === "simulated" ? "Simulada (sem IA externa)" : "Gemini"],
+          ["Qualificação", ({ processando: "Em processamento", qualificado: "Qualificado", revisao: "Revisão necessária", falha: "Falha — revisar" })[qualification.status]],
+          ["Intenção", qualification.intent], ["Serviço", qualification.serviceName], ["Período", qualification.period]]) {
+          if (value) {
+            const term = document.createElement("dt"), description = document.createElement("dd");
+            term.textContent = label!; description.textContent = value; fields.append(term, description);
+          }
+        }
+        card.append(fields);
+      }
       const link = document.createElement("a"); link.className = "whatsapp-link"; link.textContent = "Abrir no WhatsApp";
       link.href = `https://wa.me/${row.phone.replace(/\D/g, "")}`; link.target = "_blank"; link.rel = "noopener noreferrer";
       const actions = document.createElement("div"); actions.className = "lead-actions";
@@ -178,7 +192,7 @@ function renderBoard(rows: DemoConversation[]) {
         }
       }
       actions.append(link);
-      card.append(cardTop, details, actions); cardList.append(card);
+      card.append(actions); cardList.append(card);
     }
     column.append(heading, cardList); board.append(column);
   }
