@@ -6,6 +6,8 @@ O backend seguirá um monólito modular. O código está organizado em um monore
 
 ## Estado atual
 
+A entrega `feat/lead-qualification-core`, baseada em `feat/lead-closure`, integra qualificação administrativa estruturada ao worker e ao Kanban. O modo padrão é **Simulado, sem API externa**; Gemini é opcional, explicitamente configurado no backend. Respostas ao contato continuam predefinidas. A sétima migração aguarda revisão/aplicação manual. Consulte o [guia de qualificação](docs/32-qualificacao-de-leads.md) para instalação, configuração segura, critérios, revisão e testes. Os registros seguintes descrevem entregas anteriores e suas limitações à época.
+
 A entrega `feat/lead-closure`, baseada em `feat/human-handoff`, permite encerrar como Ganho/Perdido, consultar encerrados e retornar ao mesmo contato em uma nova conversa, preservando o histórico. Não exige nova migração. O [guia de encerramento](docs/31-encerramento-de-leads.md) contém o fluxo de revisão, testes manuais e contrato para o Postman.
 
 A entrega mais recente, `feat/human-handoff`, acrescenta **Assumir atendimento** ao painel da UI Sálvia & Esmeralda. O comando muda lead e conversa juntos, cancela respostas pendentes e mantém o bot silencioso. Não exige nova migração nem identifica um funcionário autenticado. O [guia de assunção](docs/30-assuncao-de-atendimento-humano.md) reúne os arquivos para revisão e os testes manuais. Os parágrafos seguintes registram as entregas anteriores.

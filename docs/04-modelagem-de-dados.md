@@ -77,10 +77,15 @@ A migração da etapa 4.5 está preparada para revisão e passou em dez cenário
 | contact_id | uuid | FK composta com conversation_id garante o contato da conversa |
 | stage | text com CHECK | novo, qualificado, em_atendimento, ganho, perdido; padrão novo |
 | needs_review | boolean | Obrigatório; padrão false |
-| summary | text, opcional | No MVP contém apenas a indicação de revisão, sem alegar extração por IA |
+| summary | text, opcional | Resumo administrativo construído pelo backend com os campos comprovados |
+| qualification | jsonb, opcional | Intenção, serviço, período, resumo, revisão, origem e status; validado por Zod e CHECK estrutural |
 | created_at, updated_at | timestamptz | Obrigatórios; padrão now() |
 
-A migração `1794873600000_create_leads.sql` implementa esse recorte no fluxo demonstrável. Foi aplicada somente nos bancos descartáveis; sua aplicação ao banco do projeto fica para após revisão. Há unicidade parcial por contato nos estágios abertos e índice `(stage, created_at)`. Intenção, serviço, prazo, confiança, dados extraídos, atribuição e posição manual dos cards permanecem planejados para entregas futuras, sem colunas nesta migração.
+A migração `1794873600000_create_leads.sql` implementa o lead inicial; `1794956400000_create_qualification_runs.sql` acrescenta `qualification` e a reserva rastreável por mensagem. A nova migração foi aplicada apenas nos bancos descartáveis. Intenção, serviço e preferência estão no JSON; atribuição e ordenação manual permanecem futuras. Unicidade por conversa/contato aberto e índices anteriores são preservados.
+
+### qualification_runs
+
+Uma reserva por `message_id` (PK), vinculada por FKs compostas à conversa da mensagem e ao par job/mensagem. Guarda `reserved_attempt`, `source`, `status` (`processando`, `concluida`, `descartada`), `result` JSON validado, `error_code` técnico e datas `created_at`/`finished_at`. Não armazena prompt ou resposta bruta. O lead recebe somente o resultado permitido após revalidar os locks; a reserva interrompida vira revisão sem repetir a API. [Guia](32-qualificacao-de-leads.md).
 
 O caminho direto à recepção (opção 3) cria o lead em `novo`, com `needs_review = false`, sem criar extração de IA e sem preencher os campos exclusivos da qualificação. O painel deve aceitar a ausência desses dados.
 
@@ -188,10 +193,10 @@ A estrutura de leads abaixo pertence à nova migração do MVP; o banco principa
 
 Atualizado em 16/11/2026. Copie **todo o bloco abaixo** para o [dbdiagram.io](https://dbdiagram.io/d).
 
-- **Implementadas no PostgreSQL:** `contacts`, `conversations`, `messages`, `jobs`, `response_plans`, `response_blocks` e `leads`. As seis migrações de `apps/api/migrations` são a fonte de verdade para colunas, tipos, defaults, chaves, índices e checks desse grupo.
+- **Implementadas nas migrações:** `contacts`, `conversations`, `messages`, `jobs`, `response_plans`, `response_blocks`, `leads` e `qualification_runs`. As sete migrações de `apps/api/migrations` são a fonte de verdade. A sétima aguarda aplicação manual ao banco principal.
 - **Propostas futuras, sem migração:** `business_profile`, `users`, `ai_extractions` e `lead_events`. Seus campos e relacionamentos conceituais já documentados foram preservados em outro grupo, com notas explícitas. O perfil atual continua em JSON; `lead_events` é opcional na V1.
 - `conversations.assigned_user_id` é uma proposta futura e não aparece na tabela implementada nem como FK no diagrama. Não existe FK direta dos planos/blocos para `conversations`: o vínculo já é garantido pelas FKs compostas que passam por `messages` e pelo plano. Não foi acrescentada uma referência SQL fictícia.
-- O DBML representa nativamente as cinco FKs compostas, as chaves compostas e os `CHECK` nomeados. As expressões PostgreSQL dos checks permanecem na notação de expressão, e as notas explicam suas consequências; o parser DBML não executa essas validações. Os quatro índices únicos parciais ficam **somente em notas com nome e predicado**, pois não se deve transformar uma unicidade condicional em global.
+- O DBML representa nativamente as sete FKs compostas, as chaves compostas e os `CHECK` nomeados. As expressões PostgreSQL dos checks permanecem na notação de expressão, e as notas explicam suas consequências; o parser DBML não executa essas validações. Os quatro índices únicos parciais ficam **somente em notas com nome e predicado**, pois não se deve transformar uma unicidade condicional em global.
 - Este bloco serve à visualização e contém propostas futuras; não deve ser exportado e aplicado como substituto das migrações. A tabela interna `pgmigrations`, mantida pelo migrador, fica fora do modelo de domínio.
 
 Sintaxe de referência: [DBML — checks, índices e FKs compostas](https://dbml.dbdiagram.io/docs/) e [grupos e notas](https://dbml.dbdiagram.io/syntax/enrichment-visualization/).
@@ -199,7 +204,7 @@ Sintaxe de referência: [DBML — checks, índices e FKs compostas](https://dbml
 ```dbml
 // Copiloto de Leads WhatsApp — estrutura implementada e propostas futuras.
 // Tabelas sem prefixo pertencem ao schema public.
-// Fonte de verdade do grupo implementado: seis migrações SQL, etapas 4.3–4.21.
+// Fonte de verdade do grupo implementado: sete migrações SQL, incluindo qualificação.
 // Os grupos abaixo são apenas visuais; não criam schemas ou tabelas adicionais.
 
 Project copiloto_leads_whatsapp {
@@ -209,7 +214,7 @@ Project copiloto_leads_whatsapp {
   PLANEJADAS: business_profile, users, ai_extractions, lead_events.
   Os índices únicos parciais estão descritos nas notas, sem índices globais substitutos.
   Checks são expressões PostgreSQL; DBML não os executa.
-  As cinco FKs compostas são declaradas uma vez, sem refs simples duplicadas.
+  As sete FKs compostas são declaradas uma vez, sem refs simples duplicadas.
   Não usar este diagrama misto para migrar o banco.
   '''
 }
@@ -408,6 +413,7 @@ Table leads {
   stage text [not null, default: 'novo']
   needs_review boolean [not null, default: false]
   summary text
+  qualification jsonb [note: 'Resultado administrativo validado. NULL em leads sem qualificação.']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
   indexes {
@@ -416,15 +422,37 @@ Table leads {
   }
   checks {
     `stage IN ('novo', 'qualificado', 'em_atendimento', 'ganho', 'perdido')` [name: 'leads_stage_check']
+    `qualification IS NULL OR (jsonb_typeof(qualification) = 'object' AND qualification ?& ARRAY['intent','serviceId','serviceName','period','summary','needsReview','source','status'] AND jsonb_typeof(qualification->'source') = 'string' AND jsonb_typeof(qualification->'status') = 'string' AND qualification->>'source' IN ('simulated', 'gemini') AND qualification->>'status' IN ('processando', 'qualificado', 'revisao', 'falha') AND jsonb_typeof(qualification->'needsReview') = 'boolean')` [name: 'leads_qualification_check']
   }
   Note: '''
-  MIGRAÇÃO IMPLEMENTADA no MVP; ainda não aplicada ao banco principal nesta entrega. PK leads_pkey.
+  MIGRAÇÃO IMPLEMENTADA no MVP. PK leads_pkey. A coluna qualification da sétima migração aguarda aplicação manual.
   FK composta (conversation_id, contact_id) referencia conversations.(id, contact_id).
   ÍNDICE ÚNICO PARCIAL, somente anotado: leads_one_open_per_contact_idx
   ON (contact_id) WHERE stage IN ('novo', 'qualificado', 'em_atendimento').
   No máximo um lead aberto por contato e um por conversa.
-  Campos de extração, atribuição e ordenação manual permanecem futuros.
+  Extração administrativa em qualification JSON; atribuição e ordenação manual permanecem futuras.
   '''
+}
+
+Table qualification_runs {
+  message_id uuid [pk, not null]
+  conversation_id uuid [not null]
+  job_id uuid [not null]
+  reserved_attempt integer [not null]
+  source text [not null]
+  status text [not null, default: 'processando']
+  result jsonb
+  error_code text
+  created_at timestamptz [not null, default: `now()`]
+  finished_at timestamptz
+  checks {
+    `reserved_attempt > 0` [name: 'qualification_runs_reserved_attempt_check']
+    `source IN ('simulated', 'gemini')` [name: 'qualification_runs_source_check']
+    `status IN ('processando', 'concluida', 'descartada')` [name: 'qualification_runs_status_check']
+    `error_code IN ('timeout', 'rate_limited', 'invalid_output', 'qualifier_failure', 'interrupted', 'context_limit', 'estado_humano')` [name: 'qualification_runs_error_code_check']
+    `(status = 'processando' AND result IS NULL AND finished_at IS NULL) OR (status = 'concluida' AND result IS NOT NULL AND jsonb_typeof(result) = 'object' AND finished_at IS NOT NULL) OR (status = 'descartada' AND result IS NULL AND finished_at IS NOT NULL)` [name: 'qualification_result_check']
+  }
+  Note: 'Implementada na sétima migração; não aplicada ao banco principal nesta entrega. Uma reserva por mensagem; FKs compostas protegem os vínculos. Sem prompt/resposta bruta. Retomada sem segunda chamada externa.'
 }
 
 // FKs implementadas: cada constraint aparece exatamente uma vez.
@@ -437,6 +465,8 @@ Ref response_plans_source_message_conversation_fkey: response_plans.(source_mess
 Ref response_plans_source_job_message_fkey: response_plans.(source_job_id, source_message_id) > jobs.(id, message_id) [delete: restrict]
 Ref response_blocks_plan_conversation_fkey: response_blocks.(plan_id, conversation_id) > response_plans.(id, conversation_id) [delete: restrict]
 Ref response_blocks_sent_message_conversation_fkey: response_blocks.(sent_message_id, conversation_id) > messages.(id, conversation_id) [delete: restrict]
+Ref qualification_message_conversation_fkey: qualification_runs.(message_id, conversation_id) > messages.(id, conversation_id) [delete: restrict]
+Ref qualification_job_message_fkey: qualification_runs.(job_id, message_id) > jobs.(id, message_id) [delete: restrict]
 
 // ==================== PROPOSTAS FUTURAS — SEM MIGRAÇÃO ====================
 // Mantêm os campos/índices conceituais já documentados; não descrevem tabelas existentes.
@@ -515,6 +545,7 @@ TableGroup implementadas_no_postgresql {
   response_plans
   response_blocks
   leads
+  qualification_runs
 }
 
 TableGroup propostas_futuras_sem_migracao {

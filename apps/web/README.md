@@ -6,6 +6,8 @@ Os estilos ficam em `src/styles/`, organizados em tokens, regras globais, layout
 
 O tema inicial acompanha a preferência do sistema; a escolha manual é salva no `localStorage`. O frontend não inclui dados mockados nem substitui as chamadas da API.
 
+Cards podem apresentar intenção, serviço, período, resumo, revisão, origem e status da qualificação. **Simulada (sem IA externa)** é identificada explicitamente; o frontend nunca recebe chave ou SDK Gemini. Todos os campos são renderizados com `textContent`, inclusive dados provenientes do qualificador. A ausência de qualificação (por exemplo, opção 3) mantém o card funcional.
+
 Cards Novo/Qualificado em conversas elegíveis oferecem **Assumir atendimento**, com POST para `/api/demo/leads/:id/assume`. Em atendimento humano, as ações **Ganho/Perdido** pedem confirmação e enviam POST para `/api/demo/leads/:id/close`. A interface muda somente após confirmação da API e bloqueia cliques repetidos durante o pedido. O filtro **Mostrar encerrados** apresenta resultados e mantém acesso ao histórico; o botão WhatsApp permanece disponível. Não há login, atribuição a um usuário ou movimentação livre.
 
 `npm run check` na raiz também executa os testes de eventos/estado com DOM mínimo e a conferência dos estilos copiados. Esses testes não substituem a revisão visual em navegador.
