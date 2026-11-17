@@ -6,6 +6,6 @@ Os estilos ficam em `src/styles/`, organizados em tokens, regras globais, layout
 
 O tema inicial acompanha a preferência do sistema; a escolha manual é salva no `localStorage`. O frontend não inclui dados mockados nem substitui as chamadas da API.
 
-Cards Novo/Qualificado em conversas elegíveis oferecem **Assumir atendimento**, com POST para `/api/demo/leads/:id/assume`. O card muda para Em atendimento somente após confirmação da API; durante o pedido, o botão fica desabilitado. O botão WhatsApp permanece disponível. Não há login, atribuição a um usuário, encerramento ou movimentação livre.
+Cards Novo/Qualificado em conversas elegíveis oferecem **Assumir atendimento**, com POST para `/api/demo/leads/:id/assume`. Em atendimento humano, as ações **Ganho/Perdido** pedem confirmação e enviam POST para `/api/demo/leads/:id/close`. A interface muda somente após confirmação da API e bloqueia cliques repetidos durante o pedido. O filtro **Mostrar encerrados** apresenta resultados e mantém acesso ao histórico; o botão WhatsApp permanece disponível. Não há login, atribuição a um usuário ou movimentação livre.
 
 `npm run check` na raiz também executa os testes de eventos/estado com DOM mínimo e a conferência dos estilos copiados. Esses testes não substituem a revisão visual em navegador.

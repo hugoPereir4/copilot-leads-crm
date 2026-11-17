@@ -6,6 +6,8 @@ O backend seguirá um monólito modular. O código está organizado em um monore
 
 ## Estado atual
 
+A entrega `feat/lead-closure`, baseada em `feat/human-handoff`, permite encerrar como Ganho/Perdido, consultar encerrados e retornar ao mesmo contato em uma nova conversa, preservando o histórico. Não exige nova migração. O [guia de encerramento](docs/31-encerramento-de-leads.md) contém o fluxo de revisão, testes manuais e contrato para o Postman.
+
 A entrega mais recente, `feat/human-handoff`, acrescenta **Assumir atendimento** ao painel da UI Sálvia & Esmeralda. O comando muda lead e conversa juntos, cancela respostas pendentes e mantém o bot silencioso. Não exige nova migração nem identifica um funcionário autenticado. O [guia de assunção](docs/30-assuncao-de-atendimento-humano.md) reúne os arquivos para revisão e os testes manuais. Os parágrafos seguintes registram as entregas anteriores.
 
 A entrega atual integra um **MVP local demonstrável**, na branch `feat/simulator-demo-flow`: webhook → job → decisão → plano → resposta simulada persistida → lead → painel. Há simulador visual em `/simulator` e painel de leitura em `/admin`, iniciados por `npm run start:demo`. **A IA permanece desabilitada**: pedidos que exigiriam qualificação criam um lead Novo com indicação Revisar. Isso ainda não corresponde à V1 completa.

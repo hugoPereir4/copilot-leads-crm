@@ -165,7 +165,7 @@ Tipo do evento (mudança de estágio, assunção, revisão), estágio de origem 
 | conversations | Unicidade parcial em contact_id quando status é diferente de encerrada | Garantir no máximo uma conversa aberta por contato, inclusive sob concorrência (D16) |
 | leads | Unicidade parcial em contact_id quando stage é novo, qualificado ou em_atendimento | Garantir no máximo um lead aberto por contato sem impedir vários encerrados (D16) |
 
-Mover o lead para `ganho` ou `perdido` e encerrar sua conversa deverá ocorrer na mesma transação, em entrega futura. Um retorno posterior criará outra conversa no mesmo contato, sem alterar o resultado anterior. As migrações de conversas e leads já definem os índices únicos parciais que impedem múltiplos registros abertos por contato; o DBML abaixo registra seus predicados em notas.
+Mover o lead para `ganho` ou `perdido` e encerrar sua conversa ocorre na mesma transação na entrega de [encerramento](31-encerramento-de-leads.md), preenchendo `closed_at` e preservando o resultado na repetição. Um retorno posterior cria outra conversa no mesmo contato, sem alterar o resultado anterior. As migrações de conversas e leads já definem os índices únicos parciais que impedem múltiplos registros abertos por contato; o DBML abaixo registra seus predicados em notas. Não foi necessária nova migração.
 
 ## 4. Por que o modelo é assim
 
