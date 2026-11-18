@@ -54,12 +54,14 @@ O `.env.example` inclui:
 QUALIFIER_PROVIDER=simulated
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.1-flash-lite
-QUALIFIER_TIMEOUT_MS=8000
+QUALIFIER_TIMEOUT_MS=15000
 QUALIFIER_MAX_CONTEXT_CHARS=8000
 QUALIFIER_MAX_OUTPUT_CHARS=4000
 ```
 
-Não é necessário alterar o `.env` para testar o simulado: defaults acima. Os limites validados são timeout 100–30000 ms, contexto 1000–20000 caracteres de JSON e saída 500–12000 caracteres; o SDK limita também a resposta a 768 tokens. O prompt de sistema fixo é adicional ao limite de dados do contexto. A API exige a chave somente quando `QUALIFIER_PROVIDER=gemini`. Outro identificador de modelo é rejeitado, sem substituição silenciosa.
+Não é necessário alterar o `.env` para testar o simulado: defaults acima. Os limites validados são timeout 100–30000 ms (padrão 15000; **com `QUALIFIER_PROVIDER=gemini`, mínimo de 10000 ms**), contexto 1000–20000 caracteres de JSON e saída 500–12000 caracteres; o SDK limita também a resposta a 768 tokens. O prompt de sistema fixo é adicional ao limite de dados do contexto. A API exige a chave somente quando `QUALIFIER_PROVIDER=gemini`. Outro identificador de modelo é rejeitado, sem substituição silenciosa.
+
+O SDK `@google/genai` não usa `httpOptions.timeout` apenas como limite local: ele também o envia ao Google como prazo do servidor. O Google recusa prazos abaixo de 10 s com HTTP 400 `INVALID_ARGUMENT` ("Manually set deadline ... is too short. Minimum allowed deadline is 10s."). Por isso a API não inicia com Gemini e `QUALIFIER_TIMEOUT_MS` abaixo de 10000, e informa o mínimo na mensagem de erro. O modo simulado continua aceitando valores menores, porque não faz chamada externa. O trade-off é que uma chamada lenta ao Gemini pode segurar o job por até o prazo configurado (15 s por padrão) antes de virar Novo + Revisar.
 
 Para um teste **real e explícito**, configure localmente `QUALIFIER_PROVIDER=gemini` e preencha `GEMINI_API_KEY` no `.env` ignorado; mantenha o modelo indicado e reinicie `start:demo`. Não envie a chave ao chat, Postman ou GitHub. Ao iniciar, o worker também pode processar jobs sintéticos antigos elegíveis no banco configurado: isso consome cota se Gemini estiver ativo. Volte a `simulated` e reinicie ao terminar.
 
@@ -91,6 +93,10 @@ As etapas são sequenciais e param na primeira falha: A testa autenticação/mod
 
 Cada linha JSON informa etapa, modelo, resultado, duração e, quando disponível, status HTTP, código permitido, campo de schema seguro e categoria técnica. Se A falhar, investigue chave, acesso ao modelo, rede ou disponibilidade antes do schema. Se A passar e B falhar, a rejeição está associada ao modo JSON. Se B passar e C falhar, investigue suporte a schema estruturado. Se C passar e D falhar, a evidência aponta para o schema/configuração completa do adapter. Se D passar, o schema e configuração isolados foram aceitos; compare então o caminho real do worker e seus dados/contexto sintético, sem concluir que o fluxo de produção foi validado. O comando não executa chamadas reais em `npm run check`, `npm run test` ou `npm run test:integration`.
 
+### Causa confirmada do HTTP 400
+
+A execução manual do diagnóstico mostrou que o HTTP 400 `INVALID_ARGUMENT` vinha do prazo, não do schema: com o antigo padrão `QUALIFIER_TIMEOUT_MS=8000`, o Google respondeu "Manually set deadline 8s is too short. Minimum allowed deadline is 10s.". Com `QUALIFIER_TIMEOUT_MS=15000` no `.env` local, as quatro etapas passaram. As correções de schema anteriores (`167bea6`, que adaptou nullable e removeu limites de tamanho, e `941b77b`, que trocou o enum nullable por `anyOf`) não eram a causa da falha. Elas foram mantidas porque o schema atual foi aceito na etapa D, mas não devem ser citadas como a correção do 400. A partir desta correção, o padrão é 15000 ms e a configuração com Gemini rejeita valores abaixo de 10000 ms ao iniciar.
+
 ## Interface e Postman
 
 Abra `/simulator` e `/admin`. Novo telefone fictício → “Olá” → aguarde menu → texto completo acima. Confira card Qualificado, serviço/período, resumo e origem **Simulada (sem IA externa)**. Outro contato com texto incompleto deve ficar Novo/Revisar. Opção 3 continua sem qualificação. Assumir, encerrar, consultar encerrados e iniciar novo ciclo continuam disponíveis. A revisão visual do navegador permanece a cargo do autor; os testes web usam DOM mínimo.
@@ -119,7 +125,7 @@ Depois da abertura, envie novo `id` (`postman-qualificacao-02`) e `body: "Quero 
 
 Leia: contratos compartilhados e `modules/leads/contracts/qualification.ts` → `qualification-rules.ts` e `qualify-message.ts` → porta `qualification-execution-store.ts` → migração/store PostgreSQL → adapters simulado/Gemini/factory → `simulator-processor.ts` e `demo.ts` → read model → frontend → testes. Os caminhos completos alterados estão listados ao final.
 
-`npm run check` passou: **159 testes da API + 7 web**, tipos e build. `npm run test:integration` passou: **211 registros**, sem falhas ou avisos de conexão. A espera da abertura no teste do processo real foi ajustada para observar conclusão do job, não apenas o estado inicial da conversa. Casos cobrem elegibilidade, evidência, contexto, falhas/timeout, rollback, duplicatas, reserva recuperada, resultados atrasados após assunção e encerramento, novo ciclo, ausência de texto livre enviado e preservação das ações web. Todos os adapters Gemini dos testes usam transportes fake; nenhuma chamada real ocorreu.
+`npm run check` passou: **159 testes da API + 7 web**, tipos e build (após o diagnóstico escalonado e a correção do prazo mínimo do Gemini: **168 testes da API + 7 web**). `npm run test:integration` passou: **211 registros**, sem falhas ou avisos de conexão. A espera da abertura no teste do processo real foi ajustada para observar conclusão do job, não apenas o estado inicial da conversa. Casos cobrem elegibilidade, evidência, contexto, falhas/timeout, rollback, duplicatas, reserva recuperada, resultados atrasados após assunção e encerramento, novo ciclo, ausência de texto livre enviado e preservação das ações web. Todos os adapters Gemini dos testes usam transportes fake; nenhuma chamada real ocorreu.
 
 O npm audit reportou **3 avisos moderados preexistentes na cadeia node-pg-migrate/glob/minimatch**, cujas versões foram preservadas; não foi aplicado `audit fix --force`. A instalação trouxe aviso de depreciação transitiva de `node-domexception`. Essas atualizações não foram misturadas à funcionalidade. Teste Gemini com credencial real permanece manual; não foram verificados consumo/cota ou resposta efetiva da conta do autor.
 

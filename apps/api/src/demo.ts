@@ -76,7 +76,8 @@ async function main() {
   }
 }
 void main().catch((error: unknown) => {
-  if (error instanceof QualificationConfigurationError) console.error(JSON.stringify({ level: "error", category: "configuration_error", diagnosticId: randomUUID() }));
+  // A mensagem só contém nomes de campos e textos próprios, nunca valores do .env.
+  if (error instanceof QualificationConfigurationError) console.error(JSON.stringify({ level: "error", category: "configuration_error", diagnosticId: randomUUID(), message: error.message }));
   else if (error instanceof QualificationError && error.diagnostic) console.error(JSON.stringify({ level: "error", ...error.diagnostic }));
   else console.error("Configuração da demonstração inválida.");
   process.exitCode = 1;

@@ -86,6 +86,18 @@ test("modo padrão não exige chave nem carrega inicializador Gemini", async () 
     error instanceof Error && error.message.includes("GEMINI_MODEL") && !error.message.includes("segredo_sintetico"));
 });
 
+test("prazo do qualificador respeita o mínimo de 10 s exigido pelo Gemini", () => {
+  const gemini = { QUALIFIER_PROVIDER: "gemini", GEMINI_API_KEY: "segredo_sintetico" };
+  equal(readQualificationConfig({}).timeoutMs, 15000);
+  equal(readQualificationConfig(gemini).timeoutMs, 15000);
+  throws(() => readQualificationConfig({ ...gemini, QUALIFIER_TIMEOUT_MS: "9999" }), (error: unknown) =>
+    error instanceof Error && error.message.includes("QUALIFIER_TIMEOUT_MS") && error.message.includes("10000 ms")
+      && !error.message.includes("segredo_sintetico"));
+  equal(readQualificationConfig({ ...gemini, QUALIFIER_TIMEOUT_MS: "10000" }).timeoutMs, 10000);
+  equal(readQualificationConfig({ QUALIFIER_TIMEOUT_MS: "5000" }).timeoutMs, 5000);
+  throws(() => readQualificationConfig({ ...gemini, QUALIFIER_TIMEOUT_MS: "30001" }), /QUALIFIER_TIMEOUT_MS/);
+});
+
 test("schema JSON e cliente usam configuracao compativel com Gemini API sem retry", () => {
   const schema = geminiResponseJsonSchema() as Record<string, unknown>;
   equal("$schema" in schema, false);
