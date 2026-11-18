@@ -27,7 +27,10 @@ import { QualificationError } from "./modules/leads/contracts/qualification.js";
 
 async function main() {
   const qualificationConfig = readQualificationConfig(process.env);
-  const qualifier = await createLeadQualifier(qualificationConfig);
+  const qualifier = await createLeadQualifier(qualificationConfig, {
+    // Mesma forma das linhas de diagnóstico: só campos sanitizados, nunca texto do provedor.
+    onRetry: (diagnostic) => console.error(JSON.stringify({ level: "warn", event: "gemini_qualification_retry", ...diagnostic })),
+  });
   const pool = createDatabasePool(readDatabaseConfig(process.env));
   try {
     // Falhar antes de consumir jobs se a migração da entrega não foi aplicada.

@@ -6,7 +6,8 @@ import { createLeadQualifier } from "../infrastructure/create-lead-qualifier.js"
 import { diagnoseGeminiError, GeminiLeadQualifier, geminiClientOptions, geminiQualificationRequest,
   geminiResponseJsonSchema } from "../infrastructure/gemini-lead-qualifier.js";
 import { SimulatedLeadQualifier } from "../infrastructure/simulated-lead-qualifier.js";
-import { qualificationCandidateSchema, QualificationError, type QualificationCandidate } from "../contracts/qualification.js";
+import { qualificationCandidateSchema, QualificationError, type QualificationCandidate,
+  type QualificationDiagnostic } from "../contracts/qualification.js";
 import { buildQualificationInput, evaluateQualification } from "./qualification-rules.js";
 import { QualifyMessage } from "./qualify-message.js";
 import { SimulatorProcessor } from "../../simulator/application/simulator-processor.js";
@@ -80,7 +81,7 @@ test("contexto limita dez anteriores, ordem, duplicatas, perfil e tamanho serial
 
 test("modo padrão não exige chave nem carrega inicializador Gemini", async () => {
   let loaded = 0;
-  const adapter = await createLeadQualifier(readQualificationConfig({}), async () => { loaded++; throw Error("Não deveria carregar"); });
+  const adapter = await createLeadQualifier(readQualificationConfig({}), {}, async () => { loaded++; throw Error("Não deveria carregar"); });
   equal(adapter.source, "simulated"); equal(loaded, 0);
   throws(() => readQualificationConfig({ QUALIFIER_PROVIDER: "gemini" }), /GEMINI_API_KEY/);
   throws(() => readQualificationConfig({ QUALIFIER_PROVIDER: "gemini", GEMINI_API_KEY: "segredo_sintetico", GEMINI_MODEL: "outro_modelo" }), (error: unknown) =>
@@ -221,15 +222,32 @@ test("adapter Gemini não retenta JSON inválido, excesso de saída nem 429 e re
 
 const providerError = (status: number, code: string) => ({ status, message: JSON.stringify({ error: { status: code, message: "segredo_sintetico" } }) });
 const networkError = { message: "segredo_sintetico", cause: { code: "ECONNRESET", message: "host privado" } };
-function scriptedAdapter(steps: Array<unknown>, adapterConfig = config) {
+function scriptedAdapter(steps: Array<unknown>, adapterConfig = config, onRetry?: (diagnostic: QualificationDiagnostic) => void) {
   const counter = { calls: 0 };
   const adapter = new GeminiLeadQualifier(adapterConfig, { async generateContent() {
     const step = steps[Math.min(counter.calls++, steps.length - 1)];
     if (typeof step === "string") return { text: step };
     throw step;
-  } });
+  } }, onRetry);
   return { adapter, counter };
 }
+
+test("onRetry registra só a tentativa transitória que falhou, sem afetar o resultado", async () => {
+  const retries: QualificationDiagnostic[] = [];
+  const recovered = scriptedAdapter([providerError(503, "UNAVAILABLE"), JSON.stringify(candidate)], config, (diagnostic) => { retries.push(diagnostic); });
+  deepEqual(await recovered.adapter.qualify(complete, new AbortController().signal), candidate);
+  equal(retries.length, 1); equal(retries[0]?.httpStatus, 503); equal(retries[0]?.category, "http_5xx");
+  ok(!JSON.stringify(retries).includes("segredo_sintetico"));
+  for (const [status, code] of [[400, "INVALID_ARGUMENT"], [429, "RESOURCE_EXHAUSTED"]] as const) {
+    const calls: QualificationDiagnostic[] = [];
+    const { adapter } = scriptedAdapter([providerError(status, code), JSON.stringify(candidate)], config, (diagnostic) => { calls.push(diagnostic); });
+    await rejects(adapter.qualify(complete, new AbortController().signal));
+    equal(calls.length, 0);
+  }
+  const throwing = scriptedAdapter([providerError(503, "UNAVAILABLE"), JSON.stringify(candidate)], config, () => { throw Error("log indisponível"); });
+  deepEqual(await throwing.adapter.qualify(complete, new AbortController().signal), candidate);
+  equal(throwing.counter.calls, 2);
+});
 
 test("adapter Gemini retenta 503 uma vez e devolve o resultado da segunda tentativa", async () => {
   const { adapter, counter } = scriptedAdapter([providerError(503, "UNAVAILABLE"), JSON.stringify(candidate)]);

@@ -159,7 +159,9 @@ function pause(ms: number, signal: AbortSignal) {
 export class GeminiLeadQualifier implements LeadQualifier {
   readonly source = "gemini" as const;
   private readonly models: Transport;
-  constructor(private readonly config: QualificationConfig, transport?: Transport) {
+  // onRetry recebe o diagnóstico sanitizado da tentativa que falhou, logo antes da pausa da nova tentativa.
+  constructor(private readonly config: QualificationConfig, transport?: Transport,
+    private readonly onRetry?: (diagnostic: QualificationDiagnostic) => void) {
     try { this.models = transport ?? new GoogleGenAI(geminiClientOptions(config)).models; }
     catch { throw new QualificationError("qualifier_failure", { diagnosticId: randomUUID(), category: "configuration_error" }); }
   }
@@ -172,6 +174,9 @@ export class GeminiLeadQualifier implements LeadQualifier {
         const remaining = this.config.timeoutMs - (Date.now() - startedAt);
         if (attempt >= MAX_QUALIFY_ATTEMPTS || signal.aborted || !isRetryable(failure.diagnostic)
           || remaining - RETRY_DELAY_MS <= MIN_RETRY_BUDGET_MS) throw failure;
+        if (failure.diagnostic) {
+          try { this.onRetry?.(failure.diagnostic); } catch { /* observabilidade nunca interfere na qualificação. */ }
+        }
         await pause(RETRY_DELAY_MS, signal);
       }
     }
