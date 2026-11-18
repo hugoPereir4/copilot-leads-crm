@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import { readDatabaseConfig } from "./config/database.js";
 import { readHttpConfig } from "./config/http.js";
 import { createHttpApp } from "./http/app.js";
-import { installDemoRoutes } from "./http/demo-routes.js";
+import { readAuthConfig, AuthConfigurationError } from "./config/auth.js";
+import { installPanel } from "./http/panel.js";
 import { listenHttp } from "./http/listen-http.js";
 import { createDatabasePool } from "./infrastructure/database/pool.js";
-import { PostgresDemoReadModel } from "./infrastructure/simulator/postgres-demo-read-model.js";
 import { PostgresSimulatorEffects } from "./infrastructure/simulator/postgres-simulator-effects.js";
 import { JsonBusinessProfileReader } from "./modules/business-profile/infrastructure/json-business-profile-reader.js";
 import { recoverExpiredJobs } from "./modules/jobs/application/recover-expired-jobs.js";
@@ -15,10 +15,6 @@ import { PostgresMessageProcessingContextReader } from "./modules/messaging/infr
 import { PostgresMessageResponsePlanReader } from "./modules/messaging/infrastructure/postgres-message-response-plan-reader.js";
 import { PostgresMessageResponsePlanStore } from "./modules/messaging/infrastructure/postgres-message-response-plan-store.js";
 import { SimulatorProcessor } from "./modules/simulator/application/simulator-processor.js";
-import { PostgresHumanHandoffStore } from "./modules/leads/infrastructure/postgres-human-handoff-store.js";
-import { installHumanHandoffRoutes } from "./modules/leads/http/human-handoff-routes.js";
-import { installLeadClosureRoutes } from "./modules/leads/http/lead-closure-routes.js";
-import { PostgresLeadClosureStore } from "./modules/leads/infrastructure/postgres-lead-closure-store.js";
 import { readQualificationConfig, QualificationConfigurationError } from "./config/qualification.js";
 import { createLeadQualifier } from "./modules/leads/infrastructure/create-lead-qualifier.js";
 import { QualifyMessage } from "./modules/leads/application/qualify-message.js";
@@ -27,6 +23,7 @@ import { QualificationError } from "./modules/leads/contracts/qualification.js";
 
 async function main() {
   const qualificationConfig = readQualificationConfig(process.env);
+  const authConfig = readAuthConfig(process.env);
   const qualifier = await createLeadQualifier(qualificationConfig, {
     // Mesma forma das linhas de diagnóstico: só campos sanitizados, nunca texto do provedor.
     onRetry: (diagnostic) => console.error(JSON.stringify({ level: "warn", event: "gemini_qualification_retry", ...diagnostic })),
@@ -46,13 +43,8 @@ async function main() {
         (jobId, diagnostic) => console.error(JSON.stringify({ level: "error", event: "gemini_qualification_failure", jobId, ...diagnostic }))),
       report: (jobId, code) => console.error(JSON.stringify({ level: "warn", code, jobId })),
     });
-    const read = new PostgresDemoReadModel(pool);
     const app = createHttpApp(new PostgresIncomingMessageInbox(pool), undefined,
-      (app, sendError) => {
-        installDemoRoutes(app, sendError, read);
-        installHumanHandoffRoutes(app, sendError, new PostgresHumanHandoffStore(pool));
-        installLeadClosureRoutes(app, sendError, new PostgresLeadClosureStore(pool));
-      });
+      (app, sendError) => { installPanel(app, sendError, pool, { auth: authConfig }); });
     const server = await listenHttp(app, readHttpConfig(process.env).port);
     let stopping = false;
     const worker = (async () => {
@@ -82,7 +74,8 @@ async function main() {
 }
 void main().catch((error: unknown) => {
   // A mensagem só contém nomes de campos e textos próprios, nunca valores do .env.
-  if (error instanceof QualificationConfigurationError) console.error(JSON.stringify({ level: "error", category: "configuration_error", diagnosticId: randomUUID(), message: error.message }));
+  if (error instanceof AuthConfigurationError) console.error(JSON.stringify({ level: "error", category: "configuration_error", diagnosticId: randomUUID(), message: error.message }));
+  else if (error instanceof QualificationConfigurationError) console.error(JSON.stringify({ level: "error", category: "configuration_error", diagnosticId: randomUUID(), message: error.message }));
   else if (error instanceof QualificationError && error.diagnostic) console.error(JSON.stringify({ level: "error", ...error.diagnostic }));
   else console.error("Configuração da demonstração inválida.");
   process.exitCode = 1;
