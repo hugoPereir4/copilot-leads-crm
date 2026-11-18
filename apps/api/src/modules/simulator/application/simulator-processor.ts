@@ -10,6 +10,11 @@ import { prepareMessageResponsePlan } from "../../messaging/application/prepare-
 import type { SimulatorEffects } from "./simulator-effects.js";
 import type { QualifyMessage } from "../../leads/application/qualify-message.js";
 
+// Sem contexto a mensagem nunca será processável: repetir pela fila só gastaria tentativas (D12).
+class MissingContextError extends Error {
+  constructor() { super("Contexto ausente."); }
+}
+
 export class SimulatorProcessor {
   constructor(private readonly dependencies: {
     queue: JobQueue & JobLifecycle;
@@ -28,7 +33,7 @@ export class SimulatorProcessor {
     if (!job) return false;
     try {
       const context = await d.contexts.findByMessageId(job.messageId);
-      if (!context) throw new Error("Contexto ausente.");
+      if (!context) throw new MissingContextError();
       // Retomar antes de reler perfil/decidir: o snapshot original prevalece.
       const original = await d.plans.findByMessageId(job.messageId);
       const profile = original ? undefined : await d.profile.read();
@@ -56,8 +61,8 @@ export class SimulatorProcessor {
       const outcome = await d.effects.apply({ attempt: { id: job.id, attempts: job.attempts }, context, decision,
         ...(planId === undefined ? {} : { planId }) });
       if (outcome === "contexto_desatualizado") throw new Error("Contexto alterado antes dos efeitos.");
-    } catch {
-      const outcome = await failJob(job, "transitoria", d.queue);
+    } catch (error) {
+      const outcome = await failJob(job, error instanceof MissingContextError ? "definitiva" : "transitoria", d.queue);
       d.report?.(job.id, outcome.status === "falhou" ? "simulator_job_failed" : "simulator_job_retry");
     }
     return true;

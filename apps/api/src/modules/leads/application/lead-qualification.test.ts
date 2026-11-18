@@ -9,6 +9,7 @@ import { SimulatedLeadQualifier } from "../infrastructure/simulated-lead-qualifi
 import { qualificationCandidateSchema, QualificationError, type QualificationCandidate } from "../contracts/qualification.js";
 import { buildQualificationInput, evaluateQualification } from "./qualification-rules.js";
 import { QualifyMessage } from "./qualify-message.js";
+import { SimulatorProcessor } from "../../simulator/application/simulator-processor.js";
 import type { QualificationExecutionStore, QualificationWork } from "./qualification-execution-store.js";
 
 const profile = await new JsonBusinessProfileReader().read();
@@ -261,6 +262,23 @@ test("adapter Gemini não retenta timeout, 4xx, JSON inválido nem sem orçament
   await rejects(tight.adapter.qualify(complete, new AbortController().signal), (error: unknown) =>
     error instanceof QualificationError && error.code === "qualifier_failure");
   equal(tight.counter.calls, 1);
+});
+
+test("processador trata contexto ausente como falha definitiva, sem nova tentativa da fila", async () => {
+  const decisions: unknown[] = []; const reports: string[] = [];
+  let claimed = false;
+  const unexpected = () => { throw Error("Não deveria ser chamado"); };
+  const processor = new SimulatorProcessor({
+    queue: { async claimNext() { if (claimed) return undefined; claimed = true; return work.job; },
+      async complete() { return unexpected(); },
+      async fail(_attempt, decision) { decisions.push(decision); return { status: "falhou" }; } },
+    profile: { read: unexpected }, contexts: { async findByMessageId() { return undefined; } },
+    plans: { findByMessageId: unexpected }, planStore: { save: unexpected } as never,
+    effects: { openingStatus: unexpected, apply: unexpected }, qualification: { execute: unexpected },
+    report: (_jobId, code) => { reports.push(code); },
+  });
+  equal(await processor.processOne(), true);
+  deepEqual(decisions, [{ retry: false }]); deepEqual(reports, ["simulator_job_failed"]);
 });
 
 test("falha, timeout e saída inválida concluem com fallback; reserva interrompida não repete API", async () => {
