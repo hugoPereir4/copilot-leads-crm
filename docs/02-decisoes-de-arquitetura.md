@@ -89,7 +89,7 @@ O comportamento confirmado das opções do menu está no documento 3, seção 6.
 
 ## D8. IA como extrator, com saída estruturada validada
 
-**Como funciona:** o sistema envia a conversa ao LLM junto de um schema que descreve o JSON esperado. A resposta passa por uma **validação em tempo de execução** antes de entrar no sistema. Há um campo de confiança, um tempo máximo de espera e no máximo uma nova tentativa. Se algo falhar, o lead cai no fallback humano.
+**Como funciona:** o sistema envia a conversa ao LLM junto de um schema que descreve o JSON esperado. A resposta passa por uma **validação em tempo de execução** antes de entrar no sistema. Não há campo de confiança: o backend só aceita campos comprovados por trechos literais da conversa (`evidence`) e marca revisão nos demais casos. Há um tempo máximo de espera (`QUALIFIER_TIMEOUT_MS`) e **no máximo uma nova tentativa da chamada**, feita dentro do adapter e dentro desse mesmo prazo, só para falhas transitórias do provedor ou da rede (HTTP 500/503 ou código de rede permitido). Timeout, erros 4xx (incluindo 429), configuração e saída inválida não são retentados. Se algo falhar, o lead cai no fallback humano.
 
 **Por quê:** o LLM não é determinístico e pode devolver JSON malformado ou valores fora do esperado. Um ponto importante de TypeScript: **os tipos só existem em tempo de compilação**. Quando um dado vem de fora (webhook, IA, requisição do painel), o compilador não protege você. A validação em runtime é a barreira real, e o tipo TypeScript é derivado dela.
 
@@ -139,7 +139,9 @@ O comportamento confirmado das opções do menu está no documento 3, seção 6.
 **Como funciona:**
 
 - Erros de **domínio** (regra violada) são tipados e tratados de forma diferente dos erros de **infraestrutura** (banco fora do ar, timeout).
-- Novas tentativas valem só para falhas transitórias, com intervalo crescente.
+- Novas tentativas valem só para falhas transitórias. São duas políticas separadas:
+  - **Fila de jobs:** reagenda o job com intervalo crescente (5·2ⁿ⁻¹ s, até 60 s, com limite de tentativas). Falhas que nenhuma repetição resolve, como contexto ausente, são definitivas e não consomem novas tentativas.
+  - **Chamada à IA:** no máximo uma nova tentativa, com pausa fixa curta, dentro do adapter e do prazo total da qualificação (D8). A fila não repete a chamada: depois da reserva em `qualification_runs`, uma retomada vira revisão humana sem nova chamada externa. Assim, uma falha transitória da IA custa no máximo duas chamadas por mensagem.
 - A API devolve erros num formato único e consistente.
 - A falha da IA nunca derruba o fluxo: o lead segue para um humano.
 
