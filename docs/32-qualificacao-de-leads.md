@@ -54,14 +54,14 @@ O `.env.example` inclui:
 QUALIFIER_PROVIDER=simulated
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.1-flash-lite
-QUALIFIER_TIMEOUT_MS=15000
+QUALIFIER_TIMEOUT_MS=25000
 QUALIFIER_MAX_CONTEXT_CHARS=8000
 QUALIFIER_MAX_OUTPUT_CHARS=4000
 ```
 
-Não é necessário alterar o `.env` para testar o simulado: defaults acima. Os limites validados são timeout 100–30000 ms (padrão 15000; **com `QUALIFIER_PROVIDER=gemini`, mínimo de 10000 ms**), contexto 1000–20000 caracteres de JSON e saída 500–12000 caracteres; o SDK limita também a resposta a 768 tokens. O prompt de sistema fixo é adicional ao limite de dados do contexto. A API exige a chave somente quando `QUALIFIER_PROVIDER=gemini`. Outro identificador de modelo é rejeitado, sem substituição silenciosa.
+Não é necessário alterar o `.env` para testar o simulado: defaults acima. Os limites validados são timeout 100–30000 ms (padrão 25000; **com `QUALIFIER_PROVIDER=gemini`, mínimo de 10000 ms**), contexto 1000–20000 caracteres de JSON e saída 500–12000 caracteres; o SDK limita também a resposta a 768 tokens. O prompt de sistema fixo é adicional ao limite de dados do contexto. A API exige a chave somente quando `QUALIFIER_PROVIDER=gemini`. Outro identificador de modelo é rejeitado, sem substituição silenciosa.
 
-O SDK `@google/genai` não usa `httpOptions.timeout` apenas como limite local: ele também o envia ao Google como prazo do servidor. O Google recusa prazos abaixo de 10 s com HTTP 400 `INVALID_ARGUMENT` ("Manually set deadline ... is too short. Minimum allowed deadline is 10s."). Por isso a API não inicia com Gemini e `QUALIFIER_TIMEOUT_MS` abaixo de 10000, e informa o mínimo na mensagem de erro. O modo simulado continua aceitando valores menores, porque não faz chamada externa. O trade-off é que uma chamada lenta ao Gemini pode segurar o job por até o prazo configurado (15 s por padrão) antes de virar Novo + Revisar.
+O SDK `@google/genai` não usa `httpOptions.timeout` apenas como limite local: ele também o envia ao Google como prazo do servidor. O Google recusa prazos abaixo de 10 s com HTTP 400 `INVALID_ARGUMENT` ("Manually set deadline ... is too short. Minimum allowed deadline is 10s."). Por isso a API não inicia com Gemini e `QUALIFIER_TIMEOUT_MS` abaixo de 10000, e informa o mínimo na mensagem de erro. O modo simulado continua aceitando valores menores, porque não faz chamada externa. O trade-off é que uma chamada lenta ao Gemini pode segurar o job por até o prazo configurado (25 s por padrão) antes de virar Novo + Revisar.
 
 Para um teste **real e explícito**, configure localmente `QUALIFIER_PROVIDER=gemini` e preencha `GEMINI_API_KEY` no `.env` ignorado; mantenha o modelo indicado e reinicie `start:demo`. Não envie a chave ao chat, Postman ou GitHub. Ao iniciar, o worker também pode processar jobs sintéticos antigos elegíveis no banco configurado: isso consome cota se Gemini estiver ativo. Volte a `simulated` e reinicie ao terminar.
 
@@ -99,7 +99,7 @@ Cada linha JSON informa etapa, modelo, resultado, duração e, quando disponíve
 
 ### Causa confirmada do HTTP 400
 
-A execução manual do diagnóstico mostrou que o HTTP 400 `INVALID_ARGUMENT` vinha do prazo, não do schema: com o antigo padrão `QUALIFIER_TIMEOUT_MS=8000`, o Google respondeu "Manually set deadline 8s is too short. Minimum allowed deadline is 10s.". Com `QUALIFIER_TIMEOUT_MS=15000` no `.env` local, as quatro etapas passaram. As correções de schema anteriores (`167bea6`, que adaptou nullable e removeu limites de tamanho, e `941b77b`, que trocou o enum nullable por `anyOf`) não eram a causa da falha. Elas foram mantidas porque o schema atual foi aceito na etapa D, mas não devem ser citadas como a correção do 400. A partir desta correção, o padrão é 15000 ms e a configuração com Gemini rejeita valores abaixo de 10000 ms ao iniciar.
+A execução manual do diagnóstico mostrou que o HTTP 400 `INVALID_ARGUMENT` vinha do prazo, não do schema: com o antigo padrão `QUALIFIER_TIMEOUT_MS=8000`, o Google respondeu "Manually set deadline 8s is too short. Minimum allowed deadline is 10s.". Com `QUALIFIER_TIMEOUT_MS=15000` no `.env` local, as quatro etapas passaram. As correções de schema anteriores (`167bea6`, que adaptou nullable e removeu limites de tamanho, e `941b77b`, que trocou o enum nullable por `anyOf`) não eram a causa da falha. Elas foram mantidas porque o schema atual foi aceito na etapa D, mas não devem ser citadas como a correção do 400. A partir desta correção, o padrão é 15000 ms e a configuração com Gemini rejeita valores abaixo de 10000 ms ao iniciar. Depois, o padrão mudou para 25000 ms. Uma medição manual com o Gemini real teve 4 chamadas de 1,25 s, 1,99 s, 11,72 s e mais de 15 s (timeout). A latência típica é baixa, mas a cauda é pesada, e um timeout não economiza cota, porque o Google pode processar a requisição mesmo depois do abort local. O lead já fica visível e pode ser assumido durante a chamada. 25 s fica bem abaixo do lease de 120 s da reserva do job e deixa orçamento para a nova tentativa do adapter quando um 503 chega até cerca de 19 s.
 
 ## Interface e Postman
 
