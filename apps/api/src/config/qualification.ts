@@ -8,7 +8,7 @@ const schema = z.object({
   QUALIFIER_PROVIDER: z.enum(["simulated", "gemini"]).default("simulated"),
   GEMINI_API_KEY: z.string().trim().optional(),
   GEMINI_MODEL: z.literal("gemini-3.1-flash-lite").default("gemini-3.1-flash-lite"),
-  QUALIFIER_TIMEOUT_MS: z.coerce.number().int().min(100).max(30000).default(15000),
+  QUALIFIER_TIMEOUT_MS: z.coerce.number().int().min(100).max(30000).default(25000),
   QUALIFIER_MAX_CONTEXT_CHARS: z.coerce.number().int().min(1000).max(20000).default(8000),
   QUALIFIER_MAX_OUTPUT_CHARS: z.coerce.number().int().min(500).max(12000).default(4000),
 }).superRefine((value, context) => {

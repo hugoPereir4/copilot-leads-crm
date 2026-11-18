@@ -11,6 +11,7 @@ import { qualificationCandidateSchema, QualificationError, type QualificationCan
 import { buildQualificationInput, evaluateQualification } from "./qualification-rules.js";
 import { QualifyMessage } from "./qualify-message.js";
 import { SimulatorProcessor } from "../../simulator/application/simulator-processor.js";
+import { reservationTimeoutSeconds } from "../../jobs/application/recover-expired-jobs.js";
 import type { QualificationExecutionStore, QualificationWork } from "./qualification-execution-store.js";
 
 const profile = await new JsonBusinessProfileReader().read();
@@ -90,8 +91,10 @@ test("modo padrão não exige chave nem carrega inicializador Gemini", async () 
 
 test("prazo do qualificador respeita o mínimo de 10 s exigido pelo Gemini", () => {
   const gemini = { QUALIFIER_PROVIDER: "gemini", GEMINI_API_KEY: "segredo_sintetico" };
-  equal(readQualificationConfig({}).timeoutMs, 15000);
-  equal(readQualificationConfig(gemini).timeoutMs, 15000);
+  equal(readQualificationConfig({}).timeoutMs, 25000);
+  equal(readQualificationConfig(gemini).timeoutMs, 25000);
+  // O prazo da qualificação precisa terminar antes de a reserva do job expirar e ser recuperada.
+  ok(readQualificationConfig({}).timeoutMs < reservationTimeoutSeconds * 1000);
   throws(() => readQualificationConfig({ ...gemini, QUALIFIER_TIMEOUT_MS: "9999" }), (error: unknown) =>
     error instanceof Error && error.message.includes("QUALIFIER_TIMEOUT_MS") && error.message.includes("10000 ms")
       && !error.message.includes("segredo_sintetico"));
