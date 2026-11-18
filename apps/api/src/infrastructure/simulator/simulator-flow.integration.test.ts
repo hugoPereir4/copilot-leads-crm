@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "pg";
 import { readDatabaseConfig } from "../../config/database.js";
 import { createHttpApp } from "../../http/app.js";
-import { installDemoRoutes } from "../../http/demo-routes.js";
+import { installPanel } from "../../http/panel.js";
 import { listenHttp } from "../../http/listen-http.js";
 import { createDatabasePool } from "../database/pool.js";
 import { JsonBusinessProfileReader } from "../../modules/business-profile/infrastructure/json-business-profile-reader.js";
@@ -24,15 +24,15 @@ import { SimulatorProcessor } from "../../modules/simulator/application/simulato
 import { PostgresSimulatorEffects } from "./postgres-simulator-effects.js";
 import { PostgresDemoReadModel } from "./postgres-demo-read-model.js";
 import { PostgresHumanHandoffStore } from "../../modules/leads/infrastructure/postgres-human-handoff-store.js";
-import { installHumanHandoffRoutes } from "../../modules/leads/http/human-handoff-routes.js";
-import { installLeadClosureRoutes } from "../../modules/leads/http/lead-closure-routes.js";
-import { PostgresLeadClosureStore } from "../../modules/leads/infrastructure/postgres-lead-closure-store.js";
 import { QualifyMessage } from "../../modules/leads/application/qualify-message.js";
 import { SimulatedLeadQualifier } from "../../modules/leads/infrastructure/simulated-lead-qualifier.js";
 import { PostgresQualificationExecutionStore } from "../../modules/leads/infrastructure/postgres-qualification-execution-store.js";
 import { readQualificationConfig } from "../../config/qualification.js";
 import { buildQualificationInput, evaluateQualification } from "../../modules/leads/application/qualification-rules.js";
 import type { LeadQualifier } from "../../modules/leads/contracts/qualification.js";
+import { createAttendant } from "../../modules/auth/application/manage-attendants.js";
+import { PostgresAttendantStore } from "../../modules/auth/infrastructure/postgres-attendant-store.js";
+import { ScryptPasswordHasher } from "../../modules/auth/infrastructure/scrypt-password-hasher.js";
 
 test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, async (t) => {
   const { runner } = await import("node-pg-migrate");
@@ -50,7 +50,6 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
   const effects = new PostgresSimulatorEffects(pool);
   const read = new PostgresDemoReadModel(pool);
   const handoff = new PostgresHumanHandoffStore(pool);
-  const closure = new PostgresLeadClosureStore(pool);
   const qualificationStore = new PostgresQualificationExecutionStore(pool);
   const qualification = new QualifyMessage(qualificationStore, new SimulatedLeadQualifier(), readQualificationConfig({}));
   const dependencies = { queue, profile, contexts, plans, planStore, effects, qualification };
@@ -60,6 +59,20 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
   let url = "";
   let sequence = 0;
   const phone = () => `+1555${String(++sequence).padStart(7, "0")}`;
+  // Login real uma vez por suíte (hasher de custo baixo só aqui); o cookie é reaproveitado nas chamadas do painel.
+  const lowCostHasher = new ScryptPasswordHasher({ logN: 10, r: 8, p: 1, maxmem: 32 * 1024 * 1024 });
+  const attendantPassword = "senha-sintetica-fluxo";
+  let cookie = "";
+  async function login(baseUrl: string, username: string) {
+    const response = await fetch(`${baseUrl}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password: attendantPassword }) });
+    equal(response.status, 200);
+    const session = response.headers.get("set-cookie")?.split(";")[0];
+    if (!session?.startsWith("copilot_session=")) throw new Error("Login não devolveu o cookie de sessão.");
+    return session;
+  }
+  const authed = (init: RequestInit = {}, session = cookie): RequestInit =>
+    ({ ...init, headers: { ...init.headers as Record<string, string> | undefined, Cookie: session } });
   async function migrate(direction: "up" | "down", count = 1) {
     const client = new Client({ ...testConfig, connectionTimeoutMillis: 5000 });
     try {
@@ -107,12 +120,12 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
     await admin.connect(); await admin.query(`CREATE DATABASE "${database}" TEMPLATE template0;`); created = true;
     await migrate("up");
     server = await listenHttp(createHttpApp(new PostgresIncomingMessageInbox(pool), () => {},
-      (app, sendError) => {
-        installDemoRoutes(app, sendError, read);
-        installHumanHandoffRoutes(app, sendError, handoff);
-        installLeadClosureRoutes(app, sendError, closure);
-      }), 0);
+      (app, sendError) => installPanel(app, sendError, pool,
+        { auth: { sessionTtlHours: 12, cookieSecure: false }, hasher: lowCostHasher, log: () => {} })), 0);
     const address = server.address(); ok(address && typeof address !== "string"); url = `http://127.0.0.1:${address.port}`;
+    equal((await createAttendant({ username: "fluxo", displayName: "Atendente do fluxo", password: attendantPassword },
+      { attendants: new PostgresAttendantStore(pool), hasher: lowCostHasher })).status, "criado");
+    cookie = await login(url, "fluxo");
 
     await t.test("webhook → abertura → recepção → card → silêncio, com HTTP e PostgreSQL reais", async () => {
       const contact = phone(); await receive(contact, "Olá"); await drain();
@@ -124,7 +137,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
         plan.blocks.map((block) => block.text));
       const menu = (await profile.read()).menuOptions.find((option) => option.action === "solicitar_recepcao"); ok(menu);
       await receive(contact, menu.number); await drain();
-      const response = await fetch(`${url}/api/demo/conversations`); equal(response.status, 200);
+      const response = await fetch(`${url}/api/demo/conversations`, authed()); equal(response.status, 200);
       const rows = await response.json() as Awaited<ReturnType<typeof read.conversations>>;
       equal(rows.length, 1); equal(rows[0]?.status, "aguardando_humano");
       equal(rows[0]?.lead?.stage, "novo"); equal(rows[0]?.lead?.needsReview, false);
@@ -132,7 +145,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       await receive(contact, "Mais uma mensagem administrativa"); await drain();
       equal((await read.conversations())[0]?.lead?.id, id); equal((await outgoing()).length, opening.length);
       equal((await pool.query("SELECT * FROM public.jobs WHERE status <> 'concluido';")).rowCount, 0);
-      const history = await fetch(`${url}/api/demo/conversations/${rows[0]?.id}/messages`); equal(history.status, 200);
+      const history = await fetch(`${url}/api/demo/conversations/${rows[0]?.id}/messages`, authed()); equal(history.status, 200);
       ok((await history.json() as unknown[]).length >= 5);
     });
 
@@ -259,10 +272,10 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
 
     await t.test("telas locais e erros HTTP validados estão disponíveis no modo de demonstração", async () => {
       for (const path of ["/simulator", "/admin"]) {
-        const response = await fetch(url + path); equal(response.status, 200);
+        const response = await fetch(url + path, authed()); equal(response.status, 200);
         ok((await response.text()).includes("Copilot Leads"));
       }
-      const invalid = await fetch(`${url}/api/demo/conversations/invalido/messages`); equal(invalid.status, 400);
+      const invalid = await fetch(`${url}/api/demo/conversations/invalido/messages`, authed()); equal(invalid.status, 400);
       const error = await invalid.json() as { code: string; correlationId: string };
       equal(error.code, "invalid_payload"); equal(error.correlationId, invalid.headers.get("X-Correlation-ID"));
     });
@@ -286,6 +299,10 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       const address = portProbe.address(); ok(address && typeof address !== "string");
       const demoUrl = `http://127.0.0.1:${address.port}`;
       await new Promise<void>((resolve, reject) => portProbe.close((error) => error ? reject(error) : resolve()));
+      // Atendente gravado com o hasher de produção: o processo real verifica a senha com os mesmos parâmetros.
+      equal((await createAttendant({ username: "processo", displayName: "Atendente do processo", password: attendantPassword },
+        { attendants: new PostgresAttendantStore(pool), hasher: new ScryptPasswordHasher() })).status, "criado");
+      let demoCookie = "";
       const child = spawn(process.execPath, [fileURLToPath(new URL("../../demo.js", import.meta.url))], {
         env: { ...process.env, POSTGRES_DB: database, API_PORT: String(address.port), QUALIFIER_PROVIDER: "simulated" },
         stdio: "ignore", windowsHide: true,
@@ -304,7 +321,9 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
         }
       }
       try {
-        await until(async () => { equal((await fetch(`${demoUrl}/api/demo/conversations`)).status, 200); });
+        await until(async () => { demoCookie = await login(demoUrl, "processo"); });
+        equal((await fetch(`${demoUrl}/api/demo/conversations`)).status, 401);
+        equal((await fetch(`${demoUrl}/api/demo/conversations`, authed({}, demoCookie))).status, 200);
         equal((await fetch(`${demoUrl}/assets/demo.js`)).status, 200);
         for (const style of ["tokens", "global", "layout", "components", "simulator", "kanban"]) {
           const asset = await fetch(`${demoUrl}/assets/styles/${style}.css`);
@@ -330,13 +349,13 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
           equal((await pool.query("SELECT * FROM public.jobs WHERE status <> 'concluido';")).rowCount, 0);
         });
         const lead = (await read.conversations())[0]?.lead; ok(lead);
-        equal((await fetch(`${demoUrl}/api/demo/leads/${lead.id}/assume`, { method: "POST" })).status, 200);
+        equal((await fetch(`${demoUrl}/api/demo/leads/${lead.id}/assume`, authed({ method: "POST" }, demoCookie))).status, 200);
         equal((await read.conversations())[0]?.status, "em_atendimento_humano");
         const before = await outgoing(); await send("Mais uma mensagem sintética");
         await until(async () => { equal((await pool.query("SELECT * FROM public.jobs WHERE status <> 'concluido';")).rowCount, 0); });
         deepEqual(await outgoing(), before);
-        const closed = await fetch(`${demoUrl}/api/demo/leads/${lead.id}/close`, { method: "POST",
-          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ result: "ganho" }) });
+        const closed = await fetch(`${demoUrl}/api/demo/leads/${lead.id}/close`, authed({ method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ result: "ganho" }) }, demoCookie));
         equal(closed.status, 200); equal((await read.conversations())[0]?.status, "encerrada");
         await send("Olá novamente");
         await until(async () => {
@@ -361,7 +380,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       return { contact, id: row.lead.id, conversationId: row.id };
     }
     async function assumeHttp(id: string) {
-      const response = await fetch(`${url}/api/demo/leads/${id}/assume`, { method: "POST" });
+      const response = await fetch(`${url}/api/demo/leads/${id}/assume`, authed({ method: "POST" }));
       const body = await response.json() as { status?: string; code?: string; correlationId?: string };
       return { response, body };
     }
@@ -516,8 +535,8 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
     }
 
     async function closeHttp(id: string, result: unknown = "ganho") {
-      const response = await fetch(`${url}/api/demo/leads/${id}/close`, { method: "POST",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ result }) });
+      const response = await fetch(`${url}/api/demo/leads/${id}/close`, authed({ method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ result }) }));
       return { response, body: await response.json() as Record<string, unknown> };
     }
     async function attendanceLead() {
@@ -541,7 +560,7 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
         equal(row.status, "encerrada"); equal((row.closed_at as Date).toISOString(), closed.body.closedAt);
         equal((await read.conversations()).find((item) => item.id === lead.conversationId)?.lead?.stage, result);
         deepEqual((await snapshot()).messages, messages);
-        const history = await fetch(`${url}/api/demo/conversations/${lead.conversationId}/messages`); equal(history.status, 200);
+        const history = await fetch(`${url}/api/demo/conversations/${lead.conversationId}/messages`, authed()); equal(history.status, 200);
         ok((await history.json() as unknown[]).length > 0);
         const before = await snapshot(); const repeated = await closeHttp(lead.id, result);
         equal(repeated.response.status, 200); equal(repeated.body.status, "ja_encerrado"); equal(repeated.body.closedAt, closed.body.closedAt);
@@ -571,11 +590,11 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
         equal(failed.body.correlationId, failed.response.headers.get("X-Correlation-ID"));
       }
       for (const body of ["{}", "[]", '{"result":"ganho","extra":true}', '{"result":']) {
-        const response = await fetch(`${url}/api/demo/leads/${lead.id}/close`, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+        const response = await fetch(`${url}/api/demo/leads/${lead.id}/close`, authed({ method: "POST", headers: { "Content-Type": "application/json" }, body }));
         equal(response.status, 400);
         const error = await response.json() as { correlationId: string }; equal(error.correlationId, response.headers.get("X-Correlation-ID"));
       }
-      const unsupported = await fetch(`${url}/api/demo/leads/${lead.id}/close`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: "ganho" });
+      const unsupported = await fetch(`${url}/api/demo/leads/${lead.id}/close`, authed({ method: "POST", headers: { "Content-Type": "text/plain" }, body: "ganho" }));
       equal(unsupported.status, 415);
       deepEqual(await snapshot(), before);
       for (const [stage, status] of [["qualificado", "aguardando_humano"], ["em_atendimento", "aguardando_humano"], ["novo", "em_atendimento_humano"]]) {
@@ -826,13 +845,15 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       const job = (await pool.query("SELECT id, message_id FROM public.jobs LIMIT 1;")).rows[0]; ok(job);
       await rejects(pool.query(`INSERT INTO public.qualification_runs (message_id, conversation_id, job_id, reserved_attempt, source)
         VALUES ($1, $2, $3, 1, 'simulated');`, [job.message_id, randomUUID(), job.id]), { code: "23503" });
-      await migrate("down"); equal((await pool.query("SELECT to_regclass('public.qualification_runs') AS relation;")).rows[0]?.relation, null);
+      // A migração de atendentes é posterior: reverter duas desfaz atendentes e qualificação.
+      await migrate("down", 2); equal((await pool.query("SELECT to_regclass('public.qualification_runs') AS relation;")).rows[0]?.relation, null);
+      equal((await pool.query("SELECT to_regclass('public.attendants') AS relation;")).rows[0]?.relation, null);
       deepEqual((await pool.query("SELECT id, stage, summary FROM public.leads ORDER BY id;")).rows, before);
       await migrate("up"); equal((await pool.query("SELECT * FROM public.qualification_runs;")).rowCount, 0);
     });
 
     await t.test("migração de leads reverte somente seus objetos e reaplica", async () => {
-      await migrate("down", 2);
+      await migrate("down", 3);
       equal((await pool.query("SELECT to_regclass('public.leads') AS relation;")).rows[0]?.relation, null);
       equal((await pool.query("SELECT * FROM pg_constraint WHERE conname = 'conversations_id_contact_id_key';")).rowCount, 0);
       equal((await pool.query("SELECT count(*)::integer AS count FROM public.pgmigrations;")).rows[0]?.count, 5);
