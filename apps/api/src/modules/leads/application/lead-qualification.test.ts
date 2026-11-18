@@ -98,7 +98,7 @@ test("prazo do qualificador respeita o mínimo de 10 s exigido pelo Gemini", () 
   throws(() => readQualificationConfig({ ...gemini, QUALIFIER_TIMEOUT_MS: "30001" }), /QUALIFIER_TIMEOUT_MS/);
 });
 
-test("schema JSON e cliente usam configuracao compativel com Gemini API sem retry", () => {
+test("schema JSON e cliente usam configuracao compativel com Gemini API sem retry do SDK", () => {
   const schema = geminiResponseJsonSchema() as Record<string, unknown>;
   equal("$schema" in schema, false);
   const visit = (value: unknown): number => {
@@ -194,7 +194,7 @@ test("caso de uso registra diagnostico seguro e persiste fallback Novo + Revisar
   deepEqual(reported, { jobId: work.job.id, diagnostic });
 });
 
-test("adapter Gemini trata JSON inválido, excesso de saída, 429 e falha de rede sem retries", async () => {
+test("adapter Gemini não retenta JSON inválido, excesso de saída nem 429 e retenta 503 uma única vez", async () => {
   for (const [text, status] of [["{", undefined], ["x".repeat(5000), undefined], [JSON.stringify({ stage: "ganho" }), undefined], [undefined, 429], [undefined, 503]] as const) {
     let calls = 0;
     const adapter = new GeminiLeadQualifier(config, { async generateContent() {
@@ -203,10 +203,64 @@ test("adapter Gemini trata JSON inválido, excesso de saída, 429 e falha de red
     await rejects(adapter.qualify(complete, new AbortController().signal), (error: unknown) => error instanceof QualificationError
       && error.code === (status === 429 ? "rate_limited" : status === 503 ? "qualifier_failure" : "invalid_output")
       && !error.message.includes("segredo_sintetico"));
-    equal(calls, 1);
+    equal(calls, status === 503 ? 2 : 1);
   }
   const adapter = new GeminiLeadQualifier(config, { async generateContent(request) { equal(request.model, config.model); return { text: JSON.stringify(candidate) }; } });
   deepEqual(await adapter.qualify(complete, new AbortController().signal), candidate);
+});
+
+const providerError = (status: number, code: string) => ({ status, message: JSON.stringify({ error: { status: code, message: "segredo_sintetico" } }) });
+const networkError = { message: "segredo_sintetico", cause: { code: "ECONNRESET", message: "host privado" } };
+function scriptedAdapter(steps: Array<unknown>, adapterConfig = config) {
+  const counter = { calls: 0 };
+  const adapter = new GeminiLeadQualifier(adapterConfig, { async generateContent() {
+    const step = steps[Math.min(counter.calls++, steps.length - 1)];
+    if (typeof step === "string") return { text: step };
+    throw step;
+  } });
+  return { adapter, counter };
+}
+
+test("adapter Gemini retenta 503 uma vez e devolve o resultado da segunda tentativa", async () => {
+  const { adapter, counter } = scriptedAdapter([providerError(503, "UNAVAILABLE"), JSON.stringify(candidate)]);
+  deepEqual(await adapter.qualify(complete, new AbortController().signal), candidate);
+  equal(counter.calls, 2);
+});
+
+test("adapter Gemini desiste após duas falhas transitórias com diagnóstico da última", async () => {
+  const unavailable = scriptedAdapter([providerError(503, "UNAVAILABLE")]);
+  await rejects(unavailable.adapter.qualify(complete, new AbortController().signal), (error: unknown) =>
+    error instanceof QualificationError && error.code === "qualifier_failure" && error.diagnostic?.httpStatus === 503
+      && !JSON.stringify(error.diagnostic).includes("segredo_sintetico"));
+  equal(unavailable.counter.calls, 2);
+  const mixed = scriptedAdapter([providerError(500, "INTERNAL"), networkError]);
+  await rejects(mixed.adapter.qualify(complete, new AbortController().signal), (error: unknown) =>
+    error instanceof QualificationError && error.code === "qualifier_failure" && error.diagnostic?.category === "network_error"
+      && error.diagnostic.networkCode === "ECONNRESET" && error.diagnostic.httpStatus === undefined);
+  equal(mixed.counter.calls, 2);
+});
+
+test("adapter Gemini não retenta timeout, 4xx, JSON inválido nem sem orçamento restante", async () => {
+  for (const [step, code] of [[providerError(400, "INVALID_ARGUMENT"), "qualifier_failure"], [providerError(401, "UNAUTHENTICATED"), "qualifier_failure"],
+    [providerError(429, "RESOURCE_EXHAUSTED"), "rate_limited"], ["{", "invalid_output"]] as const) {
+    const { adapter, counter } = scriptedAdapter([step, JSON.stringify(candidate)]);
+    await rejects(adapter.qualify(complete, new AbortController().signal), (error: unknown) => error instanceof QualificationError && error.code === code);
+    equal(counter.calls, 1);
+  }
+  let calls = 0;
+  const controller = new AbortController();
+  const slow = new GeminiLeadQualifier(config, { generateContent(request) {
+    calls++;
+    return new Promise((_resolve, reject) => request.config.abortSignal.addEventListener("abort", () => reject(new Error("aborted"))));
+  } });
+  setTimeout(() => controller.abort(), 20);
+  await rejects(slow.qualify(complete, controller.signal), (error: unknown) => error instanceof QualificationError && error.code === "timeout");
+  equal(calls, 1);
+  // Com prazo total de 5000 ms, a pausa deixa menos que MIN_RETRY_BUDGET_MS para a segunda chamada.
+  const tight = scriptedAdapter([providerError(503, "UNAVAILABLE"), JSON.stringify(candidate)], { ...config, timeoutMs: 5000 });
+  await rejects(tight.adapter.qualify(complete, new AbortController().signal), (error: unknown) =>
+    error instanceof QualificationError && error.code === "qualifier_failure");
+  equal(tight.counter.calls, 1);
 });
 
 test("falha, timeout e saída inválida concluem com fallback; reserva interrompida não repete API", async () => {

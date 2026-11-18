@@ -128,6 +128,34 @@ export function geminiQualificationRequest(input: QualificationInput, model: str
 }
 type Request = ReturnType<typeof geminiQualificationRequest>;
 type Transport = { generateContent(request: Request): Promise<{ text?: string | undefined }> };
+
+// D8: no máximo uma nova tentativa, dentro do mesmo prazo total (QUALIFIER_TIMEOUT_MS).
+export const MAX_QUALIFY_ATTEMPTS = 2;
+// Pausa fixa curta antes da segunda tentativa: dá ao provedor um instante para se recuperar de um 5xx pontual.
+export const RETRY_DELAY_MS = 500;
+// A segunda tentativa só vale se, após a pausa, restar tempo para uma resposta típica do modelo.
+export const MIN_RETRY_BUDGET_MS = 5000;
+
+// Somente falhas transitórias do provedor ou da rede. Timeout, 4xx, configuração e saída inválida nunca são retentados.
+function isRetryable(diagnostic: QualificationDiagnostic | undefined) {
+  if (!diagnostic) return false;
+  if (diagnostic.httpStatus !== undefined) return diagnostic.httpStatus === 500 || diagnostic.httpStatus === 503;
+  return diagnostic.category === "network_error" && diagnostic.networkCode !== undefined;
+}
+
+function timeoutError() {
+  return new QualificationError("timeout", { diagnosticId: randomUUID(), category: "timeout" });
+}
+
+function pause(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) { reject(timeoutError()); return; }
+    const onAbort = () => { clearTimeout(timer); reject(timeoutError()); };
+    const timer = setTimeout(() => { signal.removeEventListener("abort", onAbort); resolve(); }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 export class GeminiLeadQualifier implements LeadQualifier {
   readonly source = "gemini" as const;
   private readonly models: Transport;
@@ -136,6 +164,19 @@ export class GeminiLeadQualifier implements LeadQualifier {
     catch { throw new QualificationError("qualifier_failure", { diagnosticId: randomUUID(), category: "configuration_error" }); }
   }
   async qualify(input: QualificationInput, signal: AbortSignal) {
+    const startedAt = Date.now();
+    for (let attempt = 1; ; attempt++) {
+      try { return await this.attempt(input, signal); } catch (error) {
+        // attempt() só lança QualificationError; o diagnóstico propagado é sempre o da última tentativa.
+        const failure = error as QualificationError;
+        const remaining = this.config.timeoutMs - (Date.now() - startedAt);
+        if (attempt >= MAX_QUALIFY_ATTEMPTS || signal.aborted || !isRetryable(failure.diagnostic)
+          || remaining - RETRY_DELAY_MS <= MIN_RETRY_BUDGET_MS) throw failure;
+        await pause(RETRY_DELAY_MS, signal);
+      }
+    }
+  }
+  private async attempt(input: QualificationInput, signal: AbortSignal) {
     try {
       const response = await this.models.generateContent(geminiQualificationRequest(input, this.config.model, signal));
       if (!response.text || response.text.length > this.config.maxOutputChars) throw new QualificationError("invalid_output");
