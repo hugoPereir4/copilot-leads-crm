@@ -175,8 +175,17 @@ test("diagnostico inclui caminho de violacao e detalhe sanitizado, descartando t
   const unsafe = diagnoseGeminiError({ status: 400, message: JSON.stringify({ error: { details: [
     { fieldViolations: [{ field: `contents.${secret}`, description: `Invalid value ${secret}` }] },
   ] } }) });
-  equal(unsafe.providerField, undefined); equal(unsafe.providerDetail, undefined);
+  equal(unsafe.providerField, "contents.*"); equal(unsafe.providerDetail, "request_field_invalid");
   ok(!JSON.stringify(unsafe).includes(secret));
+  const structural = diagnoseGeminiError({ status: 400, message: JSON.stringify({ error: { details: [
+    { fieldViolations: [{ field: `generation_config.response_json_schema.properties[0].value.anyOf[1].${secret}`, description: `type ${secret}` }] },
+  ] } }) });
+  equal(structural.providerField, "generation_config.response_json_schema.properties[0].value.anyOf[1].*");
+  ok(!JSON.stringify(structural).includes(secret));
+  const malformed = diagnoseGeminiError({ status: 400, message: JSON.stringify({ error: { details: [
+    { fieldViolations: [{ field: `contents[${secret}]`, description: "x" }] }, { fieldViolations: [{ field: "a".repeat(201), description: "x" }] },
+  ] } }) });
+  equal(malformed.providerField, undefined); ok(!JSON.stringify(malformed).includes(secret));
 });
 
 test("caso de uso registra diagnostico seguro e persiste fallback Novo + Revisar", async () => {

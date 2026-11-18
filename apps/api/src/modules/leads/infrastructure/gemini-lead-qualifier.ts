@@ -15,7 +15,8 @@ const safeFieldSegments = new Set(["GenerateContentRequest", "generation_config"
   "generationConfig", "responseSchema", "responseJsonSchema", "responseMimeType", "maxOutputTokens",
   "response_mime_type", "model", "contents", "temperature", "max_output_tokens", "properties", "required",
   "additionalProperties", "additional_properties", "enum", "type", "nullable", "items", "value", "intent",
-  "serviceId", "period", "summary", "needsReview", "evidence", "service", "minLength", "maxLength"]);
+  "serviceId", "period", "summary", "needsReview", "evidence", "service", "minLength", "maxLength",
+  "anyOf", "any_of", "systemInstruction", "system_instruction", "parts", "text", "role"]);
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" ? value as Record<string, unknown> : undefined;
@@ -41,9 +42,8 @@ function providerCode(error: unknown): string | undefined {
 function safeProviderField(field: unknown): string | undefined {
   if (typeof field !== "string" || field.length > 200
     || !/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/.test(field)) return undefined;
-  const segments = field.match(/[A-Za-z_][A-Za-z0-9_]*|\[\d+\]/g) ?? [];
-  if (segments.some((segment) => !segment.startsWith("[") && !safeFieldSegments.has(segment))) return undefined;
-  return field;
+  // Segmentos desconhecidos viram "*": o caminho estrutural continua útil e nenhum nome arbitrário vaza.
+  return field.replace(/[A-Za-z_][A-Za-z0-9_]*/g, (segment) => safeFieldSegments.has(segment) ? segment : "*");
 }
 
 function providerViolation(error: unknown): Pick<QualificationDiagnostic, "providerField" | "providerDetail"> {
