@@ -36,6 +36,8 @@ async function main() {
     // Falhar antes de consumir jobs se a migração da entrega não foi aplicada.
     await pool.query("SELECT id FROM public.leads LIMIT 0;");
     await pool.query("SELECT message_id FROM public.qualification_runs LIMIT 0;");
+    await pool.query("SELECT id FROM public.attendants LIMIT 0;");
+    await pool.query("SELECT token_hash FROM public.attendant_sessions LIMIT 0;");
     const queue = new PostgresJobQueue(pool, true);
     const processor = new SimulatorProcessor({ queue, profile: new JsonBusinessProfileReader(),
       contexts: new PostgresMessageProcessingContextReader(pool), plans: new PostgresMessageResponsePlanReader(pool),
@@ -74,7 +76,7 @@ async function main() {
     console.info(`Demonstração local: http://127.0.0.1:${readHttpConfig(process.env).port}/simulator e /admin`);
   } catch {
     await pool.end();
-    console.error("Não foi possível iniciar a demonstração. Confira PostgreSQL, migrações de leads/qualificação e porta HTTP.");
+    console.error("Não foi possível iniciar a demonstração. Confira PostgreSQL, migrações de leads/qualificação/atendentes e porta HTTP.");
     process.exitCode = 1;
   }
 }
