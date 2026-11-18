@@ -24,6 +24,8 @@
     "diagnose:gemini": "npm run build --workspace=@copilot-leads/api && node --env-file-if-exists=.env apps/api/dist/scripts/diagnose-gemini-cli.js",
     "db:check": "npm run build --workspace=@copilot-leads/api && npm run db:check --workspace=@copilot-leads/api",
     "db:migrate": "npm run build --workspace=@copilot-leads/api && npm run db:migrate --workspace=@copilot-leads/api",
+    "attendant:create": "npm run build --workspace=@copilot-leads/api && npm run attendant:create --workspace=@copilot-leads/api --",
+    "attendant:set-password": "npm run build --workspace=@copilot-leads/api && npm run attendant:set-password --workspace=@copilot-leads/api --",
     "start:demo": "npm run build && npm run start:demo --workspace=@copilot-leads/api"
   },
   "devDependencies": {
