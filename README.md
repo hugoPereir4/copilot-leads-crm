@@ -97,6 +97,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Backlog técnico](docs/33-backlog-tecnico.md): pendências da revisão completa (bugs suspeitos, divergências de documentação, testes e observabilidade), para tratar depois das funcionalidades básicas da v1.
 - [Leitura do plano persistido](docs/28-etapa-4-leitura-do-plano-de-resposta.md): etapa 4.20, conteúdo original, progresso, validação e fotografia de leitura.
 - [Preparação PostgreSQL dos planos](docs/27-etapa-4-preparacao-postgresql-do-plano.md): etapa 4.19, transação, retomada, bloqueios e rollback.
 - [Migração dos planos de resposta](docs/26-etapa-4-migracao-dos-planos-de-resposta.md): etapa 4.18, chaves compostas, unicidades e testes em bancos descartáveis.
