@@ -11,7 +11,7 @@ Os números de linha valem para o commit base acima e podem mudar.
 
 ## Ordem sugerida
 
-Quando o backlog for retomado: **3** (integração estável), **1a**, **1b**, **2** e **5**. Os itens de **4** são registros de acompanhamento e entram quando houver trabalho de observabilidade ou de qualificação.
+Quando o backlog for retomado: **3** (integração estável), **1a**, **1b**, **2** e **5**. Os itens de **4** são registros de acompanhamento e entram quando houver trabalho de observabilidade ou de qualificação. Os itens de **6** (login) entram antes de qualquer exposição do painel fora do loopback; o 6b depende da regra de posse do lead.
 
 ## 1. Bugs suspeitos
 
@@ -152,3 +152,50 @@ Registros de acompanhamento, não bugs.
 - **Impacto:** quanto mais branches, maior o trabalho de revisão e integração no fim.
 - **Situação:** decisão adiada.
 - **Próximo passo:** definir a estratégia no fim da v1, depois do item 3a.
+
+## 6. Pendências do login de atendentes
+
+Levantadas na entrega [login de atendentes](34-login-de-atendentes.md) (D23). Ficam fora dela por decisão de escopo.
+
+### 6a. Limite de tentativas de login
+
+- **O que é:** não há limite de tentativas por usuário nem por origem. Cada login roda uma derivação scrypt de cerca de 128 MiB (N = 2^17, r = 8).
+- **Onde:** [apps/api/src/modules/auth/http/auth-routes.ts](../apps/api/src/modules/auth/http/auth-routes.ts) e [scrypt-password-hasher.ts](../apps/api/src/modules/auth/infrastructure/scrypt-password-hasher.ts).
+- **Impacto:**
+  - **Senhas:** permite tentar senhas sem freio; o custo do scrypt só reduz a velocidade.
+  - **Memória:** muitos logins simultâneos somam 128 MiB cada um (por exemplo, 8 em paralelo usam cerca de 1 GiB) e podem esgotar a memória do processo.
+  - **Contexto:** hoje mitigado por o servidor escutar só em `127.0.0.1`.
+- **Situação:** confirmado (ausência conhecida).
+- **Próximo passo:** decidir a política (atraso progressivo, bloqueio temporário ou limite de logins simultâneos) antes de expor o painel fora do loopback.
+
+### 6b. Registro de quem assumiu ou encerrou
+
+- **O que é:** o atendente autenticado fica em `response.locals.attendant`, mas nenhum caso de uso o recebe. Leads não guardam quem assumiu nem quem encerrou.
+- **Onde:** [apps/api/src/modules/auth/http/require-session.ts](../apps/api/src/modules/auth/http/require-session.ts) e as rotas em [apps/api/src/modules/leads/http/](../apps/api/src/modules/leads/http/).
+- **Impacto:** sem auditoria de autoria; o quadro não mostra o responsável pelo atendimento.
+- **Situação:** confirmado. Há uma **decisão em aberto**: um atendente pode assumir ou encerrar um lead que outro atendente já assumiu?
+- **Próximo passo:** decidir a regra de posse e o modelo (coluna no lead ou `lead_events`, já proposta no [docs/04](04-modelagem-de-dados.md)); depois, passar o atendente aos casos de uso.
+
+### 6c. Desativação de atendente
+
+- **O que é:** não há como desativar um atendente sem apagá-lo. Apagar remove as sessões em cascata, mas perde o histórico de autoria quando ele existir.
+- **Onde:** [apps/api/migrations/1795046400000_create_attendants.sql](../apps/api/migrations/1795046400000_create_attendants.sql) e [apps/api/src/scripts/attendant-admin.ts](../apps/api/src/scripts/attendant-admin.ts).
+- **Impacto:** a única forma de cortar o acesso hoje é trocar a senha (`attendant:set-password`) ou apagar a linha manualmente.
+- **Situação:** confirmado (ausência conhecida).
+- **Próximo passo:** acrescentar estado ativo/inativo e um comando no CLI, junto com o item 6b.
+
+### 6d. HTTPS e cookie `Secure` fora do loopback
+
+- **O que é:** o servidor só fala HTTP e escuta em `127.0.0.1`. O padrão é `SESSION_COOKIE_SECURE=false`. A checagem de Origin compara com `http://` + `Host`.
+- **Onde:** [apps/api/src/http/listen-http.ts](../apps/api/src/http/listen-http.ts), [apps/api/src/config/auth.ts](../apps/api/src/config/auth.ts) e [origin-guard.ts](../apps/api/src/modules/auth/http/origin-guard.ts).
+- **Impacto:** expor o painel em rede sem HTTPS transmitiria senha e cookie em texto claro. Atrás de um proxy HTTPS, a checagem de Origin recusaria as requisições do próprio painel.
+- **Situação:** confirmado (limitação documentada no `.env.example`).
+- **Próximo passo:** antes de qualquer exposição, definir terminação TLS, ligar `SESSION_COOKIE_SECURE=true` e configurar a origem esperada.
+
+### 6e. Token sincronizador para clientes sem Origin confiável
+
+- **O que é:** a proteção CSRF depende do header `Origin` enviado pelo navegador. Requisições sem `Origin` passam.
+- **Onde:** [origin-guard.ts](../apps/api/src/modules/auth/http/origin-guard.ts).
+- **Impacto:** nenhum com os navegadores atuais e o cookie `SameSite=Lax`. Passaria a importar se surgir um cliente que envie o cookie sem um `Origin` confiável.
+- **Situação:** registro preventivo.
+- **Próximo passo:** se esse cliente surgir, acrescentar um token sincronizador por sessão nas requisições que alteram estado.

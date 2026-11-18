@@ -6,6 +6,8 @@ O backend seguirá um monólito modular. O código está organizado em um monore
 
 ## Estado atual
 
+A entrega `feat/login-atendentes`, baseada em `docs/backlog-tecnico`, protege `/admin`, `/simulator` e `/api/demo/*` com login de atendentes (RF13): sessão no servidor com cookie `HttpOnly`, senha com scrypt e atendentes criados pela linha de comando. O webhook continua aberto. Exige a migração `1795046400000_create_attendants`, a ser revisada e aplicada pelo autor. O [guia de login](docs/34-login-de-atendentes.md) traz o contrato HTTP, a ordem de revisão e o teste manual.
+
 A entrega `feat/lead-qualification-core`, baseada em `feat/lead-closure`, integra qualificação administrativa estruturada ao worker e ao Kanban. O modo padrão é **Simulado, sem API externa**; Gemini é opcional, explicitamente configurado no backend. Respostas ao contato continuam predefinidas. A sétima migração aguarda revisão/aplicação manual. Consulte o [guia de qualificação](docs/32-qualificacao-de-leads.md) para instalação, configuração segura, critérios, revisão e testes. Os registros seguintes descrevem entregas anteriores e suas limitações à época.
 
 A entrega `feat/lead-closure`, baseada em `feat/human-handoff`, permite encerrar como Ganho/Perdido, consultar encerrados e retornar ao mesmo contato em uma nova conversa, preservando o histórico. Não exige nova migração. O [guia de encerramento](docs/31-encerramento-de-leads.md) contém o fluxo de revisão, testes manuais e contrato para o Postman.
@@ -79,10 +81,22 @@ npm run check
 | `npm run test` | Compila a API e executa os testes sem precisar de banco |
 | `npm run test:integration` | Executa as suítes de migrações, recepção e contexto de mensagens, reserva, finalização e recuperação de jobs, cada uma em seu próprio banco descartável |
 | `npm run start:api` | Compila a API e inicia o servidor em `127.0.0.1`, usando `.env`; exige PostgreSQL disponível |
-| `npm run start:demo` | Compila os três pacotes e inicia API, worker do simulador e telas locais; exige a migração de leads aplicada |
+| `npm run start:demo` | Compila os três pacotes e inicia API, worker do simulador e telas locais; exige as migrações aplicadas, inclusive a de atendentes |
 | `npm run simulate:message` | Envia o exemplo versionado ao webhook local; a API precisa estar em outro terminal |
 | `npm run db:check` | Compila a API, carrega o `.env` e consulta o banco pela conexão da aplicação |
 | `npm run db:migrate` | Compila a API e aplica migrações pendentes; pode alterar a estrutura do banco |
+| `npm run attendant:create -- <usuario> "<nome>"` | Compila a API e cria um atendente; a senha é pedida no terminal, sem eco, e confirmada |
+| `npm run attendant:set-password -- <usuario>` | Compila a API, troca a senha do atendente e encerra todas as sessões dele |
+
+### Login dos atendentes
+
+O painel (`/admin`), o simulador (`/simulator`) e as rotas `/api/demo/*` exigem login. Fluxo local:
+
+1. `npm run db:migrate`, depois de revisar a migração de atendentes;
+2. `npm run attendant:create -- hugo "Hugo"`, digitando e confirmando a senha (12 a 128 caracteres);
+3. `npm run start:demo` e abrir `http://127.0.0.1:3000/admin`, que redireciona para `/login`.
+
+Variáveis no `.env` (padrões em `.env.example`): `SESSION_TTL_HOURS` (1 a 24, padrão 12) e `SESSION_COOKIE_SECURE` (`true` ou `false`, padrão `false`). O servidor só fala HTTP em `127.0.0.1`; expor o painel fora do loopback exige HTTPS e `SESSION_COOKIE_SECURE=true`.
 
 ## Estrutura e dependências
 
@@ -97,6 +111,7 @@ API e web dependem de `shared`. As aplicações trocam dados por HTTP; o dashboa
 
 ## Revisão e aprendizado
 
+- [Login de atendentes](docs/34-login-de-atendentes.md): sessão no servidor, cookie, Origin, scrypt, CLI de atendentes e teste manual.
 - [Backlog técnico](docs/33-backlog-tecnico.md): pendências da revisão completa (bugs suspeitos, divergências de documentação, testes e observabilidade), para tratar depois das funcionalidades básicas da v1.
 - [Leitura do plano persistido](docs/28-etapa-4-leitura-do-plano-de-resposta.md): etapa 4.20, conteúdo original, progresso, validação e fotografia de leitura.
 - [Preparação PostgreSQL dos planos](docs/27-etapa-4-preparacao-postgresql-do-plano.md): etapa 4.19, transação, retomada, bloqueios e rollback.

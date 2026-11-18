@@ -283,6 +283,44 @@ Referências: [schemas e tipos derivados](https://zod.dev/basics), [restrições
 
 Referências: [consultas parametrizadas](https://node-postgres.com/features/queries), [pool](https://node-postgres.com/apis/pool), [transações](https://node-postgres.com/features/transactions) e [node-pg-migrate](https://salsita.github.io/node-pg-migrate/). As versões instaladas e a validação estão no [documento 10](10-etapa-4-acesso-ao-banco.md).
 
+## D23. Autenticação de atendentes por sessão no servidor
+
+**Decisão confirmada para a entrega `feat/login-atendentes`.** Detalhes de contrato e revisão no [documento 34](34-login-de-atendentes.md).
+
+**Como funciona:**
+
+- O login confere usuário e senha e cria uma linha em `attendant_sessions`. O navegador recebe um cookie `copilot_session` com um token aleatório de 32 bytes (`HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age` igual à validade e `Secure` configurável).
+- O banco guarda só o SHA-256 do token. A cada requisição protegida, o backend calcula o hash do token do cookie e procura uma sessão ainda válida.
+- O logout e a troca de senha apagam as linhas de sessão; o efeito é imediato.
+- As senhas usam scrypt do `node:crypto` (N = 2^17, r = 8, p = 1, salt aleatório, comparação em tempo constante).
+- Atendentes são criados por linha de comando.
+- Requisições que alteram estado sob `/api` passam por uma checagem de `Origin` contra CSRF.
+
+**Fronteiras (D2):**
+
+- O módulo `auth` define portas (`AttendantStore`, `SessionStore`, `PasswordHasher`, `SessionTokens`, relógio) e casos de uso (`login`, `authenticate`, `logout`, criação e troca de senha).
+- PostgreSQL, scrypt, cookies e Express ficam em infraestrutura e HTTP.
+- A composição `installPanel` aplica a sessão a `/admin`, `/simulator` e `/api/demo/*`. O webhook continua aberto.
+
+**Por quê:**
+
+- A sessão no servidor pode ser revogada na hora: logout, troca de senha ou expiração passam a valer na requisição seguinte.
+- O painel e a API estão no mesmo processo e na mesma origem (D1), então um cookie `HttpOnly` resolve sem expor o token ao JavaScript da página.
+- scrypt está na biblioteca padrão do Node e é resistente a ataques com GPU pelo custo de memória, sem dependência nova nem compilação nativa.
+
+**Alternativas descartadas:**
+
+- **JWT:** é útil quando vários serviços precisam validar a identidade sem consultar um banco central. Aqui há um processo só e já existe PostgreSQL. Revogar um JWT antes de expirar exigiria uma lista de bloqueio no banco, o que recria a sessão no servidor com mais complexidade. Guardá-lo em `localStorage` também o exporia a scripts da página.
+- **Argon2:** é o algoritmo recomendado hoje para senhas, mas não está no `node:crypto`. Exigiria uma dependência com binário nativo, o que esta entrega proíbe. O formato `scrypt$N$r$p$salt$hash` guarda os parâmetros, o que permite migrar no futuro, re-hashing no próximo login.
+- **Sessão em memória:** é a mais simples, mas toda reinicialização do `start:demo` derrubaria os logins. Também não seria compartilhada entre duas instâncias, que os testes já usam para o worker. Revogar sessões pelo CLI, outro processo, ficaria impossível.
+
+**Trade-off:**
+
+- Cada requisição protegida faz uma consulta à tabela de sessões. O polling de 1 s do painel soma uma consulta por segundo por atendente, aceitável no volume da v1.
+- Cada login custa cerca de 128 MiB de memória durante a derivação. Sem limite de tentativas, muitos logins simultâneos podem pressionar o servidor (backlog técnico, seção 6).
+- A checagem de `Origin` deixa passar requisições sem `Origin`; elas não carregam cookie de outro site, mas um cliente futuro sem `Origin` confiável exigiria token sincronizador.
+- O cookie sem `Secure` só é aceitável enquanto o servidor escuta em `127.0.0.1`.
+
 ## Forma de trabalho para estudar arquitetura
 
 O objetivo é aprender arquitetura durante o desenvolvimento, com uma entrega pequena por vez e revisão individual do autor. Em cada entrega, explicar com exemplos do próprio projeto:

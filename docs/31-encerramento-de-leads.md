@@ -2,6 +2,8 @@
 
 Branch `feat/lead-closure`, baseada em `feat/human-handoff` (`5af58f7`). Sem nova dependência, migração ou mudança no banco de demonstração. Não há login/atribuição de funcionário nem merge na main.
 
+> **Atualização ([login de atendentes](34-login-de-atendentes.md)):** as rotas `/api/demo/*`, `/admin` e `/simulator` agora exigem sessão de atendente; sem cookie válido, a API responde `401 unauthenticated`. O atendente autenticado ainda não é registrado no lead: encerrar continua sem autoria.
+
 ## Comportamento e transação
 
 Somente `lead.em_atendimento` + `conversa.em_atendimento_humano` podem mudar para `ganho`/`perdido` + `encerrada`, preenchendo `closed_at`. Mensagens, contato, IDs, resumo e marca Revisar permanecem preservados. Não cria nova conversa ao encerrar.

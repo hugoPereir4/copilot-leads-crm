@@ -2,6 +2,8 @@
 
 Branch: `feat/human-handoff`, baseada em `feat/dashboard-ui` (`8731dc4`), que contém o MVP `feat/simulator-demo-flow`. Sem merge na main, rebase, dependência nova ou nova migração.
 
+> **Atualização ([login de atendentes](34-login-de-atendentes.md)):** as rotas `/api/demo/*`, `/admin` e `/simulator` agora exigem sessão de atendente; sem cookie válido, a API responde `401 unauthenticated`. O atendente autenticado ainda não é registrado no lead: assumir continua sem autoria.
+
 ## Entrega e regras
 
 Mensagem → lead Novo → card → **Assumir atendimento** → lead Em atendimento + conversa Em atendimento humano → novas mensagens registradas sem respostas automáticas.
