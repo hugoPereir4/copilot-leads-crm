@@ -1,0 +1,21 @@
+.login-layout {
+  width: min(460px, 100%);
+  margin: 56px auto;
+  padding: 0 20px;
+}
+
+.login-form {
+  display: grid;
+  gap: 18px;
+}
+
+.login-form .actions .button {
+  width: 100%;
+}
+
+@media (max-width: 580px) {
+  .login-layout {
+    margin: 28px auto;
+    padding: 0 12px;
+  }
+}

@@ -1,4 +1,4 @@
-import type { DemoConversation, DemoMessage, HumanHandoffReceipt, LeadClosureOutcome, LeadClosureReceipt } from "@copilot-leads/shared";
+import type { Attendant, DemoConversation, DemoMessage, HumanHandoffReceipt, LeadClosureOutcome, LeadClosureReceipt } from "@copilot-leads/shared";
 
 function element<T extends HTMLElement>(id: string) { return document.getElementById(id) as T; }
 const admin = location.pathname === "/admin";
@@ -17,8 +17,18 @@ let boardRows: DemoConversation[] = [];
 let boardRevision = 0;
 let previous: { id: string; from: string; fromMe: false; type: "text"; body: string; timestamp: string } | undefined;
 
+// Sessão encerrada ou expirada: parar o polling e voltar ao login uma única vez.
+let signedOut = false;
+function goToLogin(path: string) {
+  if (signedOut) return;
+  signedOut = true; location.assign(path);
+}
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
+  if (response.status === 401) {
+    goToLogin(`/login?next=${encodeURIComponent(location.pathname)}`);
+    throw new Error("Sessão expirada. Redirecionando para o login…");
+  }
   if (!response.ok) {
     const error = await response.json().catch(() => null) as { message?: unknown } | null;
     throw new Error(typeof error?.message === "string" ? error.message : `Falha HTTP ${response.status}. Confira a API e tente novamente.`);
@@ -47,6 +57,15 @@ themeToggle.addEventListener("click", () => {
   } catch {
     element("theme-status").textContent = "Tema alterado, mas não foi possível salvar a preferência neste navegador.";
   }
+});
+void request<Attendant>("/api/auth/me").then((attendant) => { element("attendant-name").textContent = attendant.displayName; })
+  .catch(() => { /* 401 já redireciona; outras falhas não bloqueiam o painel. */ });
+element<HTMLButtonElement>("logout").addEventListener("click", async () => {
+  if (signedOut) return;
+  element<HTMLButtonElement>("logout").disabled = true;
+  signedOut = true; // O polling para já; o logout é idempotente no servidor.
+  try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* o login seguinte cria nova sessão. */ }
+  location.assign("/login");
 });
 async function submit(payload: NonNullable<typeof previous>) {
   sendButton.disabled = true; resend.disabled = true;
@@ -259,7 +278,7 @@ async function refresh() {
     adminStatus.setAttribute("data-error", "true"); report(text, true);
   } finally {
     board.setAttribute("aria-busy", "false");
-    setTimeout(() => { void refresh(); }, 1000);
+    if (!signedOut) setTimeout(() => { void refresh(); }, 1000);
   }
 }
 void refresh();

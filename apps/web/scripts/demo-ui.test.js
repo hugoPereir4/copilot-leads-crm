@@ -1,4 +1,4 @@
-import { equal, ok } from "node:assert/strict";
+import { deepEqual, equal, ok } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
@@ -22,19 +22,24 @@ class Element {
 const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
 function nodes(element) { return [element, ...element.children.flatMap(nodes)]; }
 
-async function page({ saved = "light", blockedStorage = false, inAttendance = false, confirm = true, qualification = null, qualified = false } = {}) {
+async function page({ saved = "light", blockedStorage = false, inAttendance = false, confirm = true, qualification = null, qualified = false,
+  unauthorized = false } = {}) {
   const elements = new Map();
   const element = (id) => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   const document = { documentElement: new Element(), body: new Element(), getElementById: element, createElement: () => new Element() };
   const storage = new Map([["copilot-leads-theme", saved]]);
-  const timers = []; let calls = 0, finish, lastPost, confirmations = 0;
+  const timers = [], assigned = [], logouts = []; let calls = 0, finish, lastPost, confirmations = 0;
   let rows = [{ id: "conversation", phone: "+15550114921", status: inAttendance ? "em_atendimento_humano" : "aguardando_humano", failedJobs: 0,
     lead: { id: "lead", stage: inAttendance ? "em_atendimento" : qualified ? "qualificado" : "novo", needsReview: true, summary: qualification?.summary ?? null, qualification } }];
   const fetch = async (url, options) => {
+    if (url === "/api/auth/logout") { logouts.push(options); return { ok: true, status: 204 }; }
+    if (unauthorized) return { ok: false, status: 401, json: async () => ({ code: "unauthenticated", message: "Sessão ausente ou expirada." }) };
+    if (url === "/api/auth/me") return { ok: true, status: 200, json: async () => ({ id: "atendente", username: "hugo", displayName: "Atendente Sintético" }) };
     if (options?.method === "POST") { calls++; lastPost = { url, ...options }; return new Promise((resolve) => { finish = resolve; }); }
-    return { ok: true, json: async () => url.endsWith("/messages") ? [] : structuredClone(rows) };
+    return { ok: true, status: 200, json: async () => url.endsWith("/messages") ? [] : structuredClone(rows) };
   };
-  const context = { document, location: { pathname: "/admin" }, fetch, console, setTimeout: (callback) => timers.push(callback),
+  const location = { pathname: "/admin", assign(url) { assigned.push(url); } };
+  const context = { document, location, fetch, console, setTimeout: (callback) => timers.push(callback),
     window: { confirm: () => { confirmations++; return confirm; } },
     matchMedia: () => ({ matches: true }), localStorage: {
       getItem(key) { if (blockedStorage) throw Error("Storage bloqueado"); return storage.get(key); },
@@ -42,7 +47,7 @@ async function page({ saved = "light", blockedStorage = false, inAttendance = fa
     } };
   runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
   runInNewContext(compiled, context); await flush();
-  return { document, element, storage, timers, calls: () => calls, confirmations: () => confirmations, lastPost: () => lastPost,
+  return { document, element, storage, timers, assigned, logouts, calls: () => calls, confirmations: () => confirmations, lastPost: () => lastPost,
     buttons: () => nodes(element("board")).filter((node) => node.className.includes("assume-button")),
     closeButtons: () => nodes(element("board")).filter((node) => node.className.includes("close-button")),
     async complete(success) {
@@ -134,4 +139,23 @@ test("campos de qualificação são texto seguro, com origem simulada explícita
   const failed = await page({ qualification: { ...qualification, intent: null, serviceName: null, period: null, status: "falha" } });
   ok(nodes(failed.element("board")).some((node) => node.textContent === "Falha — revisar"));
   const absent = await page(); ok(!nodes(absent.element("board")).some((node) => node.className === "qualification-fields"));
+});
+
+test("cabeçalho mostra o atendente e Sair encerra a sessão, para o polling e volta ao login", async () => {
+  const ui = await page();
+  equal(ui.element("attendant-name").textContent, "Atendente Sintético");
+  const pending = ui.timers.length; ok(pending > 0);
+  await ui.element("logout").events.get("click")(); await flush();
+  equal(ui.logouts.length, 1); equal(ui.logouts[0].method, "POST");
+  deepEqual(ui.assigned, ["/login"]); equal(ui.element("logout").disabled, true);
+  ui.timers.splice(0).forEach((callback) => callback()); await flush();
+  equal(ui.timers.length, 0);
+  await ui.element("logout").events.get("click")(); equal(ui.logouts.length, 1);
+});
+
+test("401 em qualquer chamada redireciona uma vez para o login com a rota atual e para o polling", async () => {
+  const ui = await page({ unauthorized: true });
+  deepEqual(ui.assigned, ["/login?next=%2Fadmin"]);
+  equal(ui.timers.length, 0);
+  equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 0);
 });

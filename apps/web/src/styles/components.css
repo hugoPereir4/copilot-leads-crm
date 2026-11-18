@@ -179,3 +179,20 @@
     min-height: 45px;
   }
 }
+
+.attendant-session {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.attendant-name {
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.logout-button {
+  min-height: 38px;
+  padding: 0 14px;
+}
