@@ -83,3 +83,19 @@ test("diagnóstico real exige confirmação explícita, sanitiza dados e nunca r
   ok(!failedReports.join("\n").includes("SYNTHETIC_PRIVATE_TEXT"));
   ok(!failedReports.join("\n").includes(environment.GEMINI_API_KEY));
 });
+
+test("falha de configuração informa o motivo sem expor a chave", async () => {
+  const reports: string[] = [];
+  const success = await runManualGeminiDiagnostic({ ...environment, QUALIFIER_TIMEOUT_MS: "8000" }, async () => true,
+    (line) => reports.push(line), () => { throw new Error("transport must not be created with invalid configuration"); });
+  equal(success, false);
+  const result = JSON.parse(reports.at(-1)!) as { category?: string; reason?: string };
+  equal(result.category, "configuration_error"); match(result.reason ?? "", /QUALIFIER_TIMEOUT_MS/);
+  ok(!reports.join("\n").includes(environment.GEMINI_API_KEY));
+  const other: string[] = [];
+  await runManualGeminiDiagnostic(environment, async () => true, (line) => other.push(line),
+    () => { throw new Error(`falha privada ${environment.GEMINI_API_KEY}`); });
+  const generic = JSON.parse(other.at(-1)!) as Record<string, unknown>;
+  equal(generic.category, "configuration_error"); equal("reason" in generic, false);
+  ok(!other.join("\n").includes(environment.GEMINI_API_KEY));
+});

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
-import { readQualificationConfig } from "../config/qualification.js";
+import { QualificationConfigurationError, readQualificationConfig } from "../config/qualification.js";
 import { diagnoseGeminiError, geminiClientOptions, geminiQualificationRequest } from "../modules/leads/infrastructure/gemini-lead-qualifier.js";
 import type { QualificationInput } from "../modules/leads/contracts/qualification.js";
 
@@ -129,7 +129,9 @@ export async function runManualGeminiDiagnostic(
     const message = error instanceof Error ? error.message : "";
     const category = message === "missing_api_key" ? "missing_api_key"
       : message === "missing_model" ? "missing_model" : "configuration_error";
-    report(JSON.stringify({ result: "falhou", category, diagnosticId: randomUUID() }));
+    // QualificationConfigurationError só cita nomes de campos e mensagens próprias; qualquer outro erro segue sem texto.
+    const reason = error instanceof QualificationConfigurationError ? { reason: error.message } : {};
+    report(JSON.stringify({ result: "falhou", category, ...reason, diagnosticId: randomUUID() }));
     return false;
   }
   return results.every((result) => result.result === "aprovado");
