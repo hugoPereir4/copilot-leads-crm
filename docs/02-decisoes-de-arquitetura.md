@@ -317,7 +317,7 @@ Referências: [consultas parametrizadas](https://node-postgres.com/features/quer
 **Alternativas descartadas:**
 
 - **JWT:** é útil quando vários serviços precisam validar a identidade sem consultar um banco central. Aqui há um processo só e já existe PostgreSQL. Revogar um JWT antes de expirar exigiria uma lista de bloqueio no banco, o que recria a sessão no servidor com mais complexidade. Guardá-lo em `localStorage` também o exporia a scripts da página.
-- **Argon2:** é o algoritmo recomendado hoje para senhas, mas não está no `node:crypto`. Exigiria uma dependência com binário nativo, o que esta entrega proíbe. O formato `scrypt$N$r$p$salt$hash` guarda os parâmetros, o que permite migrar no futuro, re-hashing no próximo login.
+- **Argon2:** é o algoritmo recomendado hoje para senhas, mas não está no `node:crypto`. Exigiria uma dependência com binário nativo, o que esta entrega proíbe. O formato `scrypt$logN$r$p$salt$hash` (por exemplo `scrypt$17$8$1$...`) guarda os parâmetros, o que permite migrar no futuro, re-hashing no próximo login.
 - **Sessão em memória:** é a mais simples, mas toda reinicialização do `start:demo` derrubaria os logins. Também não seria compartilhada entre duas instâncias, que os testes já usam para o worker. Revogar sessões pelo CLI, outro processo, ficaria impossível.
 
 **Trade-off:**
