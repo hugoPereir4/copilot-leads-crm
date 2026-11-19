@@ -1,6 +1,6 @@
 # Backend
 
-Esta aplicação contém o servidor Express e os módulos de mensageria e jobs do monólito modular. Os demais módulos e o worker serão implementados nas próximas entregas; o worker executará no backend na v1.
+Esta aplicação contém o servidor Express e os módulos do monólito modular: `messaging`, `jobs`, `business-profile`, `simulator`, `leads` (assunção, encerramento e qualificação) e `auth` (login de atendentes). O worker do simulador roda no backend: `src/demo.ts` compõe API, painel, worker e recuperação de jobs. As seções abaixo são o registro das entregas na ordem em que foram feitas.
 
 A aplicação pode depender dos contratos públicos de `@copilot-leads/shared`. Os contratos não dependem desta aplicação. Os tipos do Node estão habilitados apenas neste ambiente.
 
