@@ -60,29 +60,29 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 
 ## 5. Requisitos funcionais
 
-| ID | Requisito |
-|---|---|
-| RF01 | Receber mensagens de texto por webhook de um provedor de WhatsApp (real ou simulado). |
-| RF02 | Validar o payload recebido e armazenar a mensagem bruta antes de qualquer processamento. |
-| RF03 | Ignorar mensagens duplicadas (mesmo ID externo do provedor). |
-| RF04 | No primeiro contato, enviar saudação e menu numerado pré-definidos. |
-| RF05 | Interpretar a opção digitada; opção inválida reenvia o menu. |
-| RF06 | Em texto livre, qualificar via LLM: intenção administrativa, serviço de interesse declarado, prazo desejado para atendimento e resumo administrativo. Dados de contato: nome de perfil informado pelo provedor, quando disponível; não é extraído do texto nem enviado à IA; o número vem do provedor. O prazo é extraído apenas se informado, sem inferir gravidade clínica. |
-| RF07 | Validar a saída da IA contra um schema; se inválida, marcar o lead para revisão humana. |
-| RF08 | Criar ou atualizar o lead a partir da conversa. |
-| RF09 | Exibir os leads num Kanban e permitir mover cards entre colunas. |
-| RF10 | Atualizar o painel sem recarregar a página. |
-| RF11 | Mostrar ao atendente o histórico de mensagens registrado pelo sistema e o resumo gerado pela IA. |
-| RF12 | Quando o atendente assume o lead, o bot para de enviar mensagens automáticas (handoff). |
-| RF13 | Autenticar atendentes com login e senha. |
-| RF14 | Ler nome do negócio, serviços, horário e campos de qualificação de uma configuração, não do código. |
-| RF15 | Disponibilizar um simulador que dispara webhooks de exemplo. |
-| RF16 | Disponibilizar no painel um botão **Abrir no WhatsApp** que abre a conversa com o número do contato para o atendente responder fora do sistema. |
-| RF17 | Na opção 1 do menu, enviar a apresentação configurada dos serviços e perguntar qual interessa; na opção 2, enviar valores e horários configurados e perguntar se deseja solicitar agendamento. Qualificar a resposta em texto livre. Na opção 3, criar o lead em Novo e colocar a conversa em Aguardando humano, sem chamar a IA. |
-| RF18 | Vincular novas mensagens à conversa aberta do contato e reutilizar seu lead, quando já existir. Se não houver conversa aberta, iniciar uma nova vinculada ao mesmo contato, preservando as anteriores encerradas. |
-| RF19 | Mostrar no Kanban principal as colunas Novo, Qualificado, Em atendimento, Ganho e Perdido, com no máximo um card aberto por contato; os leads encerrados aparecem nas colunas do resultado. Disponibilizar acesso ao histórico de conversas e leads do contato, com seus resultados. |
-| RF20 | Ao iniciar uma conversa fora do expediente, enviar um aviso predefinido com o horário da clínica e continuar com o menu e a qualificação. Usar o fuso e os horários do perfil do negócio; preservar o silêncio do bot nas conversas aguardando humano ou em atendimento humano. |
-| RF21 | Preservar o estado e o atendimento existente após períodos sem resposta do cliente, sem lembretes ou encerramento automático por inatividade. Processar a próxima mensagem conforme o estado atual, sem reiniciar o menu nem criar outra conversa ou lead apenas pelo tempo decorrido. |
+| ID | Requisito | Estado |
+|---|---|---|
+| RF01 | Receber mensagens de texto por webhook de um provedor de WhatsApp (real ou simulado). | Atendido |
+| RF02 | Validar o payload recebido e armazenar a mensagem bruta antes de qualquer processamento. | Atendido |
+| RF03 | Ignorar mensagens duplicadas (mesmo ID externo do provedor). | Atendido |
+| RF04 | No primeiro contato, enviar saudação e menu numerado pré-definidos. | Atendido |
+| RF05 | Interpretar a opção digitada; opção inválida reenvia o menu. | Atendido |
+| RF06 | Em texto livre, qualificar via LLM: intenção administrativa, serviço de interesse declarado, prazo desejado para atendimento e resumo administrativo. Dados de contato: nome de perfil informado pelo provedor, quando disponível; não é extraído do texto nem enviado à IA; o número vem do provedor. O prazo é extraído apenas se informado, sem inferir gravidade clínica. | Atendido |
+| RF07 | Validar a saída da IA contra um schema; se inválida, marcar o lead para revisão humana. | Atendido |
+| RF08 | Criar ou atualizar o lead a partir da conversa. | Atendido |
+| RF09 | Exibir os leads num Kanban e permitir mover cards entre colunas. | Parcial: os cards só mudam de coluna pelas ações Assumir, Ganho e Perdido; não há arrastar e soltar nem movimento livre |
+| RF10 | Atualizar o painel sem recarregar a página. | Atendido |
+| RF11 | Mostrar ao atendente o histórico de mensagens registrado pelo sistema e o resumo gerado pela IA. | Atendido |
+| RF12 | Quando o atendente assume o lead, o bot para de enviar mensagens automáticas (handoff). | Atendido |
+| RF13 | Autenticar atendentes com login e senha. | Atendido: sem registro de autoria; limite de tentativas pendente |
+| RF14 | Ler nome do negócio, serviços, horário e campos de qualificação de uma configuração, não do código. | Parcial: a configuração não tem campos de qualificação; os campos são fixos no código |
+| RF15 | Disponibilizar um simulador que dispara webhooks de exemplo. | Atendido |
+| RF16 | Disponibilizar no painel um botão **Abrir no WhatsApp** que abre a conversa com o número do contato para o atendente responder fora do sistema. | Atendido |
+| RF17 | Na opção 1 do menu, enviar a apresentação configurada dos serviços e perguntar qual interessa; na opção 2, enviar valores e horários configurados e perguntar se deseja solicitar agendamento. Qualificar a resposta em texto livre. Na opção 3, criar o lead em Novo e colocar a conversa em Aguardando humano, sem chamar a IA. | Atendido |
+| RF18 | Vincular novas mensagens à conversa aberta do contato e reutilizar seu lead, quando já existir. Se não houver conversa aberta, iniciar uma nova vinculada ao mesmo contato, preservando as anteriores encerradas. | Atendido |
+| RF19 | Mostrar no Kanban principal as colunas Novo, Qualificado, Em atendimento, Ganho e Perdido, com no máximo um card aberto por contato; os leads encerrados aparecem nas colunas do resultado. Disponibilizar acesso ao histórico de conversas e leads do contato, com seus resultados. | Parcial: o painel lista só as 100 conversas mais recentes, sem paginação |
+| RF20 | Ao iniciar uma conversa fora do expediente, enviar um aviso predefinido com o horário da clínica e continuar com o menu e a qualificação. Usar o fuso e os horários do perfil do negócio; preservar o silêncio do bot nas conversas aguardando humano ou em atendimento humano. | Atendido |
+| RF21 | Preservar o estado e o atendimento existente após períodos sem resposta do cliente, sem lembretes ou encerramento automático por inatividade. Processar a próxima mensagem conforme o estado atual, sem reiniciar o menu nem criar outra conversa ou lead apenas pelo tempo decorrido. | Atendido |
 
 ## 6. Etapas e visualização do Kanban
 
