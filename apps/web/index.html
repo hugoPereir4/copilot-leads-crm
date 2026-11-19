@@ -114,7 +114,7 @@
       <p id="handoff-status" class="action-status" role="status" aria-live="polite"></p>
     </section>
 
-    <section class="panel history-panel" aria-labelledby="history-title">
+    <section id="history-panel" class="panel history-panel" aria-labelledby="history-title">
       <div class="section-heading">
         <div>
           <p class="eyebrow">MENSAGENS</p>
@@ -131,6 +131,18 @@
       <div id="history" class="message-history" role="log" aria-label="Mensagens da conversa" aria-live="polite"></div>
     </section>
   </main>
+
+  <dialog id="history-dialog" class="history-dialog" aria-labelledby="history-dialog-title" aria-describedby="history-dialog-status">
+    <div class="history-dialog-header">
+      <div>
+        <p class="eyebrow">MENSAGENS</p>
+        <h2 id="history-dialog-title">Histórico da conversa</h2>
+        <p id="history-dialog-status" class="conversation-status muted" aria-live="polite"></p>
+      </div>
+      <button id="history-dialog-close" class="button button-secondary" type="button">Fechar</button>
+    </div>
+    <div id="history-dialog-log" class="message-history" role="log" aria-label="Mensagens da conversa" aria-live="polite"></div>
+  </dialog>
   <script type="module" src="/assets/demo.js"></script>
 </body>
 </html>

@@ -4,10 +4,16 @@ function element<T extends HTMLElement>(id: string) { return document.getElement
 const admin = location.pathname === "/admin";
 document.body.classList.toggle("dashboard-page", admin);
 element("simulator-panel").hidden = admin; element("admin-panel").hidden = !admin;
+// No painel, o histórico abre em um <dialog> por card; no simulador, continua no painel da página.
+element("history-panel").hidden = admin;
 element(admin ? "admin-link" : "simulator-link").setAttribute("aria-current", "page");
 const profileName = element<HTMLInputElement>("profile-name");
 const phone = element<HTMLInputElement>("phone"), message = element<HTMLTextAreaElement>("message");
-const conversation = element<HTMLSelectElement>("conversation"), history = element("history");
+const conversation = element<HTMLSelectElement>("conversation");
+const history = element(admin ? "history-dialog-log" : "history");
+const conversationStatus = element(admin ? "history-dialog-status" : "conversation-status");
+const historyDialog = element<HTMLDialogElement>("history-dialog"), historyClose = element<HTMLButtonElement>("history-dialog-close");
+let historyOpener: HTMLElement | undefined;
 const status = element("status"), sendButton = element<HTMLButtonElement>("send"), resend = element<HTMLButtonElement>("resend");
 const themeToggle = element<HTMLButtonElement>("theme-toggle"), themeLabel = element("theme-label");
 let selected = "", lastHistory = "", lastBoard = "";
@@ -143,6 +149,31 @@ async function closeAttendance(leadId: string, result: LeadClosureOutcome, butto
   }
 }
 
+// Abre o histórico do card em modal. A mesma renderização do simulador preenche o log do diálogo,
+// e o polling o atualiza enquanto estiver aberto (selected = conversa do diálogo).
+function openHistory(row: DemoConversation, opener: HTMLElement) {
+  selected = row.id; conversation.value = row.id; lastHistory = ""; historyOpener = opener;
+  element("history-dialog-title").textContent = `Histórico · ${row.contactName ?? row.phone}`;
+  conversationStatus.textContent = row.status;
+  history.replaceChildren();
+  const loading = document.createElement("p"); loading.className = "history-empty"; loading.textContent = "Carregando mensagens…";
+  history.append(loading);
+  historyDialog.showModal(); historyClose.focus();
+  void renderSelectedHistory().catch((error: unknown) => {
+    conversationStatus.textContent = error instanceof Error ? error.message : "Não foi possível carregar o histórico.";
+  });
+}
+historyClose.addEventListener("click", () => { historyDialog.close(); });
+// "close" cobre o botão e a tecla Esc (cancel nativo do <dialog>).
+historyDialog.addEventListener("close", () => {
+  const conversationId = selected;
+  if (admin) { selected = ""; lastHistory = ""; }
+  // O polling pode ter refeito o quadro com o modal aberto: nesse caso, foca o botão novo do mesmo card.
+  const target = historyOpener?.isConnected === false
+    ? document.querySelector<HTMLElement>(`.history-button[data-conversation="${conversationId}"]`) ?? undefined : historyOpener;
+  target?.focus(); historyOpener = undefined;
+});
+
 const openColumns = [["novo", "Novo"], ["qualificado", "Qualificado"], ["em_atendimento", "Em atendimento"], ["ganho", "Ganho"], ["perdido", "Perdido"]];
 const closedColumns = [["ganho", "Ganho"], ["perdido", "Perdido"]];
 
@@ -173,7 +204,7 @@ function renderBoard(rows: DemoConversation[]) {
       const select = document.createElement("button"); select.className = "conversation-select";
       select.type = "button"; select.textContent = row.phone;
       select.setAttribute("aria-label", `Abrir conversa com ${row.contactName ? `${row.contactName}, ` : ""}${row.phone}`);
-      select.onclick = () => { selected = row.id; conversation.value = row.id; lastHistory = ""; };
+      select.onclick = () => { openHistory(row, select); };
       cardTop.append(select);
       if (row.lead?.needsReview) { const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = "Revisar"; cardTop.append(badge); }
       const details = document.createElement("p"); details.className = "lead-summary";
@@ -226,10 +257,48 @@ function renderBoard(rows: DemoConversation[]) {
           actions.append(close);
         }
       }
-      actions.append(link);
+      const historyButton = document.createElement("button"); historyButton.className = "button button-secondary history-button";
+      historyButton.type = "button"; historyButton.textContent = "Histórico"; historyButton.dataset.conversation = row.id;
+      historyButton.setAttribute("aria-label", `Ver histórico de ${row.contactName ? `${row.contactName}, ` : ""}${row.phone}`);
+      historyButton.onclick = () => { openHistory(row, historyButton); };
+      actions.append(historyButton, link);
       card.append(actions); cardList.append(card);
     }
     column.append(heading, cardList); board.append(column);
+  }
+}
+async function renderSelectedHistory() {
+  if (selected) {
+    const historyConversation = selected;
+    const messages = await request<DemoMessage[]>(`/api/demo/conversations/${encodeURIComponent(historyConversation)}/messages`);
+    if (historyConversation !== selected) return; // Não mostrar histórico da seleção anterior.
+    const version = JSON.stringify(messages);
+    if (version !== lastHistory) {
+      history.replaceChildren();
+      for (const item of messages) {
+        const bubble = document.createElement("article");
+        bubble.className = item.direction === "saida" ? "bubble bubble--outgoing" : "bubble bubble--incoming";
+        const meta = document.createElement("div"); meta.className = "bubble-meta";
+        const source = document.createElement("span");
+        source.textContent = `${item.direction === "saida" ? "Resposta do bot" : "Mensagem recebida"} · ${item.senderType}`;
+        const time = document.createElement("time"); time.dateTime = item.createdAt;
+        time.textContent = new Date(item.createdAt).toLocaleTimeString("pt-BR");
+        const body = document.createElement("div"); body.className = "bubble-body";
+        body.textContent = item.body ?? `[${item.kind}]`;
+        meta.append(source, time); bubble.append(meta, body); history.append(bubble);
+      }
+      if (!messages.length) {
+        const empty = document.createElement("p"); empty.className = "history-empty";
+        empty.textContent = "Ainda não há mensagens nesta conversa.";
+        history.append(empty);
+      }
+      lastHistory = version; history.scrollTop = history.scrollHeight;
+    }
+  } else {
+    history.replaceChildren();
+    const empty = document.createElement("p"); empty.className = "history-empty";
+    empty.textContent = "A conversa aparecerá aqui depois do envio.";
+    history.append(empty); lastHistory = "";
   }
 }
 async function refresh() {
@@ -240,7 +309,7 @@ async function refresh() {
     const rows = await request<DemoConversation[]>("/api/demo/conversations");
     if (revision !== boardRevision) return;
     if (!Array.isArray(rows)) throw new Error("Resposta inválida do painel.");
-    if (!selected) selected = (admin ? rows[0] : rows.find((row) => row.phone === phone.value))?.id ?? "";
+    if (!selected && !admin) selected = rows.find((row) => row.phone === phone.value)?.id ?? "";
     const previousValue = selected;
     conversation.replaceChildren();
     for (const row of rows) {
@@ -249,41 +318,10 @@ async function refresh() {
     }
     conversation.value = previousValue;
     const row = rows.find((row) => row.id === selected);
-    element("conversation-status").textContent = row ? `${row.status}${row.failedJobs ? ` · ${row.failedJobs} job(s) com falha; confira os logs da API.` : ""}` : "Envie uma mensagem para iniciar.";
+    conversationStatus.textContent = row ? `${row.status}${row.failedJobs ? ` · ${row.failedJobs} job(s) com falha; confira os logs da API.` : ""}` : "Envie uma mensagem para iniciar.";
     const boardVersion = JSON.stringify(rows);
     if (admin && boardVersion !== lastBoard) { renderBoard(rows); lastBoard = boardVersion; }
-    if (selected) {
-      const historyConversation = selected;
-      const messages = await request<DemoMessage[]>(`/api/demo/conversations/${encodeURIComponent(historyConversation)}/messages`);
-      if (historyConversation !== selected) return; // Não mostrar histórico da seleção anterior.
-      const version = JSON.stringify(messages);
-      if (version !== lastHistory) {
-        history.replaceChildren();
-        for (const item of messages) {
-          const bubble = document.createElement("article");
-          bubble.className = item.direction === "saida" ? "bubble bubble--outgoing" : "bubble bubble--incoming";
-          const meta = document.createElement("div"); meta.className = "bubble-meta";
-          const source = document.createElement("span");
-          source.textContent = `${item.direction === "saida" ? "Resposta do bot" : "Mensagem recebida"} · ${item.senderType}`;
-          const time = document.createElement("time"); time.dateTime = item.createdAt;
-          time.textContent = new Date(item.createdAt).toLocaleTimeString("pt-BR");
-          const body = document.createElement("div"); body.className = "bubble-body";
-          body.textContent = item.body ?? `[${item.kind}]`;
-          meta.append(source, time); bubble.append(meta, body); history.append(bubble);
-        }
-        if (!messages.length) {
-          const empty = document.createElement("p"); empty.className = "history-empty";
-          empty.textContent = "Ainda não há mensagens nesta conversa.";
-          history.append(empty);
-        }
-        lastHistory = version; history.scrollTop = history.scrollHeight;
-      }
-    } else {
-      history.replaceChildren();
-      const empty = document.createElement("p"); empty.className = "history-empty";
-      empty.textContent = "A conversa aparecerá aqui depois do envio.";
-      history.append(empty); lastHistory = "";
-    }
+    if (!admin || historyDialog.open) await renderSelectedHistory();
     if (adminStatus.textContent !== "Atualização automática ativa · demonstração local") {
       adminStatus.textContent = "Atualização automática ativa · demonstração local";
     }

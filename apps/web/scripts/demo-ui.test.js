@@ -18,12 +18,18 @@ class Element {
   getAttribute(key) { return this.attributes.get(key); }
   removeAttribute(key) { this.attributes.delete(key); }
   addEventListener(event, callback) { this.events.set(event, callback); }
+  // <dialog> e foco mínimos: close() dispara "close", como o botão e o Esc no navegador.
+  open = false;
+  showModal() { this.open = true; }
+  close() { if (!this.open) return; this.open = false; this.events.get("close")?.(); }
+  focus() { Element.focused = this; }
+  static focused = undefined;
 }
 const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
 function nodes(element) { return [element, ...element.children.flatMap(nodes)]; }
 
 async function page({ saved = "light", blockedStorage = false, inAttendance = false, confirm = true, qualification = null, qualified = false,
-  unauthorized = false, path = "/admin", contactName = null, extraRows = [] } = {}) {
+  unauthorized = false, path = "/admin", contactName = null, extraRows = [], messages = [] } = {}) {
   const elements = new Map();
   const element = (id) => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   const document = { documentElement: new Element(), body: new Element(), getElementById: element, createElement: () => new Element() };
@@ -32,12 +38,14 @@ async function page({ saved = "light", blockedStorage = false, inAttendance = fa
   let rows = [{ id: "conversation", phone: "+15550114921", contactName, status: inAttendance ? "em_atendimento_humano" : "aguardando_humano", failedJobs: 0,
     lead: { id: "lead", stage: inAttendance ? "em_atendimento" : qualified ? "qualificado" : "novo", needsReview: true, summary: qualification?.summary ?? null, qualification } },
     ...extraRows];
+  const fetched = [];
   const fetch = async (url, options) => {
+    fetched.push(url);
     if (url === "/api/auth/logout") { logouts.push(options); return { ok: true, status: 204 }; }
     if (unauthorized) return { ok: false, status: 401, json: async () => ({ code: "unauthenticated", message: "Sessão ausente ou expirada." }) };
     if (url === "/api/auth/me") return { ok: true, status: 200, json: async () => ({ id: "atendente", username: "hugo", displayName: "Atendente Sintético" }) };
     if (options?.method === "POST") { calls++; lastPost = { url, ...options }; return new Promise((resolve) => { finish = resolve; }); }
-    return { ok: true, status: 200, json: async () => url.endsWith("/messages") ? [] : structuredClone(rows) };
+    return { ok: true, status: 200, json: async () => url.endsWith("/messages") ? structuredClone(messages) : structuredClone(rows) };
   };
   const location = { pathname: path, assign(url) { assigned.push(url); } };
   const context = { document, location, fetch, console, crypto: { randomUUID: () => "id-sintetico" }, setTimeout: (callback) => timers.push(callback),
@@ -48,7 +56,7 @@ async function page({ saved = "light", blockedStorage = false, inAttendance = fa
     } };
   runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
   runInNewContext(compiled, context); await flush();
-  return { document, element, storage, timers, assigned, logouts, calls: () => calls, confirmations: () => confirmations, lastPost: () => lastPost,
+  return { document, element, storage, timers, fetched, assigned, logouts, calls: () => calls, confirmations: () => confirmations, lastPost: () => lastPost,
     buttons: () => nodes(element("board")).filter((node) => node.className.includes("assume-button")),
     closeButtons: () => nodes(element("board")).filter((node) => node.className.includes("close-button")),
     async complete(success) {
@@ -201,16 +209,39 @@ test("quadro principal mostra Novo, Qualificado, Em atendimento, Ganho e Perdido
   deepEqual(columnTitles(ui), ["Ganho", "Perdido"]); equal(ui.element("admin-title").textContent, "Leads encerrados");
 });
 
-test("Ganho e Perdido listam leads encerrados só com WhatsApp, sem ações de etapa", async () => {
+test("Ganho e Perdido listam leads encerrados só com Histórico e WhatsApp", async () => {
   const ui = await page({ extraRows: [closedRow("g1", "ganho"), closedRow("g22", "ganho"), closedRow("p1", "perdido")] });
   const [novo, , , ganho, perdido] = ui.element("board").children;
   equal(cardsIn(novo).length, 1); equal(cardsIn(ganho).length, 2); equal(cardsIn(perdido).length, 1);
   equal(ganho.children[0].children[1].textContent, "2");
   for (const column of [ganho, perdido]) {
     const texts = nodes(column).map((node) => node.textContent);
-    ok(texts.includes("Abrir no WhatsApp"));
+    ok(texts.includes("Histórico")); ok(texts.includes("Abrir no WhatsApp"));
     ok(!nodes(column).some((node) => /assume-button|close-button/.test(node.className)));
   }
   ok(nodes(perdido).some((node) => node.textContent === "Resultado: Perdido. Histórico preservado."));
 });
 
+test("Histórico abre o diálogo com foco, renderiza as mensagens, fecha e devolve o foco", async () => {
+  const messages = [{ id: "m1", direction: "entrada", senderType: "contato", kind: "texto", body: "Olá sintético", createdAt: "2026-11-19T12:00:00.000Z" }];
+  const ui = await page({ contactName: "Perfil Sintético", messages });
+  equal(ui.element("history-panel").hidden, true);
+  ok(!ui.fetched.some((url) => url.endsWith("/messages"))); // sem modal aberto, o painel não busca histórico
+  const dialog = ui.element("history-dialog"), close = ui.element("history-dialog-close");
+  for (const closeBy of ["botão", "Esc"]) {
+    const opener = nodes(ui.element("board")).find((node) => node.className.includes("history-button")); ok(opener);
+    equal(opener.getAttribute("aria-label"), "Ver histórico de Perfil Sintético, +15550114921");
+    opener.onclick(); await flush();
+    equal(dialog.open, true); equal(Element.focused, close);
+    equal(ui.element("history-dialog-title").textContent, "Histórico · Perfil Sintético");
+    ok(ui.fetched.includes("/api/demo/conversations/conversation/messages"));
+    ok(nodes(ui.element("history-dialog-log")).some((node) => node.textContent === "Olá sintético"));
+    if (closeBy === "botão") close.events.get("click")(); else dialog.close(); // Esc: o navegador fecha o <dialog> e dispara "close"
+    equal(dialog.open, false); equal(Element.focused, opener);
+    const before = ui.fetched.filter((url) => url.endsWith("/messages")).length;
+    ui.timers.splice(0).forEach((callback) => callback()); await flush();
+    equal(ui.fetched.filter((url) => url.endsWith("/messages")).length, before); // fechado, o polling não busca histórico
+  }
+  const phoneButton = nodes(ui.element("board")).find((node) => node.className === "conversation-select");
+  phoneButton.onclick(); equal(dialog.open, true); dialog.close(); equal(Element.focused, phoneButton);
+});
