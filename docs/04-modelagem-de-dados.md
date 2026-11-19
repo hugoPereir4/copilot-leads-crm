@@ -28,7 +28,7 @@ Modelo relacional mínimo para sustentar o fluxo do documento 3. Pensado para Po
 |---|---|---|
 | id | uuid | Chave primária; padrão `gen_random_uuid()` |
 | phone | texto | Obrigatório e único; `+` seguido de 2 a 15 dígitos, sem zero inicial |
-| display_name | texto, opcional | Nome que o WhatsApp informa ou que a IA extrai |
+| display_name | texto, opcional | Nome de perfil informado pelo provedor (`profileName` no simulador). Finalidade: identificar o lead no painel. Cada mensagem nova que traz o nome o sobrescreve; duplicatas, ecos próprios e mensagens sem nome não o alteram. Não é extraído pela IA nem enviado a ela |
 | created_at | timestamptz | Obrigatório; padrão `now()` |
 
 A migração de `contacts` foi verificada na etapa 4.3 com oito cenários em banco descartável. Uma conferência de leitura encontrou a tabela, suas definições e o registro da migração em `copilot_leads`. A restrição de telefone confere apenas a representação de armazenamento; não normaliza entradas nem valida se o número existe ou pertence a um plano de numeração válido. A normalização será implementada na entrada do futuro caso de uso. O [documento 11](11-etapa-4-migracao-de-contatos.md) explica a implementação e as verificações.

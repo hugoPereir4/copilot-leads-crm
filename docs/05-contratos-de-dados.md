@@ -56,6 +56,7 @@ O formato é próprio desta demonstração e não representa uma API real de Wha
 | `timestamp` | ISO 8601 válido com `Z` ou offset explícito | `receivedAt` como `Date` |
 | `type` | `text`, `audio` ou `other` | `texto`, `audio` ou `outro` |
 | `body` | Obrigatório e não vazio somente para `text` | `text` |
+| `profileName` | Opcional. Texto aparado; vazio vira ausente; até 80 caracteres. Acima disso, `invalid_payload` no campo `profileName`, sem ecoar o valor. No provedor real (Meta), equivale a `contacts[0].profile.name`, quando presente | `profileName`, gravado em `contacts.display_name` |
 
 Após validar `fromMe`, eventos próprios podem ser reconhecidos sem os campos de entrada. Nos demais eventos, todos os campos da variante são validados. Campos extras são tolerados e o corpo JSON original inteiro é entregue à persistência; `provider` interno é fixado pelo adapter como `simulador`, nunca aceito do cliente. Não há inferência de DDI nem conversão de um telefone local.
 

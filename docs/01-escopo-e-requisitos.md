@@ -67,7 +67,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 | RF03 | Ignorar mensagens duplicadas (mesmo ID externo do provedor). |
 | RF04 | No primeiro contato, enviar saudação e menu numerado pré-definidos. |
 | RF05 | Interpretar a opção digitada; opção inválida reenvia o menu. |
-| RF06 | Em texto livre, qualificar via LLM: intenção administrativa, serviço de interesse declarado, prazo desejado para atendimento, dados de contato, resumo administrativo e nível de confiança. O prazo é extraído apenas se informado, sem inferir gravidade clínica. |
+| RF06 | Em texto livre, qualificar via LLM: intenção administrativa, serviço de interesse declarado, prazo desejado para atendimento e resumo administrativo. Dados de contato: nome de perfil informado pelo provedor, quando disponível; não é extraído do texto nem enviado à IA; o número vem do provedor. O prazo é extraído apenas se informado, sem inferir gravidade clínica. |
 | RF07 | Validar a saída da IA contra um schema; se inválida, marcar o lead para revisão humana. |
 | RF08 | Criar ou atualizar o lead a partir da conversa. |
 | RF09 | Exibir os leads num Kanban e permitir mover cards entre colunas. |
@@ -105,6 +105,7 @@ Pedidos diretos para falar com a recepção (opção 3) também entram em **Novo
 - **Segredos** (chaves de API) apenas em variáveis de ambiente.
 - **Testes** nos fluxos críticos: idempotência, máquina de estados, validação da saída da IA.
 - **Privacidade (LGPD, nível básico):** guardar só o necessário de dados pessoais e não registrar o conteúdo das mensagens em logs.
+- **Nome de perfil do WhatsApp:** serve apenas para identificar o lead no painel. Não é enviado à IA nem registrado em logs.
 - **Dados da demonstração:** criar cenários inteiramente sintéticos, sem importar conversas de pacientes. O uso futuro com dados reais exige revisão das decisões de privacidade e das integrações antes da conexão, mesmo que o sistema continue limitado à recepção administrativa.
 
 ## 8. Critério de "pronto" da v1
