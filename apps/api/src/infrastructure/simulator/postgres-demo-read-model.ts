@@ -6,7 +6,7 @@ export class PostgresDemoReadModel implements DemoReadModel {
   constructor(private readonly pool: Pool) {}
   async conversations(): Promise<DemoConversation[]> {
     return (await this.pool.query<DemoConversation>(`
-      SELECT c.id, p.phone, c.status,
+      SELECT c.id, p.phone, p.display_name AS "contactName", c.status,
         (SELECT count(*)::integer FROM public.jobs j JOIN public.messages m ON m.id = j.message_id
           WHERE m.conversation_id = c.id AND j.status = 'falhou') AS "failedJobs",
         CASE WHEN l.id IS NULL THEN NULL ELSE jsonb_build_object('id', l.id, 'stage', l.stage,

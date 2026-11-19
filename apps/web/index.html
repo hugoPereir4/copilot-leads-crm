@@ -71,6 +71,11 @@
       </div>
       <form id="message-form" class="message-form">
         <div class="field">
+          <label for="profile-name">Nome do perfil (opcional)</label>
+          <input id="profile-name" type="text" autocomplete="off" maxlength="80" aria-describedby="profile-name-help">
+          <small id="profile-name-help" class="field-help">Simula o nome de perfil do WhatsApp. Use um nome fictício.</small>
+        </div>
+        <div class="field">
           <label for="phone">Telefone de demonstração</label>
           <input id="phone" type="tel" inputmode="tel" autocomplete="tel" value="+15550114921"
             required pattern="\+[1-9][0-9]{1,14}" aria-describedby="phone-help">

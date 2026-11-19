@@ -5,6 +5,7 @@ const admin = location.pathname === "/admin";
 document.body.classList.toggle("dashboard-page", admin);
 element("simulator-panel").hidden = admin; element("admin-panel").hidden = !admin;
 element(admin ? "admin-link" : "simulator-link").setAttribute("aria-current", "page");
+const profileName = element<HTMLInputElement>("profile-name");
 const phone = element<HTMLInputElement>("phone"), message = element<HTMLTextAreaElement>("message");
 const conversation = element<HTMLSelectElement>("conversation"), history = element("history");
 const status = element("status"), sendButton = element<HTMLButtonElement>("send"), resend = element<HTMLButtonElement>("resend");
@@ -15,7 +16,7 @@ const closing = new Set<string>();
 const closedFilter = element<HTMLInputElement>("show-closed");
 let boardRows: DemoConversation[] = [];
 let boardRevision = 0;
-let previous: { id: string; from: string; fromMe: false; type: "text"; body: string; timestamp: string } | undefined;
+let previous: { id: string; from: string; fromMe: false; type: "text"; body: string; timestamp: string; profileName?: string } | undefined;
 
 // Sessão encerrada ou expirada: parar o polling e voltar ao login uma única vez.
 let signedOut = false;
@@ -87,7 +88,10 @@ element<HTMLFormElement>("message-form").addEventListener("submit", (event) => {
   event.preventDefault();
   if (!message.value.trim()) { report("Escreva uma mensagem.", true); return; }
   selected = ""; lastHistory = "";
-  void submit({ id: crypto.randomUUID(), from: phone.value, fromMe: false, type: "text", body: message.value, timestamp: new Date().toISOString() });
+  // profileName só vai no payload quando preenchido; o servidor também apara e valida.
+  const name = profileName.value.trim();
+  void submit({ id: crypto.randomUUID(), from: phone.value, fromMe: false, type: "text", body: message.value,
+    timestamp: new Date().toISOString(), ...(name ? { profileName: name } : {}) });
 });
 resend.addEventListener("click", () => { if (previous) void submit(previous); });
 conversation.addEventListener("change", () => { selected = conversation.value; lastHistory = ""; });
@@ -165,14 +169,22 @@ function renderBoard(rows: DemoConversation[]) {
       const cardTop = document.createElement("div"); cardTop.className = "lead-card-top";
       const select = document.createElement("button"); select.className = "conversation-select";
       select.type = "button"; select.textContent = row.phone;
-      select.setAttribute("aria-label", `Abrir conversa com ${row.phone}`);
+      select.setAttribute("aria-label", `Abrir conversa com ${row.contactName ? `${row.contactName}, ` : ""}${row.phone}`);
       select.onclick = () => { selected = row.id; conversation.value = row.id; lastHistory = ""; };
       cardTop.append(select);
       if (row.lead?.needsReview) { const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = "Revisar"; cardTop.append(badge); }
       const details = document.createElement("p"); details.className = "lead-summary";
       details.textContent = row.lead?.summary ?? (showClosed ? `Resultado: ${label}. Histórico preservado.`
         : row.lead?.stage === "em_atendimento" ? "Atendimento humano em andamento." : "Pedido direto à recepção. Aguardando atendimento humano.");
-      card.append(cardTop, details);
+      card.append(cardTop);
+      // O telefone continua sempre visível no botão; o nome aparece só quando o provedor o informou.
+      if (row.contactName) {
+        const contact = document.createElement("dl"); contact.className = "qualification-fields contact-fields";
+        const term = document.createElement("dt"), description = document.createElement("dd");
+        term.textContent = "Nome do perfil do WhatsApp"; description.textContent = row.contactName;
+        contact.append(term, description); card.append(contact);
+      }
+      card.append(details);
       const qualification = row.lead?.qualification;
       if (qualification) {
         const fields = document.createElement("dl"); fields.className = "qualification-fields";
