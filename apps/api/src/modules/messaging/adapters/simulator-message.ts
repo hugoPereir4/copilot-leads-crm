@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { NormalizedMessage } from "../contracts/normalized-message.js";
+import { profileNameMaxLength, type NormalizedMessage } from "../contracts/normalized-message.js";
 
 const envelopeSchema = z.object({ fromMe: z.boolean() });
 const commonFields = {
@@ -7,6 +7,9 @@ const commonFields = {
   from: z.string().regex(/^[+][1-9][0-9]{1,14}$/),
   fromMe: z.literal(false),
   timestamp: z.iso.datetime({ offset: true }).transform((value) => new Date(value)).pipe(z.date()),
+  // Opcional. Vazio após o trim conta como ausente; acima do limite, o erro cita só o caminho.
+  profileName: z.string().trim().refine((value) => [...value].length <= profileNameMaxLength)
+    .transform((value) => value === "" ? undefined : value).optional(),
 };
 const incomingSchema = z.discriminatedUnion("type", [
   z.object({ ...commonFields, type: z.literal("text"), body: z.string().refine((value) => value.trim().length > 0) }),
@@ -32,7 +35,8 @@ export function adaptSimulatorMessage(payload: unknown): SimulatorMessageResult 
   const result = incomingSchema.safeParse(payload);
   if (!result.success) return invalidFields(result.error);
   const input = result.data;
-  const common = { provider: "simulador", externalId: input.id, phone: input.from, receivedAt: input.timestamp };
+  const common = { provider: "simulador", externalId: input.id, phone: input.from, receivedAt: input.timestamp,
+    ...(input.profileName !== undefined ? { profileName: input.profileName } : {}) };
   if (input.type === "text") {
     return { status: "normalizada", message: { ...common, kind: "texto", text: input.body } };
   }
