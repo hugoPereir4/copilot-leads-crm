@@ -1,7 +1,10 @@
-/* Só o quadro rola na horizontal; cada coluna rola na vertical dentro da altura da viewport. */
+/* As colunas dividem a largura disponível; só o quadro rola na horizontal, e só quando a tela
+   é mais estreita que o mínimo das colunas. Cada coluna rola na vertical dentro da viewport. */
 .kanban-board {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-auto-columns: minmax(260px, 1fr);
+  grid-auto-flow: column;
+  align-items: start;
   gap: 12px;
   max-width: 100%;
   overflow-x: auto;
@@ -11,9 +14,7 @@
 
 .kanban-column {
   display: flex;
-  flex: 0 0 290px;
   flex-direction: column;
-  width: 290px;
   max-height: calc(100vh - var(--header-height) - 32px);
   max-height: calc(100dvh - var(--header-height) - 32px);
   min-width: 0;
@@ -185,8 +186,7 @@
 }
 
 @media (max-width: 580px) {
-  .kanban-column {
-    flex-basis: 270px;
-    width: 270px;
+  .kanban-board {
+    grid-auto-columns: minmax(250px, 1fr);
   }
 }

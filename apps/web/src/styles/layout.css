@@ -174,8 +174,26 @@
   font-size: 0.78rem;
 }
 
+/* /admin usa a largura total da tela. O header usa as mesmas margens laterais do quadro
+   (margem da página + padding do painel + borda), para começarem e terminarem na mesma linha. */
+.dashboard-page {
+  --dashboard-page-gutter: 28px;
+  --dashboard-panel-gutter: 24px;
+}
+
 .dashboard-page .page-layout {
+  width: 100%;
   grid-template-columns: minmax(0, 1fr);
+  padding-inline: var(--dashboard-page-gutter);
+}
+
+.dashboard-page .admin-panel {
+  padding-inline: var(--dashboard-panel-gutter);
+}
+
+.dashboard-page .header-inner {
+  width: 100%;
+  padding-inline: calc(var(--dashboard-page-gutter) + var(--dashboard-panel-gutter) + 1px);
 }
 
 @media (max-width: 800px) {
@@ -196,6 +214,10 @@
 
   .admin-panel {
     grid-column: auto;
+  }
+
+  .dashboard-page {
+    --dashboard-page-gutter: 20px;
   }
 }
 
@@ -238,5 +260,10 @@
   .section-heading {
     flex-direction: column;
     gap: 10px;
+  }
+
+  .dashboard-page {
+    --dashboard-page-gutter: 12px;
+    --dashboard-panel-gutter: 16px;
   }
 }
