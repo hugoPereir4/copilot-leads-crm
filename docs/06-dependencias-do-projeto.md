@@ -32,7 +32,7 @@ Inventário de tudo de que o projeto depende: ambiente, bibliotecas, ferramentas
 | Driver **pg** (node-postgres) | Conectar ao PostgreSQL e executar SQL parametrizado | Núcleo, confirmado na D22 | `8.23.1` instalado no workspace da API na etapa 4.2; tipos com `@types/pg` `8.23.1` em desenvolvimento. |
 | Camada de acesso a dados | Repositórios com SQL explícito | Núcleo, confirmado na D22 | Usar `pg` diretamente; Kysely, Drizzle e Prisma foram considerados. Os tipos dos resultados são mantidos pelo projeto, sem inferência a partir do SQL. |
 | **node-pg-migrate** | Versionar e aplicar alterações na estrutura do banco | Núcleo, confirmado na D22 | `9.0.0` instalado como dependência de desenvolvimento da API. Migrações SQL ficam em `apps/api/migrations`; o documento 10 explica a execução. |
-| **pino** | Logs estruturados com correlation id | Recomendado | Integração com o backend Express a definir na entrega de observabilidade. |
+| **pino** | Logs estruturados com correlation id | **Não usado** | Não instalado. Os logs são `console` com JSON (`apps/api/src/demo.ts` usa `console.error(JSON.stringify(...))`). |
 | Hash de senha: **scrypt** do `node:crypto` | Guardar senhas dos atendentes | Núcleo, confirmado na D23 | Sem dependência nova (N = 2^17, r = 8, p = 1). Argon2 foi descartado na D23 por exigir binário nativo. Nunca armazenar senha em texto. |
 | Sessão / autenticação | Login do painel | Núcleo, confirmado na D23 | Sessão no servidor: cookie `copilot_session` `HttpOnly` com token aleatório, e só o SHA-256 do token na tabela `attendant_sessions`. Sem JWT e sem biblioteca de sessão. Detalhes no [documento 34](34-login-de-atendentes.md). |
 | Middlewares de segurança (CORS, cabeçalhos, rate limit) | Proteger a API e o endpoint do webhook | Recomendado | Opções para Express: `cors`, `helmet`, `express-rate-limit`; adoção e configuração nas entregas pertinentes. |
@@ -47,15 +47,17 @@ Inventário de tudo de que o projeto depende: ambiente, bibliotecas, ferramentas
 
 ## 3. Frontend (painel Kanban)
 
+O painel atual usa HTML, CSS e TypeScript sem framework, compilados com `tsc`; `apps/web/package.json` só depende de `@copilot-leads/shared`. A tabela abaixo é o plano original; os itens marcados como **Não usado** não foram instalados.
+
 | Biblioteca | Para que serve | Classificação | Alternativas / observação |
 |---|---|---|---|
-| **React** | Interface | Núcleo | |
-| **Vite** | Servidor de desenvolvimento e build | Núcleo | |
+| **React** | Interface | **Não usado** | A interface é feita com DOM e TypeScript, sem framework. |
+| **Vite** | Servidor de desenvolvimento e build | **Não usado** | O build é `tsc` mais a cópia dos estilos; a API serve os arquivos. |
 | **TypeScript** | Tipagem | Núcleo | Mesma configuração base do backend. |
-| **React Router** | Navegação (login, painel, detalhe) | Recomendado | |
-| **TanStack Query** | Cache e sincronização de dados do servidor | Recomendado | Combina bem com os eventos SSE: o evento invalida o cache e a lista é recarregada. |
-| **dnd-kit** | Arrastar e soltar cards entre colunas | Núcleo para o Kanban | Alternativa: `@hello-pangea/dnd`. |
-| **Tailwind CSS** | Estilização | Recomendado | Alternativas: CSS Modules, uma biblioteca de componentes. |
+| **React Router** | Navegação (login, painel, detalhe) | **Não usado** | As rotas `/login`, `/simulator` e `/admin` são servidas pela API. |
+| **TanStack Query** | Cache e sincronização de dados do servidor | **Não usado** | O painel faz polling de 1 s com `fetch` (D9 revisada). |
+| **dnd-kit** | Arrastar e soltar cards entre colunas | **Não usado** | Não há arrastar e soltar; os cards mudam de coluna pelas ações Assumir, Ganho e Perdido. |
+| **Tailwind CSS** | Estilização | **Não usado** | CSS próprio em `apps/web/src/styles/`, com tokens para os temas claro e escuro. |
 | shadcn/ui ou similar | Componentes prontos (botões, modais, formulários) | Opcional | Acelera a interface, mas adiciona conceitos extras. |
 | react-hook-form | Formulário de login e filtros | Opcional | |
 | Zod | Validar respostas da API no cliente | Recomendado | Reaproveita os schemas do pacote compartilhado. |
@@ -124,11 +126,11 @@ Só é necessário ao usar um provedor real em desenvolvimento, porque o provedo
 | `@types/node` e tipos dos pacotes sem tipagem própria | Tipos para o compilador | Núcleo; `@types/node@24.19.2` instalado na etapa 3 |
 | **ESLint** + typescript-eslint | Regras de qualidade e proibição de `any` nas fronteiras | Núcleo |
 | **Prettier** | Formatação | Recomendado (ou Biome, que une lint e formatação) |
-| **Vitest** | Testes unitários e de integração, nos dois lados | Núcleo |
+| **Vitest** | Testes unitários e de integração, nos dois lados | **Não usado**: os testes usam o `node:test` nativo do Node |
 | **Supertest** | Testar as rotas HTTP da aplicação Express sem manter um servidor separado | Recomendado |
-| **Testcontainers** | PostgreSQL real e descartável nos testes de integração | Recomendado |
-| React Testing Library + jsdom | Testar componentes | Recomendado |
-| **Playwright** | Teste ponta a ponta do fluxo completo | Opcional |
+| **Testcontainers** | PostgreSQL real e descartável nos testes de integração | **Não usado**: cada suíte cria e apaga um banco descartável no PostgreSQL do Docker Compose |
+| React Testing Library + jsdom | Testar componentes | **Não usado**: os testes da web usam um DOM mínimo próprio, com `node:vm`, em `apps/web/scripts/` |
+| **Playwright** | Teste ponta a ponta do fluxo completo | **Não usado** |
 | Husky + lint-staged | Rodar lint e formatação antes de cada commit | Opcional |
 | Compilador de build (`tsc` ou **tsup**) | Gerar o JavaScript final do backend | Núcleo |
 
@@ -149,8 +151,8 @@ Testes que valem priorizar (do documento 1): idempotência, máquina de estados 
 | Item | Para que serve | Observação |
 |---|---|---|
 | Docker Compose | Subir banco, API e painel juntos com um comando | Excelente para o README do portfólio. |
-| GitHub Actions | Integração contínua: lint, tipos e testes a cada push | Núcleo para demonstrar maturidade. |
-| Dependabot ou Renovate | Atualização automática de dependências | Recomendado. |
+| GitHub Actions | Integração contínua: lint, tipos e testes a cada push | **Não configurado**: o repositório não tem a pasta `.github/`. |
+| Dependabot ou Renovate | Atualização automática de dependências | **Não configurado**: o repositório não tem a pasta `.github/` nem configuração do Renovate. |
 | Hospedagem da API e do worker | Demonstração online | Opções comuns: Render, Railway, Fly.io. **Planos gratuitos mudam**: confira as condições atuais. |
 | Banco gerenciado | PostgreSQL hospedado | Neon, Supabase e similares. Confira limites atuais. |
 | Hospedagem do painel | Frontend estático | Vercel, Netlify, Cloudflare Pages. |
