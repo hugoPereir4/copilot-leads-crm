@@ -188,12 +188,12 @@ Valide as variáveis com Zod na inicialização, exigindo apenas as aplicáveis 
 |---|---|
 | 0. Base do monorepo (etapa 3) | npm workspaces, TypeScript e tipos de Node; configuração para Node e npm já instalados. Entrega e versões no documento 8. |
 | Preparação das entregas seguintes | Docker antes da persistência, com aviso ao autor; lint, formatação e ferramentas de teste conforme as entregas e decisões pendentes. |
-| 1. Webhook e persistência | Express, Zod, pg, camada de dados e migrações, pino, simulador |
+| 1. Webhook e persistência | Express, Zod, pg, `node-pg-migrate` e simulador próprio. `pino` não foi instalado: os logs são `console` com JSON |
 | 2. Fila e worker | Nada novo; usa o banco e a lógica própria |
 | 3. IA | SDK do provedor, regras de timeout e novas tentativas |
-| 4. Painel | React, Vite, React Router, TanStack Query, dnd-kit, Tailwind |
+| 4. Painel | Nada novo: HTML, CSS e TypeScript sem framework, compilados com `tsc`, e só o pacote `@copilot-leads/shared` como dependência. React, Vite, React Router, TanStack Query, dnd-kit e Tailwind não foram instalados |
 | 5. Autenticação e tempo real | Autenticação sem dependência nova (scrypt do `node:crypto` e sessão no servidor, D23); painel por polling na v1 (D9 revisada) |
-| 6. Qualidade e entrega | Testcontainers, Playwright (opcional), GitHub Actions, Dependabot |
+| 6. Qualidade e entrega | Testes com o `node:test` nativo; a integração usa o PostgreSQL do Docker Compose, com bancos descartáveis. Não foram instalados nem configurados: Testcontainers, Playwright, GitHub Actions e Dependabot |
 | 7. Número real (opcional) | Provedor de WhatsApp escolhido e túnel |
 
 Instalar só o que a fase pede evita carregar bibliotecas que você ainda não entende.
