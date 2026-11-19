@@ -67,7 +67,7 @@ erDiagram
   messages |o--o| response_blocks : "sent_message_id, conversation_id"
   conversations ||--o| leads : "conversation_id, contact_id"
   messages ||--o| qualification_runs : "message_id, conversation_id"
-  jobs ||--o{ qualification_runs : "job_id, message_id"
+  jobs ||--o| qualification_runs : "job_id, message_id"
   attendants ||--o{ attendant_sessions : "attendant_id"
 
   contacts {
@@ -87,8 +87,8 @@ erDiagram
   messages {
     uuid id PK
     uuid conversation_id FK
-    text provider UK
-    text external_id UK
+    text provider "UNIQUE (provider, external_id)"
+    text external_id "UNIQUE (provider, external_id)"
     text direction
     text sender_type
     text kind
@@ -98,8 +98,8 @@ erDiagram
   }
   jobs {
     uuid id PK
-    text type UK
-    uuid message_id FK, UK
+    text type "UNIQUE (type, message_id)"
+    uuid message_id FK "UNIQUE (type, message_id)"
     text status
     integer attempts
     integer max_attempts
@@ -172,7 +172,7 @@ erDiagram
 Como ler o diagrama:
 
 - **Chaves estrangeiras compostas:** as relações com dois campos usam FKs compostas, que conferem o vínculo e não só a existência do ID. Por exemplo, um plano de resposta só aponta para uma mensagem da mesma conversa, e o lead aponta para o par conversa e contato. `response_plans.conversation_id` e `leads.contact_id` fazem parte dessas FKs; não há FK direta deles para `conversations` e `contacts`.
-- **Unicidades:**
+- **Unicidades:** `UK` marca só as unicidades de uma coluna. As compostas aparecem como comentário ao lado das colunas:
   - `messages` é única em `(provider, external_id)`, base da idempotência (D5);
   - `jobs` é única em `(type, message_id)`.
 - **Índices únicos parciais**, que o diagrama não mostra:
