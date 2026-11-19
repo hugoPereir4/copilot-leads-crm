@@ -14,11 +14,11 @@ Modelo relacional mínimo para sustentar o fluxo do documento 3. Pensado para Po
 | conversations | Um ciclo de atendimento com estado próprio | 1 conversa : N mensagens; 1 conversa : no máximo 1 lead, criado conforme o fluxo |
 | messages | Cada mensagem recebida ou enviada | N mensagens : 1 conversa |
 | leads | Solicitação ou oportunidade, qualificada ou encaminhada diretamente à recepção; aparece como card no Kanban | 1 lead : 1 conversa; N leads : 1 contato |
-| ai_extractions | Registro de cada chamada à IA, para auditoria e depuração | N extrações : 1 lead (ou conversa) |
+| ai_extractions (previsão, sem migração) | Registro de cada chamada à IA, para auditoria e depuração | Previsto: N extrações : 1 lead (ou conversa) |
 | jobs | Fila de processamento em tabela (D4) | Refere-se a uma mensagem |
 | response_plans (migração 4.18) | Intenção durável de resposta, verificada em banco descartável | No máximo um plano por mensagem; abertura única e um pendente por conversa |
 | response_blocks (migração 4.18) | Textos e progresso de envio, verificados em banco descartável | N blocos : 1 plano; posição positiva e única no plano |
-| lead_events | Histórico de mudanças do lead (opcional na v1) | N eventos : 1 lead |
+| lead_events (previsão, sem migração) | Histórico de mudanças do lead (opcional na v1) | Previsto: N eventos : 1 lead |
 | attendants | Atendentes que entram no painel (D23); criados pela linha de comando | 1 atendente : N sessões. Ainda sem vínculo com leads (sem registro de autoria) |
 | attendant_sessions | Sessões de login no servidor; o banco guarda só o SHA-256 do token | N sessões : 1 atendente; apagadas em cascata com o atendente |
 
@@ -39,13 +39,13 @@ A migração de `contacts` foi verificada na etapa 4.3 com oito cenários em ban
 
 | Campo | Tipo | Observação |
 |---|---|---|
-| id | uuid | Proposta 4.4: chave primária com padrão `gen_random_uuid()` |
+| id | uuid | Chave primária com padrão `gen_random_uuid()` |
 | contact_id | uuid | Obrigatório; referência a `contacts`, com exclusão do contato restringida enquanto houver conversas |
-| status | texto com CHECK | Proposta 4.4: seis estados previstos na D7; padrão `aguardando_menu` |
+| status | texto com CHECK | Seis estados da D7; padrão `aguardando_menu` |
 | assigned_user_id | referência, opcional, planejada | Será acrescentado junto da tabela `users`; não integra a migração 4.4 |
 | last_message_at | timestamptz, opcional | Inicialmente nulo; registra a última atividade para consulta, sem disparar lembretes nem encerramento por inatividade (D18) |
 | created_at | timestamptz | Obrigatório, com padrão `now()` |
-| closed_at | timestamptz, opcional | Proposta 4.4: obrigatório em `encerrada` e nulo nos demais estados |
+| closed_at | timestamptz, opcional | Obrigatório em `encerrada` e nulo nos demais estados |
 
 A migração de `conversations` está preparada para revisão e foi verificada em banco descartável, sem aplicação no banco do projeto nesta correção. Um índice único parcial em `contact_id` para os estados diferentes de `encerrada` protege a parte da D16 referente a conversas; as encerradas permanecem no histórico. Há também um índice em `(contact_id, status)` para consulta. A atribuição a um atendente dependerá da futura tabela `users`. O [documento 12](12-etapa-4-migracao-de-conversas.md) detalha o SQL, os testes executados e os limites desta etapa.
 
@@ -91,7 +91,9 @@ Uma reserva por `message_id` (PK), vinculada por FKs compostas à conversa da me
 
 O caminho direto à recepção (opção 3) cria o lead em `novo`, com `needs_review = false`, sem criar extração de IA e sem preencher os campos exclusivos da qualificação. O painel deve aceitar a ausência desses dados.
 
-### ai_extractions
+### ai_extractions (previsão, sem migração)
+
+Nenhuma tabela de extração foi criada; a reserva e o resultado da qualificação ficam em `qualification_runs` e `leads.qualification`.
 
 | Campo | Tipo | Observação |
 |---|---|---|
@@ -178,7 +180,7 @@ Migração `1795046400000_create_attendants.sql`. Detalhes no [documento 34](34-
 
 Não há vínculo entre atendentes e leads ou conversas: assumir e encerrar ainda não registram quem fez a ação (backlog técnico, item 6b).
 
-### lead_events (opcional)
+### lead_events (previsão, sem migração; opcional)
 
 Tipo do evento (mudança de estágio, assunção, revisão), estágio de origem e destino, usuário responsável e data. Se o tempo apertar, é a primeira tabela a cortar.
 
@@ -203,8 +205,8 @@ Mover o lead para `ganho` ou `perdido` e encerrar sua conversa ocorre na mesma t
 
 - **contacts separado de leads:** a mesma pessoa pode voltar meses depois. O contato é reutilizado entre os ciclos de atendimento; cada lead é uma oportunidade específica. Há no máximo um lead aberto por contato, e os encerrados continuam no histórico (D16).
 - **conversations separado de leads:** a conversa tem um estado técnico (quem está falando agora), enquanto o lead tem um estágio comercial (em que ponto do funil está). São dois conceitos diferentes que mudam por motivos diferentes.
-- **Campos centrais como colunas e o restante em jsonb:** intenção, serviço e prazo desejado aparecem no Kanban e ficam em colunas próprias. Os campos que variam por negócio (D11) vão em extracted_data, sem precisar de migração a cada nicho novo.
-- **ai_extractions separado:** o lead guarda a versão validada e atual. O registro de cada chamada à IA, com saída bruta e versão do prompt, é o que permite depurar e comparar prompts.
+- **Qualificação em jsonb:** intenção, serviço, período, resumo, revisão, origem e status da qualificação ficam no JSONB `leads.qualification`, validado por Zod e por um CHECK estrutural; não há colunas próprias para eles nem coluna `extracted_data`. Em colunas ficam só `stage`, `needs_review` e `summary`, usados pelo Kanban.
+- **ai_extractions separado (previsão):** o lead guarda a versão validada e atual. Um registro de cada chamada à IA, com saída bruta e versão do prompt, permitiria depurar e comparar prompts; essa tabela não foi criada.
 - **raw_payload em messages:** quando o provedor mudar o formato, você terá o original para investigar.
 - **Enums para estados:** tornam estados inválidos impossíveis de gravar. Pode ser enum nativo do PostgreSQL ou texto com restrição de valores.
 
@@ -452,7 +454,7 @@ Table leads {
     `qualification IS NULL OR (jsonb_typeof(qualification) = 'object' AND qualification ?& ARRAY['intent','serviceId','serviceName','period','summary','needsReview','source','status'] AND jsonb_typeof(qualification->'source') = 'string' AND jsonb_typeof(qualification->'status') = 'string' AND qualification->>'source' IN ('simulated', 'gemini') AND qualification->>'status' IN ('processando', 'qualificado', 'revisao', 'falha') AND jsonb_typeof(qualification->'needsReview') = 'boolean')` [name: 'leads_qualification_check']
   }
   Note: '''
-  MIGRAÇÃO IMPLEMENTADA no MVP. PK leads_pkey. A coluna qualification da sétima migração aguarda aplicação manual.
+  MIGRAÇÃO IMPLEMENTADA no MVP. PK leads_pkey. A coluna qualification vem da sétima das oito migrações (1794956400000_create_qualification_runs).
   FK composta (conversation_id, contact_id) referencia conversations.(id, contact_id).
   ÍNDICE ÚNICO PARCIAL, somente anotado: leads_one_open_per_contact_idx
   ON (contact_id) WHERE stage IN ('novo', 'qualificado', 'em_atendimento').
@@ -479,7 +481,7 @@ Table qualification_runs {
     `error_code IN ('timeout', 'rate_limited', 'invalid_output', 'qualifier_failure', 'interrupted', 'context_limit', 'estado_humano')` [name: 'qualification_runs_error_code_check']
     `(status = 'processando' AND result IS NULL AND finished_at IS NULL) OR (status = 'concluida' AND result IS NOT NULL AND jsonb_typeof(result) = 'object' AND finished_at IS NOT NULL) OR (status = 'descartada' AND result IS NULL AND finished_at IS NOT NULL)` [name: 'qualification_result_check']
   }
-  Note: 'Implementada na sétima migração; não aplicada ao banco principal nesta entrega. Uma reserva por mensagem; FKs compostas protegem os vínculos. Sem prompt/resposta bruta. Retomada sem segunda chamada externa.'
+  Note: 'IMPLEMENTADA na sétima das oito migrações (1794956400000_create_qualification_runs). Uma reserva por mensagem; FKs compostas protegem os vínculos. Sem prompt/resposta bruta. Retomada sem segunda chamada externa.'
 }
 
 Table attendants {
