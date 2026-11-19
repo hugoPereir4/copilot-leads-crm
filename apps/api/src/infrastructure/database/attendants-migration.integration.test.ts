@@ -44,7 +44,7 @@ test("migração de atendentes e sessões em banco descartável", { timeout: 600
     await t.test("aplica as duas tabelas depois das migrações existentes, com id e datas padrão", async () => {
       equal((await pool.query("SELECT name FROM public.pgmigrations ORDER BY run_on DESC, id DESC LIMIT 1;")).rows[0]?.name,
         "1795046400000_create_attendants");
-      const id = await attendant("hugo.teste_1-a");
+      const id = await attendant("atendente.teste_1-a");
       const row = (await pool.query("SELECT * FROM public.attendants WHERE id = $1;", [id])).rows[0]; ok(row);
       ok(row.created_at instanceof Date); ok(row.updated_at instanceof Date);
       ok((await pool.query("SELECT 1 FROM pg_indexes WHERE indexname = 'attendant_sessions_attendant_id_idx';")).rowCount);

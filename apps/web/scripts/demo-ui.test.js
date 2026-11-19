@@ -44,7 +44,7 @@ async function page({ saved = "light", blockedStorage = false, inAttendance = fa
     fetched.push(url);
     if (url === "/api/auth/logout") { logouts.push(options); return { ok: true, status: 204 }; }
     if (unauthorized) return { ok: false, status: 401, json: async () => ({ code: "unauthenticated", message: "Sessão ausente ou expirada." }) };
-    if (url === "/api/auth/me") return { ok: true, status: 200, json: async () => ({ id: "atendente", username: "hugo", displayName: "Atendente Sintético" }) };
+    if (url === "/api/auth/me") return { ok: true, status: 200, json: async () => ({ id: "atendente", username: "atendente.teste", displayName: "Atendente Sintético" }) };
     if (options?.method === "POST") { calls++; lastPost = { url, ...options }; return new Promise((resolve) => { finish = resolve; }); }
     return { ok: true, status: 200, json: async () => url.endsWith("/messages") ? structuredClone(messages) : structuredClone(rows) };
   };

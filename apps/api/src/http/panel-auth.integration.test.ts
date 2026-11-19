@@ -34,7 +34,7 @@ test("autenticação do painel por HTTP em banco descartável", { timeout: 60000
 
   const login = (body: unknown, headers: Record<string, string> = {}) => fetch(`${url}/api/auth/login`, {
     method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) });
-  async function session(username = "hugo", secret = password) {
+  async function session(username = "atendente.teste", secret = password) {
     const response = await login({ username, password: secret }); equal(response.status, 200);
     const cookie = response.headers.get("set-cookie")?.split(";")[0];
     if (!cookie) throw new Error("Login sem cookie.");
@@ -56,15 +56,15 @@ test("autenticação do painel por HTTP em banco descartável", { timeout: 60000
         clock: () => new Date(Date.now() + offset), log: (event) => events.push(event) })), 0);
     const address = server.address(); ok(address && typeof address !== "string");
     host = `127.0.0.1:${address.port}`; url = `http://${host}`;
-    equal((await createAttendant({ username: "hugo", displayName: "Hugo Sintético", password }, { attendants, hasher })).status, "criado");
+    equal((await createAttendant({ username: "atendente.teste", displayName: "Atendente Sintético", password }, { attendants, hasher })).status, "criado");
     t.beforeEach(() => { offset = 0; events.length = 0; });
 
     await t.test("login certo devolve o atendente e um cookie de sessão com os atributos esperados", async () => {
-      const response = await login({ username: " HUGO ", password });
+      const response = await login({ username: " ATENDENTE.TESTE ", password });
       equal(response.status, 200); equal(response.headers.get("cache-control"), "no-store");
       const body = await response.json() as Record<string, unknown>;
       deepEqual(Object.keys(body).sort(), ["displayName", "id", "username"]);
-      equal(body.username, "hugo"); equal(body.displayName, "Hugo Sintético");
+      equal(body.username, "atendente.teste"); equal(body.displayName, "Atendente Sintético");
       const cookie = response.headers.get("set-cookie") ?? "";
       match(cookie, /^copilot_session=[A-Za-z0-9_-]{43}; HttpOnly; SameSite=Lax; Path=\/; Max-Age=43200$/);
       const token = cookie.split(";")[0]!.slice("copilot_session=".length);
@@ -72,14 +72,14 @@ test("autenticação do painel por HTTP em banco descartável", { timeout: 60000
       ok(stored.rows.some((row) => row.token_hash.equals(createHash("sha256").update(token).digest())));
       ok(!stored.rows.some((row) => row.token_hash.toString("utf8").includes(token)));
       deepEqual(events.map((event) => event.event), ["auth_login_succeeded"]);
-      ok(!JSON.stringify(events).includes(token) && !JSON.stringify(events).includes(password) && !JSON.stringify(events).includes("hugo"));
+      ok(!JSON.stringify(events).includes(token) && !JSON.stringify(events).includes(password) && !JSON.stringify(events).includes("atendente.teste"));
       const me = await get("/api/auth/me", cookie.split(";")[0]); equal(me.status, 200);
       deepEqual(await me.json(), body);
     });
 
     await t.test("senha errada e usuário inexistente recebem o mesmo 401; corpo inválido recebe 400, 413 ou 415", async () => {
       const bodies = [];
-      for (const credentials of [{ username: "hugo", password: "senha-errada-123" }, { username: "inexistente", password }, { username: "x", password: "curta" }]) {
+      for (const credentials of [{ username: "atendente.teste", password: "senha-errada-123" }, { username: "inexistente", password }, { username: "x", password: "curta" }]) {
         const response = await login(credentials); equal(response.status, 401); equal(response.headers.get("set-cookie"), null);
         const body = await response.json() as { code: string; message: string; correlationId: string };
         equal(body.correlationId, response.headers.get("x-correlation-id"));
@@ -88,15 +88,15 @@ test("autenticação do painel por HTTP em banco descartável", { timeout: 60000
       deepEqual(bodies, Array(3).fill({ code: "invalid_credentials", message: "Usuário ou senha inválidos." }));
       deepEqual(events.map((event) => [event.event, "reason" in event ? event.reason : undefined]), Array(3).fill(["auth_login_failed", "invalid_credentials"]));
       ok(!JSON.stringify(events).includes("inexistente") && !JSON.stringify(events).includes("senha-errada"));
-      for (const body of [{}, { username: "hugo" }, { username: "hugo", password, extra: true }, [], { username: 1, password }]) {
+      for (const body of [{}, { username: "atendente.teste" }, { username: "atendente.teste", password, extra: true }, [], { username: 1, password }]) {
         const response = await login(body); equal(response.status, 400); equal((await response.json() as { code: string }).code, "invalid_payload");
       }
       // JSON malformado ou primitivo é recusado pelo parser, como na rota de encerramento.
       for (const raw of ["{\"username\":", "\"texto\""]) {
         const response = await login(raw); equal(response.status, 400); equal((await response.json() as { code: string }).code, "invalid_json");
       }
-      equal((await login(JSON.stringify({ username: "hugo", password: "x".repeat(70_000) }))).status, 413);
-      equal((await fetch(`${url}/api/auth/login`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: "hugo" })).status, 415);
+      equal((await login(JSON.stringify({ username: "atendente.teste", password: "x".repeat(70_000) }))).status, 413);
+      equal((await fetch(`${url}/api/auth/login`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: "atendente.teste" })).status, 415);
     });
 
     await t.test("rotas de /api/demo e /api/auth/me exigem sessão: 401 sem cookie e com token alterado", async () => {
@@ -151,13 +151,13 @@ test("autenticação do painel por HTTP em banco descartável", { timeout: 60000
       const first = await session(), second = await session();
       const newPassword = "nova-senha-sintetica";
       const output: string[] = [];
-      equal(await runAttendantCommand(["set-password", "hugo"], { attendants, hasher, readPassword: async () => newPassword,
+      equal(await runAttendantCommand(["set-password", "atendente.teste"], { attendants, hasher, readPassword: async () => newPassword,
         out: (line) => output.push(line), err: (line) => output.push(line) }), 0);
       ok(!output.join("\n").includes(newPassword));
       for (const cookie of [first, second]) equal((await get("/api/auth/me", cookie)).status, 401);
-      equal((await login({ username: "hugo", password })).status, 401);
-      await session("hugo", newPassword);
-      equal(await runAttendantCommand(["set-password", "hugo"], { attendants, hasher, readPassword: async () => password,
+      equal((await login({ username: "atendente.teste", password })).status, 401);
+      await session("atendente.teste", newPassword);
+      equal(await runAttendantCommand(["set-password", "atendente.teste"], { attendants, hasher, readPassword: async () => password,
         out: () => {}, err: () => {} }), 0);
     });
 
@@ -174,15 +174,15 @@ test("autenticação do painel por HTTP em banco descartável", { timeout: 60000
     await t.test("Origin diferente do Host dá 403 nas rotas que alteram estado; sem Origin passa", async () => {
       const cookie = await session();
       for (const origin of ["http://evil.example", "null", `https://${host}`]) {
-        const response = await login({ username: "hugo", password }, { Origin: origin });
+        const response = await login({ username: "atendente.teste", password }, { Origin: origin });
         equal(response.status, 403); equal((await response.json() as { code: string }).code, "forbidden_origin");
         equal(response.headers.get("set-cookie"), null);
         equal((await fetch(`${url}/api/demo/leads/${randomUUID()}/assume`, { method: "POST", headers: { Cookie: cookie, Origin: origin } })).status, 403);
         equal((await fetch(`${url}/api/auth/logout`, { method: "POST", headers: { Cookie: cookie, Origin: origin } })).status, 403);
       }
       equal((await get("/api/auth/me", cookie)).status, 200);
-      equal((await login({ username: "hugo", password }, { Origin: url })).status, 200);
-      equal((await login({ username: "hugo", password })).status, 200);
+      equal((await login({ username: "atendente.teste", password }, { Origin: url })).status, 200);
+      equal((await login({ username: "atendente.teste", password })).status, 200);
       equal((await fetch(`${url}/api/demo/conversations`, { headers: { Cookie: cookie, Origin: "http://evil.example" } })).status, 200);
     });
 

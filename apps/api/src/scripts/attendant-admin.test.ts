@@ -31,10 +31,10 @@ function harness(passwords: string[]) {
 
 test("create pede a senha duas vezes e imprime só id e username", async () => {
   const cli = harness([secret, secret]);
-  equal(await cli.run(["create", " Hugo ", "Hugo Pereira"]), 0);
+  equal(await cli.run(["create", " Atendente.Teste ", "Atendente Teste"]), 0);
   equal(cli.prompts.length, 2); deepEqual(cli.err, []);
-  deepEqual(cli.out, ["Atendente criado. id=00000000-0000-4000-8000-000000000001 username=hugo"]);
-  equal(cli.stored.get("hugo")?.displayName, "Hugo Pereira");
+  deepEqual(cli.out, ["Atendente criado. id=00000000-0000-4000-8000-000000000001 username=atendente.teste"]);
+  equal(cli.stored.get("atendente.teste")?.displayName, "Atendente Teste");
   ok(![...cli.out, ...cli.err].join("\n").includes(secret)); ok(!cli.out.join("\n").includes("hash-de"));
 });
 
@@ -42,28 +42,28 @@ test("senhas diferentes e tamanho inválido falham sem criar o atendente", async
   for (const [passwords, message] of [[[secret, `${secret}x`], "As senhas não conferem."], [["curta", "curta"], "A senha deve ter de 12 a 128 caracteres."],
     [["x".repeat(129), "x".repeat(129)], "A senha deve ter de 12 a 128 caracteres."]] as const) {
     const cli = harness([...passwords]);
-    equal(await cli.run(["create", "hugo", "Hugo"]), 1); deepEqual(cli.err, [message]); equal(cli.stored.size, 0);
+    equal(await cli.run(["create", "atendente.teste", "Atendente Teste"]), 1); deepEqual(cli.err, [message]); equal(cli.stored.size, 0);
     ok(!cli.err.join("").includes(passwords[0]));
   }
 });
 
 test("usuário duplicado falha antes de pedir senha; set-password exige usuário existente e revoga sessões", async () => {
   const cli = harness([secret, secret]);
-  equal(await cli.run(["create", "hugo", "Hugo"]), 0);
-  equal(await cli.run(["create", "HUGO", "Outro"]), 1); deepEqual(cli.err, ["O usuário hugo já existe."]); equal(cli.prompts.length, 2);
+  equal(await cli.run(["create", "atendente.teste", "Atendente Teste"]), 0);
+  equal(await cli.run(["create", "ATENDENTE.TESTE", "Outro"]), 1); deepEqual(cli.err, ["O usuário atendente.teste já existe."]); equal(cli.prompts.length, 2);
   equal(await cli.run(["set-password", "ninguem"]), 1); equal(cli.err.at(-1), "O usuário ninguem não foi encontrado.");
   const replaced = harness(["nova-senha-sintetica", "nova-senha-sintetica"]);
-  replaced.stored.set("hugo", { id: "00000000-0000-4000-8000-000000000002", username: "hugo", displayName: "Hugo", passwordHash: "antigo" });
-  equal(await replaced.run(["set-password", "hugo"]), 0); equal(replaced.revoked(), 1);
-  deepEqual(replaced.out, ["Senha alterada e sessões encerradas. id=00000000-0000-4000-8000-000000000002 username=hugo"]);
-  equal(replaced.stored.get("hugo")?.passwordHash, "hash-de-20");
+  replaced.stored.set("atendente.teste", { id: "00000000-0000-4000-8000-000000000002", username: "atendente.teste", displayName: "Atendente Teste", passwordHash: "antigo" });
+  equal(await replaced.run(["set-password", "atendente.teste"]), 0); equal(replaced.revoked(), 1);
+  deepEqual(replaced.out, ["Senha alterada e sessões encerradas. id=00000000-0000-4000-8000-000000000002 username=atendente.teste"]);
+  equal(replaced.stored.get("atendente.teste")?.passwordHash, "hash-de-20");
 });
 
 test("argumentos ausentes, extras ou inválidos mostram o uso sem pedir senha", async () => {
-  for (const args of [[], ["create"], ["create", "hugo"], ["create", "hugo", "Hugo", "extra"], ["set-password"], ["remover", "hugo"]]) {
+  for (const args of [[], ["create"], ["create", "atendente.teste"], ["create", "atendente.teste", "Atendente Teste", "extra"], ["set-password"], ["remover", "atendente.teste"]]) {
     const cli = harness([]); equal(await cli.run(args), 1); ok(cli.err[0]?.startsWith("Uso:")); equal(cli.prompts.length, 0);
   }
-  for (const args of [["create", "x", "Hugo"], ["create", "hugo", "   "], ["set-password", "com espaço"]]) {
+  for (const args of [["create", "x", "Atendente Teste"], ["create", "atendente.teste", "   "], ["set-password", "com espaço"]]) {
     const cli = harness([]); equal(await cli.run(args), 1); ok(cli.err[0]?.includes("inválido")); equal(cli.prompts.length, 0);
   }
 });
@@ -98,9 +98,9 @@ test("seed-demo recusa senha curta e não troca a senha de um atendente real com
   equal(cli.stored.size, 0); ok(cli.err[0]?.includes("DEMO_PASSWORD")); ok(!cli.err.join("\n").includes("curta-demo"));
   deepEqual(await seedDemoAttendant({ username: "demo", password: "curta-demo" }, cli), { status: "entrada_invalida", fields: ["password"] });
   // Um atendente real com o mesmo usuário não tem a senha trocada.
-  cli.stored.set("hugo", { id: "real", username: "hugo", displayName: "Hugo", passwordHash: "hash-real" });
-  equal(await cli.seed({ DEMO_USERNAME: "hugo", DEMO_PASSWORD: demoSecret }), 1);
-  equal(cli.stored.get("hugo")?.passwordHash, "hash-real"); equal(cli.revoked(), 0);
+  cli.stored.set("atendente.teste", { id: "real", username: "atendente.teste", displayName: "Atendente Teste", passwordHash: "hash-real" });
+  equal(await cli.seed({ DEMO_USERNAME: "atendente.teste", DEMO_PASSWORD: demoSecret }), 1);
+  equal(cli.stored.get("atendente.teste")?.passwordHash, "hash-real"); equal(cli.revoked(), 0);
   ok(cli.err.at(-1)?.includes("não é o atendente de demonstração")); ok(!cli.err.join("\n").includes(demoSecret));
 });
 
