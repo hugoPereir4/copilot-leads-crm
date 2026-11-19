@@ -9,7 +9,7 @@ Modelo relacional mínimo para sustentar o fluxo do documento 3. Pensado para Po
 | Entidade | Papel | Relacionamentos |
 |---|---|---|
 | business_profile | Configuração do negócio (nome, serviços, horário, menu, campos de qualificação) | Perfil único; JSON inicial na etapa 4.14, tabela ainda planejada |
-| users | Atendentes que acessam o painel | 1 usuário : N leads atribuídos |
+| users (previsão, sem migração) | Proposta antiga de usuários do painel, com atribuição de leads. A autenticação implementada usa `attendants` (D23) | Previsto: 1 usuário : N leads atribuídos |
 | contacts | Pessoa que escreve pelo WhatsApp | 1 contato : N conversas ao longo do tempo, no máximo uma aberta |
 | conversations | Um ciclo de atendimento com estado próprio | 1 conversa : N mensagens; 1 conversa : no máximo 1 lead, criado conforme o fluxo |
 | messages | Cada mensagem recebida ou enviada | N mensagens : 1 conversa |
@@ -19,6 +19,8 @@ Modelo relacional mínimo para sustentar o fluxo do documento 3. Pensado para Po
 | response_plans (migração 4.18) | Intenção durável de resposta, verificada em banco descartável | No máximo um plano por mensagem; abertura única e um pendente por conversa |
 | response_blocks (migração 4.18) | Textos e progresso de envio, verificados em banco descartável | N blocos : 1 plano; posição positiva e única no plano |
 | lead_events | Histórico de mudanças do lead (opcional na v1) | N eventos : 1 lead |
+| attendants | Atendentes que entram no painel (D23); criados pela linha de comando | 1 atendente : N sessões. Ainda sem vínculo com leads (sem registro de autoria) |
+| attendant_sessions | Sessões de login no servidor; o banco guarda só o SHA-256 do token | N sessões : 1 atendente; apagadas em cascata com o atendente |
 
 ## 2. Campos por tabela
 
@@ -149,7 +151,32 @@ Preparação não altera o estado da conversa ou confirma o envio. Abertura pend
 ### business_profile e users
 
 - **business_profile:** a etapa 4.14 escolhe inicialmente um JSON versionado para nome, fuso, moeda, faixas de atendimento, serviços, valores, opções do menu e textos-base. O schema exige preços inteiros em centavos ou nulos, horários válidos sem sobreposição e IDs/opções únicos. Os campos extras de qualificação continuam planejados para a integração de IA. Não há migração dessa tabela; o diagrama relacional abaixo continua sendo uma proposta futura para esse perfil. O [documento 22](22-etapa-4-perfil-do-negocio.md) detalha a implementação de arquivo e a porta de leitura.
-- **users:** nome, e-mail único, hash da senha (nunca a senha), data de criação.
+- **users (previsão, sem migração):** nome, e-mail único, hash da senha (nunca a senha), data de criação. Não existe migração de `users`; o login implementado usa `attendants` e `attendant_sessions` (seção abaixo e D23).
+
+### attendants e attendant_sessions — login de atendentes
+
+Migração `1795046400000_create_attendants.sql`. Detalhes no [documento 34](34-login-de-atendentes.md).
+
+**attendants**
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| id | uuid | Chave primária `attendants_pkey`; padrão `gen_random_uuid()` |
+| username | text | Obrigatório e único (`attendants_username_key`); CHECK `^[a-z0-9._-]{3,32}$` |
+| display_name | text | Obrigatório; CHECK de 1 a 80 caracteres depois de `btrim` |
+| password_hash | text | Obrigatório; formato `scrypt$logN$r$p$salt$hash` (base64url), nunca a senha |
+| created_at, updated_at | timestamptz | Obrigatórios; padrão `now()` |
+
+**attendant_sessions**
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| token_hash | bytea | Chave primária; SHA-256 do token do cookie, CHECK de 32 bytes |
+| attendant_id | uuid | Obrigatório; FK para `attendants` com `ON DELETE CASCADE`; índice `attendant_sessions_attendant_id_idx` |
+| created_at | timestamptz | Obrigatório; padrão `now()` |
+| expires_at | timestamptz | Obrigatório; CHECK `expires_at > created_at` |
+
+Não há vínculo entre atendentes e leads ou conversas: assumir e encerrar ainda não registram quem fez a ação (backlog técnico, item 6b).
 
 ### lead_events (opcional)
 
@@ -193,8 +220,8 @@ A estrutura de leads abaixo pertence à nova migração do MVP; o banco principa
 
 Atualizado em 16/11/2026. Copie **todo o bloco abaixo** para o [dbdiagram.io](https://dbdiagram.io/d).
 
-- **Implementadas nas migrações:** `contacts`, `conversations`, `messages`, `jobs`, `response_plans`, `response_blocks`, `leads` e `qualification_runs`. As sete migrações de `apps/api/migrations` são a fonte de verdade. A sétima aguarda aplicação manual ao banco principal.
-- **Propostas futuras, sem migração:** `business_profile`, `users`, `ai_extractions` e `lead_events`. Seus campos e relacionamentos conceituais já documentados foram preservados em outro grupo, com notas explícitas. O perfil atual continua em JSON; `lead_events` é opcional na V1.
+- **Implementadas nas migrações:** `contacts`, `conversations`, `messages`, `jobs`, `response_plans`, `response_blocks`, `leads`, `qualification_runs`, `attendants` e `attendant_sessions`. As oito migrações de `apps/api/migrations` são a fonte de verdade. Cada ambiente aplica as pendentes com `npm run db:migrate`; o repositório não registra quais já foram aplicadas em cada banco.
+- **Propostas futuras, sem migração:** `business_profile`, `users` (previsão; o login implementado usa `attendants`), `ai_extractions` e `lead_events`. Seus campos e relacionamentos conceituais já documentados foram preservados em outro grupo, com notas explícitas. O perfil atual continua em JSON; `lead_events` é opcional na V1.
 - `conversations.assigned_user_id` é uma proposta futura e não aparece na tabela implementada nem como FK no diagrama. Não existe FK direta dos planos/blocos para `conversations`: o vínculo já é garantido pelas FKs compostas que passam por `messages` e pelo plano. Não foi acrescentada uma referência SQL fictícia.
 - O DBML representa nativamente as sete FKs compostas, as chaves compostas e os `CHECK` nomeados. As expressões PostgreSQL dos checks permanecem na notação de expressão, e as notas explicam suas consequências; o parser DBML não executa essas validações. Os quatro índices únicos parciais ficam **somente em notas com nome e predicado**, pois não se deve transformar uma unicidade condicional em global.
 - Este bloco serve à visualização e contém propostas futuras; não deve ser exportado e aplicado como substituto das migrações. A tabela interna `pgmigrations`, mantida pelo migrador, fica fora do modelo de domínio.
@@ -204,13 +231,13 @@ Sintaxe de referência: [DBML — checks, índices e FKs compostas](https://dbml
 ```dbml
 // Copiloto de Leads WhatsApp — estrutura implementada e propostas futuras.
 // Tabelas sem prefixo pertencem ao schema public.
-// Fonte de verdade do grupo implementado: sete migrações SQL, incluindo qualificação.
+// Fonte de verdade do grupo implementado: oito migrações SQL, incluindo qualificação e atendentes.
 // Os grupos abaixo são apenas visuais; não criam schemas ou tabelas adicionais.
 
 Project copiloto_leads_whatsapp {
   database_type: 'PostgreSQL'
   Note: '''
-  MIGRAÇÕES IMPLEMENTADAS: contacts, conversations, messages, jobs, response_plans, response_blocks, leads.
+  MIGRAÇÕES IMPLEMENTADAS: contacts, conversations, messages, jobs, response_plans, response_blocks, leads, qualification_runs, attendants, attendant_sessions.
   PLANEJADAS: business_profile, users, ai_extractions, lead_events.
   Os índices únicos parciais estão descritos nas notas, sem índices globais substitutos.
   Checks são expressões PostgreSQL; DBML não os executa.
@@ -455,8 +482,40 @@ Table qualification_runs {
   Note: 'Implementada na sétima migração; não aplicada ao banco principal nesta entrega. Uma reserva por mensagem; FKs compostas protegem os vínculos. Sem prompt/resposta bruta. Retomada sem segunda chamada externa.'
 }
 
+Table attendants {
+  id uuid [pk, not null, default: `gen_random_uuid()`]
+  username text [not null]
+  display_name text [not null]
+  password_hash text [not null]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  indexes {
+    username [unique, name: 'attendants_username_key']
+  }
+  checks {
+    `username ~ '^[a-z0-9._-]{3,32}$'` [name: 'attendants_username_format_check']
+    `char_length(btrim(display_name)) BETWEEN 1 AND 80` [name: 'attendants_display_name_check']
+  }
+  Note: 'IMPLEMENTADA — login de atendentes (D23). PK attendants_pkey. password_hash no formato scrypt$logN$r$p$salt$hash. Sem vínculo com leads.'
+}
+
+Table attendant_sessions {
+  token_hash bytea [pk, not null]
+  attendant_id uuid [not null]
+  created_at timestamptz [not null, default: `now()`]
+  expires_at timestamptz [not null]
+  indexes {
+    attendant_id [name: 'attendant_sessions_attendant_id_idx']
+  }
+  checks {
+    `octet_length(token_hash) = 32` [name: 'attendant_sessions_token_hash_check']
+    `expires_at > created_at` [name: 'attendant_sessions_expiry_check']
+  }
+  Note: 'IMPLEMENTADA — login de atendentes (D23). PK attendant_sessions_pkey: SHA-256 do token do cookie, nunca o token.'
+}
+
 // FKs implementadas: cada constraint aparece exatamente uma vez.
-// Todas mantêm ON DELETE RESTRICT; ON UPDATE usa NO ACTION padrão do PostgreSQL.
+// Todas mantêm ON DELETE RESTRICT, exceto attendant_sessions_attendant_fkey (CASCADE); ON UPDATE usa NO ACTION padrão do PostgreSQL.
 Ref conversations_contact_id_fkey: conversations.contact_id > contacts.id [delete: restrict]
 Ref messages_conversation_id_fkey: messages.conversation_id > conversations.id [delete: restrict]
 Ref leads_conversation_contact_fkey: leads.(conversation_id, contact_id) > conversations.(id, contact_id) [delete: restrict]
@@ -467,6 +526,7 @@ Ref response_blocks_plan_conversation_fkey: response_blocks.(plan_id, conversati
 Ref response_blocks_sent_message_conversation_fkey: response_blocks.(sent_message_id, conversation_id) > messages.(id, conversation_id) [delete: restrict]
 Ref qualification_message_conversation_fkey: qualification_runs.(message_id, conversation_id) > messages.(id, conversation_id) [delete: restrict]
 Ref qualification_job_message_fkey: qualification_runs.(job_id, message_id) > jobs.(id, message_id) [delete: restrict]
+Ref attendant_sessions_attendant_fkey: attendant_sessions.attendant_id > attendants.id [delete: cascade]
 
 // ==================== PROPOSTAS FUTURAS — SEM MIGRAÇÃO ====================
 // Mantêm os campos/índices conceituais já documentados; não descrevem tabelas existentes.
@@ -500,7 +560,7 @@ Table users {
   password_hash varchar [not null]
   created_at timestamptz [not null, default: `now()`]
 
-  Note: 'PLANEJADA, sem migração. Atendentes do painel; demais colunas e vínculos ainda dependem da entrega própria.'
+  Note: 'PREVISÃO, sem migração. Proposta antiga de usuários do painel; o login implementado usa attendants e attendant_sessions (D23).'
 }
 
 Table ai_extractions {
@@ -546,6 +606,8 @@ TableGroup implementadas_no_postgresql {
   response_blocks
   leads
   qualification_runs
+  attendants
+  attendant_sessions
 }
 
 TableGroup propostas_futuras_sem_migracao {
