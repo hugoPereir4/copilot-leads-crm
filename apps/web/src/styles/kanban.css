@@ -1,11 +1,21 @@
+/* Só o quadro rola na horizontal; cada coluna rola na vertical dentro da altura da viewport. */
 .kanban-board {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: start;
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 8px;
 }
 
 .kanban-column {
+  display: flex;
+  flex: 0 0 290px;
+  flex-direction: column;
+  width: 290px;
+  max-height: calc(100vh - var(--header-height) - 32px);
+  max-height: calc(100dvh - var(--header-height) - 32px);
   min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: 10px;
@@ -35,7 +45,11 @@
 
 .column-cards {
   display: grid;
+  min-height: 0;
+  align-content: start;
   gap: 9px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
 }
 
 .lead-card {
@@ -142,8 +156,9 @@
   text-underline-offset: 3px;
 }
 
-@media (max-width: 900px) {
-  .kanban-board {
-    grid-template-columns: minmax(0, 1fr);
+@media (max-width: 580px) {
+  .kanban-column {
+    flex-basis: 270px;
+    width: 270px;
   }
 }

@@ -23,14 +23,15 @@ const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(setImm
 function nodes(element) { return [element, ...element.children.flatMap(nodes)]; }
 
 async function page({ saved = "light", blockedStorage = false, inAttendance = false, confirm = true, qualification = null, qualified = false,
-  unauthorized = false, path = "/admin", contactName = null } = {}) {
+  unauthorized = false, path = "/admin", contactName = null, extraRows = [] } = {}) {
   const elements = new Map();
   const element = (id) => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   const document = { documentElement: new Element(), body: new Element(), getElementById: element, createElement: () => new Element() };
   const storage = new Map([["copilot-leads-theme", saved]]);
   const timers = [], assigned = [], logouts = []; let calls = 0, finish, lastPost, confirmations = 0;
   let rows = [{ id: "conversation", phone: "+15550114921", contactName, status: inAttendance ? "em_atendimento_humano" : "aguardando_humano", failedJobs: 0,
-    lead: { id: "lead", stage: inAttendance ? "em_atendimento" : qualified ? "qualificado" : "novo", needsReview: true, summary: qualification?.summary ?? null, qualification } }];
+    lead: { id: "lead", stage: inAttendance ? "em_atendimento" : qualified ? "qualificado" : "novo", needsReview: true, summary: qualification?.summary ?? null, qualification } },
+    ...extraRows];
   const fetch = async (url, options) => {
     if (url === "/api/auth/logout") { logouts.push(options); return { ok: true, status: 204 }; }
     if (unauthorized) return { ok: false, status: 401, json: async () => ({ code: "unauthenticated", message: "Sessão ausente ou expirada." }) };
@@ -109,7 +110,11 @@ test("encerramento confirma, bloqueia ambas as opções e preserva acesso aos en
     equal(JSON.parse(ui.lastPost().body).result, result);
     equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 1);
     await ui.complete(true);
-    equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 0);
+    // O card encerrado vai para a coluna do resultado no quadro principal, sem ações de etapa.
+    const target = ui.element("board").children[result === "ganho" ? 3 : 4];
+    equal(nodes(target).filter((node) => node.className === "lead-card").length, 1);
+    equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 1);
+    equal(ui.closeButtons().length, 0);
     ui.element("show-closed").checked = true; ui.element("show-closed").events.get("change")();
     equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 1);
     equal(ui.closeButtons().length, 0); equal(ui.element("admin-title").textContent, "Leads encerrados");
@@ -182,3 +187,30 @@ test("card mostra o nome de perfil com rótulo e mantém o telefone; sem nome, s
   ok(!texts(unnamed).includes("Nome do perfil do WhatsApp")); ok(texts(unnamed).includes("+15550114921"));
   equal(nodes(unnamed.element("board")).filter((node) => node.className.includes("contact-fields")).length, 0);
 });
+
+const columnTitles = (ui) => ui.element("board").children.map((column) => column.children[0].children[0].textContent);
+const cardsIn = (column) => nodes(column).filter((node) => node.className === "lead-card");
+const closedRow = (id, stage) => ({ id, phone: `+1555011${id.length}${stage === "ganho" ? 1 : 2}`, contactName: null, status: "encerrada", failedJobs: 0,
+  lead: { id: `lead-${id}`, stage, needsReview: false, summary: null, qualification: null } });
+
+test("quadro principal mostra Novo, Qualificado, Em atendimento, Ganho e Perdido nessa ordem", async () => {
+  const ui = await page();
+  deepEqual(columnTitles(ui), ["Novo", "Qualificado", "Em atendimento", "Ganho", "Perdido"]);
+  equal(ui.element("admin-title").textContent, "Leads por etapa");
+  ui.element("show-closed").checked = true; ui.element("show-closed").events.get("change")();
+  deepEqual(columnTitles(ui), ["Ganho", "Perdido"]); equal(ui.element("admin-title").textContent, "Leads encerrados");
+});
+
+test("Ganho e Perdido listam leads encerrados só com WhatsApp, sem ações de etapa", async () => {
+  const ui = await page({ extraRows: [closedRow("g1", "ganho"), closedRow("g22", "ganho"), closedRow("p1", "perdido")] });
+  const [novo, , , ganho, perdido] = ui.element("board").children;
+  equal(cardsIn(novo).length, 1); equal(cardsIn(ganho).length, 2); equal(cardsIn(perdido).length, 1);
+  equal(ganho.children[0].children[1].textContent, "2");
+  for (const column of [ganho, perdido]) {
+    const texts = nodes(column).map((node) => node.textContent);
+    ok(texts.includes("Abrir no WhatsApp"));
+    ok(!nodes(column).some((node) => /assume-button|close-button/.test(node.className)));
+  }
+  ok(nodes(perdido).some((node) => node.textContent === "Resultado: Perdido. Histórico preservado."));
+});
+

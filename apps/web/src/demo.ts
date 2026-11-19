@@ -143,13 +143,16 @@ async function closeAttendance(leadId: string, result: LeadClosureOutcome, butto
   }
 }
 
+const openColumns = [["novo", "Novo"], ["qualificado", "Qualificado"], ["em_atendimento", "Em atendimento"], ["ganho", "Ganho"], ["perdido", "Perdido"]];
+const closedColumns = [["ganho", "Ganho"], ["perdido", "Perdido"]];
+
 function renderBoard(rows: DemoConversation[]) {
   boardRows = rows;
   const showClosed = closedFilter.checked;
-  element("admin-title").textContent = showClosed ? "Leads encerrados" : "Leads em aberto";
+  element("admin-title").textContent = showClosed ? "Leads encerrados" : "Leads por etapa";
   const board = element("board"); board.replaceChildren();
-  const columns = showClosed ? [["ganho", "Ganho"], ["perdido", "Perdido"]]
-    : [["novo", "Novo"], ["qualificado", "Qualificado"], ["em_atendimento", "Em atendimento"]];
+  // Ganho e Perdido fazem parte do quadro principal; o filtro continua mostrando só os encerrados.
+  const columns = showClosed ? closedColumns : openColumns;
   for (const [stage, label] of columns) {
     const column = document.createElement("section"); column.className = "kanban-column";
     const heading = document.createElement("div"); heading.className = "kanban-column-header";
@@ -174,7 +177,8 @@ function renderBoard(rows: DemoConversation[]) {
       cardTop.append(select);
       if (row.lead?.needsReview) { const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = "Revisar"; cardTop.append(badge); }
       const details = document.createElement("p"); details.className = "lead-summary";
-      details.textContent = row.lead?.summary ?? (showClosed ? `Resultado: ${label}. Histórico preservado.`
+      const closed = stage === "ganho" || stage === "perdido";
+      details.textContent = row.lead?.summary ?? (closed ? `Resultado: ${label}. Histórico preservado.`
         : row.lead?.stage === "em_atendimento" ? "Atendimento humano em andamento." : "Pedido direto à recepção. Aguardando atendimento humano.");
       card.append(cardTop);
       // O telefone continua sempre visível no botão; o nome aparece só quando o provedor o informou.
