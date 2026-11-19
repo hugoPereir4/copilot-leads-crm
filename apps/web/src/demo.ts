@@ -19,7 +19,6 @@ const themeToggle = element<HTMLButtonElement>("theme-toggle"), themeLabel = ele
 let selected = "", lastHistory = "", lastBoard = "";
 const assuming = new Set<string>();
 const closing = new Set<string>();
-const closedFilter = element<HTMLInputElement>("show-closed");
 let boardRows: DemoConversation[] = [];
 let boardRevision = 0;
 let previous: { id: string; from: string; fromMe: false; type: "text"; body: string; timestamp: string; profileName?: string } | undefined;
@@ -101,7 +100,6 @@ element<HTMLFormElement>("message-form").addEventListener("submit", (event) => {
 });
 resend.addEventListener("click", () => { if (previous) void submit(previous); });
 conversation.addEventListener("change", () => { selected = conversation.value; lastHistory = ""; });
-closedFilter.addEventListener("change", () => { renderBoard(boardRows); });
 phone.addEventListener("change", () => { selected = ""; lastHistory = ""; });
 
 async function assumeAttendance(leadId: string, button: HTMLButtonElement) {
@@ -191,16 +189,12 @@ function icon(name: keyof typeof iconPaths) {
   return svg;
 }
 
-const openColumns = [["novo", "Novo"], ["qualificado", "Qualificado"], ["em_atendimento", "Em atendimento"], ["ganho", "Ganho"], ["perdido", "Perdido"]];
-const closedColumns = [["ganho", "Ganho"], ["perdido", "Perdido"]];
+// Ganho e Perdido são colunas do quadro: os encerrados aparecem nelas e no histórico do contato.
+const columns = [["novo", "Novo"], ["qualificado", "Qualificado"], ["em_atendimento", "Em atendimento"], ["ganho", "Ganho"], ["perdido", "Perdido"]];
 
 function renderBoard(rows: DemoConversation[]) {
   boardRows = rows;
-  const showClosed = closedFilter.checked;
-  element("admin-title").textContent = showClosed ? "Leads encerrados" : "Leads por etapa";
   const board = element("board"); board.replaceChildren();
-  // Ganho e Perdido fazem parte do quadro principal; o filtro continua mostrando só os encerrados.
-  const columns = showClosed ? closedColumns : openColumns;
   for (const [stage, label] of columns) {
     const column = document.createElement("section"); column.className = "kanban-column";
     const heading = document.createElement("div"); heading.className = "kanban-column-header";

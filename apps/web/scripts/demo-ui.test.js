@@ -124,10 +124,7 @@ test("encerramento confirma, bloqueia ambas as opções e preserva acesso aos en
     equal(nodes(target).filter((node) => node.className === "lead-card").length, 1);
     equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 1);
     equal(ui.closeButtons().length, 0);
-    ui.element("show-closed").checked = true; ui.element("show-closed").events.get("change")();
-    equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 1);
-    equal(ui.closeButtons().length, 0); equal(ui.element("admin-title").textContent, "Leads encerrados");
-    ok(nodes(ui.element("board")).some((node) => node.title === "Abrir no WhatsApp"));
+    ok(nodes(target).some((node) => node.title === "Abrir no WhatsApp"));
   }
 });
 
@@ -205,9 +202,21 @@ const closedRow = (id, stage) => ({ id, phone: `+1555011${id.length}${stage === 
 test("quadro principal mostra Novo, Qualificado, Em atendimento, Ganho e Perdido nessa ordem", async () => {
   const ui = await page();
   deepEqual(columnTitles(ui), ["Novo", "Qualificado", "Em atendimento", "Ganho", "Perdido"]);
-  equal(ui.element("admin-title").textContent, "Leads por etapa");
-  ui.element("show-closed").checked = true; ui.element("show-closed").events.get("change")();
-  deepEqual(columnTitles(ui), ["Ganho", "Perdido"]); equal(ui.element("admin-title").textContent, "Leads encerrados");
+  ok(html.includes('<h1 id="admin-title">Leads por etapa</h1>'));
+});
+
+test("filtro Mostrar encerrados não existe mais; Ganho e Perdido continuam no quadro", async () => {
+  // O DOM de teste cria qualquer id sob demanda, então a ausência do controle é conferida no HTML e no JS compilado.
+  ok(!html.includes("show-closed")); ok(!html.includes("Mostrar encerrados"));
+  ok(!compiled.includes("show-closed")); ok(!compiled.includes("Leads encerrados"));
+  const ui = await page({ extraRows: [closedRow("g1", "ganho"), closedRow("p1", "perdido")] });
+  deepEqual(columnTitles(ui), ["Novo", "Qualificado", "Em atendimento", "Ganho", "Perdido"]);
+  const [, , , ganho, perdido] = ui.element("board").children;
+  equal(cardsIn(ganho).length, 1); equal(cardsIn(perdido).length, 1);
+  // O polling seguinte mantém as cinco colunas e os encerrados.
+  ui.timers.splice(0).forEach((callback) => callback()); await flush();
+  deepEqual(columnTitles(ui), ["Novo", "Qualificado", "Em atendimento", "Ganho", "Perdido"]);
+  equal(cardsIn(ui.element("board").children[3]).length, 1); equal(cardsIn(ui.element("board").children[4]).length, 1);
 });
 
 test("Ganho e Perdido listam leads encerrados só com Histórico e WhatsApp", async () => {
