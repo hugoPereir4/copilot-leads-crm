@@ -220,4 +220,4 @@ O compartilhamento se limita aos contratos: serviços de negócio, repositórios
 ## 12. Pontos em aberto
 
 - Qual o conjunto final de intenções do enum, e ele varia por negócio?
-- Tamanho máximo do resumo. (O limiar de confiança deixou de ser ponto em aberto: não há confiança no contrato implementado, D8.)
+- ~~Tamanho máximo do resumo.~~ Decidido no código. O schema Zod limita `summary` a 1–500 caracteres, tanto na saída do qualificador quanto no resultado gravado no lead (`apps/api/src/modules/leads/contracts/qualification.ts`). O resumo gravado é montado pelo backend a partir da intenção, do serviço e do período comprovados, não copiado do modelo. À parte, `QUALIFIER_MAX_OUTPUT_CHARS` (500 a 12000, padrão 4000) limita o tamanho do texto bruto devolvido pelo Gemini: acima disso, a resposta vira `invalid_output`, sem nova tentativa. A requisição ao Gemini também fixa `maxOutputTokens` em 768. O qualificador simulado não usa esse limite. (O limiar de confiança também deixou de ser ponto em aberto: não há confiança no contrato implementado, D8.)
