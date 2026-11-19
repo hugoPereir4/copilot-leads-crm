@@ -1,6 +1,7 @@
-import { createAttendant, setAttendantPassword } from "../modules/auth/application/manage-attendants.js";
+import { createAttendant, setAttendantPassword, type AttendantInputField } from "../modules/auth/application/manage-attendants.js";
 import type { AttendantStore, PasswordHasher } from "../modules/auth/application/ports.js";
-import { displayNameSchema, passwordSchema, usernameSchema } from "../modules/auth/contracts/attendant.js";
+import { displayNameSchema, passwordSchema, usernameSchema, type Attendant } from "../modules/auth/contracts/attendant.js";
+import { AuthConfigurationError, readDemoAccessConfig, type DemoAccess } from "../config/auth.js";
 
 export type AttendantCommandDependencies = {
   attendants: AttendantStore;
@@ -53,5 +54,59 @@ export async function runAttendantCommand(args: readonly string[], dependencies:
     return 0;
   }
   err(usage);
+  return 1;
+}
+
+export const demoAttendantDisplayName = "Atendente de demonstração";
+
+export type SeedDemoResult =
+  | { status: "criado" | "senha_atualizada"; attendant: Attendant }
+  | { status: "entrada_invalida"; fields: AttendantInputField[] }
+  | { status: "usuario_nao_demo" };
+
+// Cria o atendente de demonstração ou, se ele já existe, troca a senha (o que também encerra as sessões dele).
+// O status "duplicado" de createAttendant decide o caminho; nenhuma mensagem de erro é interpretada.
+// Proteção: um usuário existente com outro nome de exibição não é o atendente de demonstração, e a senha dele não é trocada.
+export async function seedDemoAttendant(input: DemoAccess, dependencies: { attendants: AttendantStore; hasher: PasswordHasher },
+  retries = 1): Promise<SeedDemoResult> {
+  const created = await createAttendant({ ...input, displayName: demoAttendantDisplayName }, dependencies);
+  if (created.status !== "duplicado") return created;
+  // "duplicado" só acontece depois de o usuário passar no usernameSchema.
+  const existing = await dependencies.attendants.findByUsername(usernameSchema.parse(input.username));
+  if (existing && existing.displayName !== demoAttendantDisplayName) return { status: "usuario_nao_demo" };
+  const updated = await setAttendantPassword(input, dependencies);
+  if (updated.status === "atualizado") return { status: "senha_atualizada", attendant: updated.attendant };
+  if (updated.status === "entrada_invalida") return updated;
+  // Apagado entre a criação e a troca: uma nova tentativa recria.
+  if (retries > 0) return seedDemoAttendant(input, dependencies, retries - 1);
+  throw new Error("O atendente de demonstração mudou durante o seed; rode o comando de novo.");
+}
+
+export type SeedDemoCommandDependencies = Omit<AttendantCommandDependencies, "readPassword">;
+
+// npm run attendant:seed-demo: lê DEMO_USERNAME e DEMO_PASSWORD do ambiente, sem perguntar nada no terminal.
+// Mensagens citam só os nomes das variáveis; a senha nunca é impressa. Devolve o código de saída.
+export async function runSeedDemoCommand(environment: Readonly<Record<string, string | undefined>>, dependencies: SeedDemoCommandDependencies):
+  Promise<number> {
+  const { out, err } = dependencies;
+  let access: DemoAccess | undefined;
+  try { access = readDemoAccessConfig(environment); }
+  catch (error) {
+    if (!(error instanceof AuthConfigurationError)) throw error;
+    err(`${error.message} DEMO_USERNAME: 3 a 32 caracteres entre a-z, 0-9, ponto, hífen e sublinhado. DEMO_PASSWORD: 12 a 128 caracteres.`);
+    return 1;
+  }
+  if (!access) { err("Defina DEMO_USERNAME e DEMO_PASSWORD no ambiente (.env) para criar o atendente de demonstração."); return 1; }
+  const result = await seedDemoAttendant(access, dependencies);
+  if (result.status === "criado") { out(`Atendente de demonstração criado. id=${result.attendant.id} username=${result.attendant.username}`); return 0; }
+  if (result.status === "senha_atualizada") {
+    out(`Senha do atendente de demonstração atualizada e sessões encerradas. id=${result.attendant.id} username=${result.attendant.username}`);
+    return 0;
+  }
+  if (result.status === "usuario_nao_demo") {
+    err(`O usuário ${access.username} já existe e não é o atendente de demonstração; a senha não foi alterada. Use outro DEMO_USERNAME.`);
+    return 1;
+  }
+  err("Dados do atendente de demonstração inválidos. Confira: DEMO_USERNAME, DEMO_PASSWORD.");
   return 1;
 }

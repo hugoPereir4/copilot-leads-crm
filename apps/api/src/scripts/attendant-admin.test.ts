@@ -1,7 +1,7 @@
 import { deepEqual, equal, ok } from "node:assert/strict";
 import { test } from "node:test";
 import type { AttendantStore, PasswordHasher, StoredAttendant } from "../modules/auth/application/ports.js";
-import { runAttendantCommand } from "./attendant-admin.js";
+import { demoAttendantDisplayName, runAttendantCommand, runSeedDemoCommand, seedDemoAttendant } from "./attendant-admin.js";
 
 const secret = "senha-sintetica-12";
 
@@ -24,7 +24,9 @@ function harness(passwords: string[]) {
   const hasher: PasswordHasher = { async hash(password) { return `hash-de-${password.length}`; }, async verify() { return false; } };
   const run = (args: string[]) => runAttendantCommand(args, { attendants, hasher, out: (line) => out.push(line), err: (line) => err.push(line),
     async readPassword(prompt) { prompts.push(prompt); const next = passwords.shift(); ok(next !== undefined, "leitura inesperada"); return next; } });
-  return { run, stored, out, err, prompts, revoked: () => revoked };
+  const seed = (environment: Record<string, string | undefined>) => runSeedDemoCommand(environment,
+    { attendants, hasher, out: (line) => out.push(line), err: (line) => err.push(line) });
+  return { run, seed, attendants, hasher, stored, out, err, prompts, revoked: () => revoked };
 }
 
 test("create pede a senha duas vezes e imprime só id e username", async () => {
@@ -63,5 +65,52 @@ test("argumentos ausentes, extras ou inválidos mostram o uso sem pedir senha", 
   }
   for (const args of [["create", "x", "Hugo"], ["create", "hugo", "   "], ["set-password", "com espaço"]]) {
     const cli = harness([]); equal(await cli.run(args), 1); ok(cli.err[0]?.includes("inválido")); equal(cli.prompts.length, 0);
+  }
+});
+
+const demoSecret = "senha-demo-sintetica";
+
+test("seed-demo cria o atendente de demonstração quando ele não existe, sem perguntar nem imprimir a senha", async () => {
+  const cli = harness([]);
+  equal(await cli.seed({ DEMO_USERNAME: " Demo ", DEMO_PASSWORD: demoSecret }), 0);
+  deepEqual(cli.prompts, []); deepEqual(cli.err, []);
+  deepEqual(cli.out, ["Atendente de demonstração criado. id=00000000-0000-4000-8000-000000000001 username=demo"]);
+  deepEqual(cli.stored.get("demo"), { id: "00000000-0000-4000-8000-000000000001", username: "demo", displayName: demoAttendantDisplayName,
+    passwordHash: `hash-de-${demoSecret.length}` });
+  equal(cli.revoked(), 0); ok(!cli.out.join("\n").includes(demoSecret));
+});
+
+test("seed-demo troca a senha e encerra as sessões quando o atendente de demonstração já existe", async () => {
+  const cli = harness([]);
+  equal(await cli.seed({ DEMO_USERNAME: "demo", DEMO_PASSWORD: demoSecret }), 0);
+  const newSecret = "outra-senha-demo-sintetica";
+  equal(await cli.seed({ DEMO_USERNAME: "demo", DEMO_PASSWORD: newSecret }), 0);
+  equal(cli.stored.get("demo")?.passwordHash, `hash-de-${newSecret.length}`); equal(cli.revoked(), 1);
+  equal(cli.out[1], "Senha do atendente de demonstração atualizada e sessões encerradas. id=00000000-0000-4000-8000-000000000001 username=demo");
+  ok(![...cli.out, ...cli.err].join("\n").includes(newSecret)); equal(cli.stored.size, 1);
+  deepEqual(await seedDemoAttendant({ username: "demo", password: newSecret }, cli), { status: "senha_atualizada",
+    attendant: { id: "00000000-0000-4000-8000-000000000001", username: "demo", displayName: demoAttendantDisplayName } });
+});
+
+test("seed-demo recusa senha curta e não troca a senha de um atendente real com o mesmo usuário", async () => {
+  const cli = harness([]);
+  equal(await cli.seed({ DEMO_USERNAME: "demo", DEMO_PASSWORD: "curta-demo" }), 1);
+  equal(cli.stored.size, 0); ok(cli.err[0]?.includes("DEMO_PASSWORD")); ok(!cli.err.join("\n").includes("curta-demo"));
+  deepEqual(await seedDemoAttendant({ username: "demo", password: "curta-demo" }, cli), { status: "entrada_invalida", fields: ["password"] });
+  // Um atendente real com o mesmo usuário não tem a senha trocada.
+  cli.stored.set("hugo", { id: "real", username: "hugo", displayName: "Hugo", passwordHash: "hash-real" });
+  equal(await cli.seed({ DEMO_USERNAME: "hugo", DEMO_PASSWORD: demoSecret }), 1);
+  equal(cli.stored.get("hugo")?.passwordHash, "hash-real"); equal(cli.revoked(), 0);
+  ok(cli.err.at(-1)?.includes("não é o atendente de demonstração")); ok(!cli.err.join("\n").includes(demoSecret));
+});
+
+test("seed-demo sai com erro sem vazar valores quando faltam variáveis", async () => {
+  for (const [environment, names] of [[{}, ["DEMO_USERNAME", "DEMO_PASSWORD"]], [{ DEMO_USERNAME: "demo" }, ["DEMO_PASSWORD"]],
+    [{ DEMO_PASSWORD: demoSecret }, ["DEMO_USERNAME"]], [{ DEMO_USERNAME: "", DEMO_PASSWORD: "" }, ["DEMO_USERNAME", "DEMO_PASSWORD"]]] as const) {
+    const cli = harness([]);
+    equal(await cli.seed(environment), 1);
+    deepEqual(cli.out, []); equal(cli.err.length, 1); equal(cli.stored.size, 0); deepEqual(cli.prompts, []);
+    for (const name of names) ok(cli.err[0]!.includes(name));
+    ok(!cli.err[0]!.includes(demoSecret));
   }
 });
