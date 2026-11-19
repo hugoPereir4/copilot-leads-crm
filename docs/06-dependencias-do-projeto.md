@@ -33,8 +33,8 @@ Inventário de tudo de que o projeto depende: ambiente, bibliotecas, ferramentas
 | Camada de acesso a dados | Repositórios com SQL explícito | Núcleo, confirmado na D22 | Usar `pg` diretamente; Kysely, Drizzle e Prisma foram considerados. Os tipos dos resultados são mantidos pelo projeto, sem inferência a partir do SQL. |
 | **node-pg-migrate** | Versionar e aplicar alterações na estrutura do banco | Núcleo, confirmado na D22 | `9.0.0` instalado como dependência de desenvolvimento da API. Migrações SQL ficam em `apps/api/migrations`; o documento 10 explica a execução. |
 | **pino** | Logs estruturados com correlation id | Recomendado | Integração com o backend Express a definir na entrega de observabilidade. |
-| Hash de senha: **argon2** | Guardar senhas dos atendentes | Núcleo | Alternativa: bcrypt. Nunca armazenar senha em texto. |
-| Sessão / autenticação | Login do painel | Núcleo (a decidir) | Cookie de sessão `httpOnly` ou JWT (biblioteca **jose**). Para um painel único, cookie de sessão é mais simples e seguro. |
+| Hash de senha: **scrypt** do `node:crypto` | Guardar senhas dos atendentes | Núcleo, confirmado na D23 | Sem dependência nova (N = 2^17, r = 8, p = 1). Argon2 foi descartado na D23 por exigir binário nativo. Nunca armazenar senha em texto. |
+| Sessão / autenticação | Login do painel | Núcleo, confirmado na D23 | Sessão no servidor: cookie `copilot_session` `HttpOnly` com token aleatório, e só o SHA-256 do token na tabela `attendant_sessions`. Sem JWT e sem biblioteca de sessão. Detalhes no [documento 34](34-login-de-atendentes.md). |
 | Middlewares de segurança (CORS, cabeçalhos, rate limit) | Proteger a API e o endpoint do webhook | Recomendado | Opções para Express: `cors`, `helmet`, `express-rate-limit`; adoção e configuração nas entregas pertinentes. |
 | Leitura de variáveis de ambiente | Carregar configuração | Núcleo | Node já aceita `--env-file`; ou **dotenv**. Valide as variáveis com Zod ao iniciar. |
 | **libphonenumber-js** | Normalizar telefones para formato internacional | Recomendado | Evita duplicar contatos por formatos diferentes de um mesmo número. |
@@ -165,7 +165,7 @@ Nunca versionar o arquivo `.env`. Versione apenas o `.env.example`, sem valores 
 |---|---|
 | DATABASE_URL | Conexão com o PostgreSQL |
 | PORT | Porta da API |
-| SESSION_SECRET (ou JWT_SECRET) | Assinatura de sessão |
+| SESSION_TTL_HOURS e SESSION_COOKIE_SECURE | Validade da sessão (1 a 24 h) e atributo `Secure` do cookie. Não há segredo de assinatura: o token é aleatório e conferido no banco (D23) |
 | WEBHOOK_SECRET | Verificar que o webhook vem do provedor (se ele oferecer esse recurso) |
 | WHATSAPP_PROVIDER | Qual adapter usar (simulador, evolution etc.) |
 | Variáveis do provedor escolhido | URL base, chave e nome da instância |
@@ -189,7 +189,7 @@ Valide as variáveis com Zod na inicialização, exigindo apenas as aplicáveis 
 | 2. Fila e worker | Nada novo; usa o banco e a lógica própria |
 | 3. IA | SDK do provedor, regras de timeout e novas tentativas |
 | 4. Painel | React, Vite, React Router, TanStack Query, dnd-kit, Tailwind |
-| 5. Autenticação e tempo real | argon2, plugin de sessão, SSE |
+| 5. Autenticação e tempo real | Autenticação sem dependência nova (scrypt do `node:crypto` e sessão no servidor, D23); painel por polling na v1 (D9 revisada) |
 | 6. Qualidade e entrega | Testcontainers, Playwright (opcional), GitHub Actions, Dependabot |
 | 7. Número real (opcional) | Provedor de WhatsApp escolhido e túnel |
 
@@ -199,7 +199,7 @@ Instalar só o que a fase pede evita carregar bibliotecas que você ainda não e
 
 Acesso ao banco e migrações já foram resolvidos na D22: `pg` direto e `node-pg-migrate`. Permanecem em aberto:
 
-- Sessão por cookie ou JWT?
+- ~~Sessão por cookie ou JWT?~~ Decidido na D23: sessão no servidor com cookie `HttpOnly`.
 - Qual provedor de IA?
 - Qual provedor de WhatsApp para a etapa posterior com número real? A demonstração inicial usa o simulador (D14).
 - Biome em vez de ESLint + Prettier?
