@@ -67,7 +67,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 | RF03 | Ignorar mensagens duplicadas (mesmo ID externo do provedor). | Atendido |
 | RF04 | No primeiro contato, enviar saudação e menu numerado pré-definidos. | Atendido |
 | RF05 | Interpretar a opção digitada; opção inválida reenvia o menu. | Atendido |
-| RF06 | Em texto livre, qualificar via LLM: intenção administrativa, serviço de interesse declarado, prazo desejado para atendimento e resumo administrativo. Dados de contato: nome de perfil informado pelo provedor, quando disponível; não é extraído do texto nem enviado à IA; o número vem do provedor. O prazo é extraído apenas se informado, sem inferir gravidade clínica. | Parcial: padrão simulado; Gemini opcional, sem teste com credencial real |
+| RF06 | Em texto livre, qualificar via LLM: intenção administrativa, serviço de interesse declarado, prazo desejado para atendimento e resumo administrativo. Dados de contato: nome de perfil informado pelo provedor, quando disponível; não é extraído do texto nem enviado à IA; o número vem do provedor. O prazo é extraído apenas se informado, sem inferir gravidade clínica. | Parcial: padrão simulado; Gemini opcional, testado manualmente pelo autor |
 | RF07 | Validar a saída da IA contra um schema; se inválida, marcar o lead para revisão humana. | Atendido |
 | RF08 | Criar ou atualizar o lead a partir da conversa. | Atendido |
 | RF09 | Exibir os leads num Kanban e permitir mover cards entre colunas. | Parcial: os cards só mudam de coluna pelas ações Assumir, Ganho e Perdido; não há arrastar e soltar nem movimento livre |
@@ -75,7 +75,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 | RF11 | Mostrar ao atendente o histórico de mensagens registrado pelo sistema e o resumo gerado pela IA. | Atendido |
 | RF12 | Quando o atendente assume o lead, o bot para de enviar mensagens automáticas (handoff). | Atendido |
 | RF13 | Autenticar atendentes com login e senha. | Atendido: sem registro de autoria; limite de tentativas pendente |
-| RF14 | Ler nome do negócio, serviços, horário e campos de qualificação de uma configuração, não do código. | Parcial: a configuração não tem campos de qualificação; os campos são fixos no código |
+| RF14 | Ler nome do negócio, serviços, horário e menu de uma configuração, não do código. | Atendido |
 | RF15 | Disponibilizar um simulador que dispara webhooks de exemplo. | Atendido |
 | RF16 | Disponibilizar no painel um botão **Abrir no WhatsApp** que abre a conversa com o número do contato para o atendente responder fora do sistema. | Atendido |
 | RF17 | Na opção 1 do menu, enviar a apresentação configurada dos serviços e perguntar qual interessa; na opção 2, enviar valores e horários configurados e perguntar se deseja solicitar agendamento. Qualificar a resposta em texto livre. Na opção 3, criar o lead em Novo e colocar a conversa em Aguardando humano, sem chamar a IA. | Atendido |
