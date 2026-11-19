@@ -1,23 +1,15 @@
-import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { Writable } from "node:stream";
 import { DatabaseConfigurationError, readDatabaseConfig } from "../config/database.js";
 import { createDatabasePool } from "../infrastructure/database/pool.js";
 import { PostgresAttendantStore } from "../modules/auth/infrastructure/postgres-attendant-store.js";
 import { ScryptPasswordHasher } from "../modules/auth/infrastructure/scrypt-password-hasher.js";
 import { runAttendantCommand } from "./attendant-admin.js";
+import { createPasswordReader, PasswordInputCancelled } from "./terminal-password.js";
 
-// O readline escreve o que é digitado na saída; enquanto a senha é lida, essa saída é descartada.
-let muted = false;
-const output = new Writable({ write(chunk, _encoding, callback) { if (!muted) stdout.write(chunk); callback(); } });
-const terminal = createInterface({ input: stdin, output, terminal: stdin.isTTY === true });
-
-async function readPassword(prompt: string) {
-  stdout.write(prompt);
-  muted = true;
-  try { return await terminal.question(""); }
-  finally { muted = false; stdout.write("\n"); }
-}
+// Sem readline: o stdin só é tocado quando a primeira senha é pedida.
+// Ctrl+C restaura o terminal (feito pelo leitor) e sai com código 1.
+let reader: ((prompt: string) => Promise<string>) | undefined;
+const readPassword = (prompt: string) => (reader ??= createPasswordReader(stdin, stdout, () => process.exit(1)))(prompt);
 
 async function main() {
   const pool = createDatabasePool(readDatabaseConfig(process.env));
@@ -32,6 +24,7 @@ async function main() {
 try { await main(); }
 catch (error) {
   console.error(error instanceof DatabaseConfigurationError ? error.message
-    : "Não foi possível concluir o comando. Confira o PostgreSQL e se a migração de atendentes foi aplicada.");
+    : error instanceof PasswordInputCancelled ? error.message
+      : "Não foi possível concluir o comando. Confira o PostgreSQL e se a migração de atendentes foi aplicada.");
   process.exitCode = 1;
-} finally { terminal.close(); }
+}
