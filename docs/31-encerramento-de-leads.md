@@ -79,8 +79,8 @@ Não executar `db:migrate` para esta entrega. Caso a aplicação anterior esteja
 
 1. Abra `/simulator` e `/admin` em `http://127.0.0.1:3000` (ou sua `API_PORT`).
 2. Use novo telefone sintético: “Olá” → espere menu → “3”. No card Novo, clique Assumir atendimento.
-3. Em Em atendimento, escolha Ganho ou Perdido e confirme. O card deve sair do quadro ativo.
-4. Marque Mostrar encerrados, confira a coluna do resultado e selecione o card para ver o histórico. O seletor Contato/ciclo também identifica estado e resultado.
+3. Em Em atendimento, escolha Ganho ou Perdido e confirme. O card deve ir para a coluna do resultado (Ganho ou Perdido), sem ações de etapa.
+4. Na coluna do resultado, abra o histórico pelo ícone de relógio do card. No `/simulator`, o seletor Contato/ciclo também identifica estado e resultado. (O filtro Mostrar encerrados citado nesta etapa foi removido depois; ver a revisão da D16.)
 5. No Postman, repita o POST com o mesmo resultado: 200/`ja_encerrado`, mesmo `closedAt`. Troque o resultado: 409. Tente fechar um Novo: 409.
 6. Volte ao simulador e envie mensagem pelo mesmo telefone. Uma nova conversa deve receber a abertura; siga o menu para gerar novo lead. O anterior permanece encerrado e consultável, sem duplicar o contato.
 

@@ -195,6 +195,8 @@ O Kanban principal mostra apenas leads em **Novo**, **Qualificado** e **Em atend
 
 **Revisão (painel em cinco colunas):** o Kanban principal passa a mostrar **Ganho** e **Perdido** como colunas, ao lado de **Novo**, **Qualificado** e **Em atendimento**. Os leads encerrados aparecem na coluna do resultado, sem ações de etapa; a regra de no máximo um card **aberto** por contato continua. Só a visualização mudou: a API já devolvia os encerrados, e o modelo de dados e as transações são os mesmos. O filtro de encerrados continua disponível. Trade-off: a visualização de trabalho passa a acumular os encerrados, limitada pelas 100 conversas mais recentes que a API devolve.
 
+**Revisão (remoção do filtro de encerrados):** com **Ganho** e **Perdido** sempre visíveis como colunas, o filtro "Mostrar encerrados" só repetia essas duas colunas e foi removido do painel. Os encerrados aparecem nas colunas **Ganho** e **Perdido** do quadro e no histórico do contato. A API, os dados e as transações não mudaram.
+
 **Trade-off:** consultas e eventos do painel precisam respeitar os filtros de abertos e encerrados. A v1 não representa oportunidades simultâneas independentes para o mesmo contato.
 
 ## D17. Recepção automática fora do expediente

@@ -177,7 +177,7 @@ Sugestão: **separar o tipo do cartão (leve, para listar) do tipo do detalhe (c
 
 **Pedido direto à recepção:** na opção 3 do menu, o card é criado em Novo, com `needsReview = false`, sem chamada à IA. Os contratos de cartão e detalhe devem aceitar ausência de qualificação: intenção, resumo, confiança e demais dados exclusivos da extração ficam nulos quando não disponíveis. A ausência não altera os requisitos do schema de resposta da IA; ela representa um caminho em que a IA não foi chamada.
 
-**Visualização e histórico (D16 revisada):** o painel mostra Novo, Qualificado, Em atendimento, Ganho e Perdido, com no máximo um card aberto por contato. A listagem da API não mudou: ela já devolve as conversas encerradas, e o painel as coloca nas colunas Ganho e Perdido. O filtro de encerrados e o histórico do contato continuam disponíveis. Mover para um desses resultados encerra também a conversa e leva o card para a coluna do resultado. Novas mensagens reutilizam o atendimento aberto; após o encerramento, iniciam outra conversa, preservando os IDs e resultados anteriores.
+**Visualização e histórico (D16 revisada):** o painel mostra Novo, Qualificado, Em atendimento, Ganho e Perdido, com no máximo um card aberto por contato. A listagem da API não mudou: ela já devolve as conversas encerradas, e o painel as coloca nas colunas Ganho e Perdido. Os encerrados aparecem nas colunas Ganho e Perdido e no histórico do contato; o painel não tem filtro separado. Mover para um desses resultados encerra também a conversa e leva o card para a coluna do resultado. Novas mensagens reutilizam o atendimento aberto; após o encerramento, iniciam outra conversa, preservando os IDs e resultados anteriores.
 
 ## 8. Eventos em tempo real (SSE)
 
@@ -192,7 +192,7 @@ Também uma união discriminada, desta vez pelo nome do evento:
 
 O painel trata cada evento por `switch` sobre o nome. Se você esquecer um caso, o compilador avisa (verificação de exaustividade).
 
-Ao aplicar eventos, o painel respeita o filtro atual. Por exemplo, `lead.moved` para Ganho ou Perdido retira o card da visualização de abertos e atualiza a consulta de encerrados; não apaga o registro histórico (D16).
+Ao aplicar eventos, o painel move o card para a coluna do novo estágio. Por exemplo, `lead.moved` para Ganho ou Perdido leva o card para a coluna do resultado; não apaga o registro histórico (D16 revisada).
 
 ## 9. Formato padrão de erro da API
 

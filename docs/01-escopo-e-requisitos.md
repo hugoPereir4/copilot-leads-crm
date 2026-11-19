@@ -80,7 +80,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 | RF16 | Disponibilizar no painel um botão **Abrir no WhatsApp** que abre a conversa com o número do contato para o atendente responder fora do sistema. |
 | RF17 | Na opção 1 do menu, enviar a apresentação configurada dos serviços e perguntar qual interessa; na opção 2, enviar valores e horários configurados e perguntar se deseja solicitar agendamento. Qualificar a resposta em texto livre. Na opção 3, criar o lead em Novo e colocar a conversa em Aguardando humano, sem chamar a IA. |
 | RF18 | Vincular novas mensagens à conversa aberta do contato e reutilizar seu lead, quando já existir. Se não houver conversa aberta, iniciar uma nova vinculada ao mesmo contato, preservando as anteriores encerradas. |
-| RF19 | Mostrar no Kanban principal as colunas Novo, Qualificado, Em atendimento, Ganho e Perdido, com no máximo um card aberto por contato; os leads encerrados aparecem nas colunas do resultado. Disponibilizar filtro de encerrados e acesso ao histórico de conversas e leads do contato, com seus resultados. |
+| RF19 | Mostrar no Kanban principal as colunas Novo, Qualificado, Em atendimento, Ganho e Perdido, com no máximo um card aberto por contato; os leads encerrados aparecem nas colunas do resultado. Disponibilizar acesso ao histórico de conversas e leads do contato, com seus resultados. |
 | RF20 | Ao iniciar uma conversa fora do expediente, enviar um aviso predefinido com o horário da clínica e continuar com o menu e a qualificação. Usar o fuso e os horários do perfil do negócio; preservar o silêncio do bot nas conversas aguardando humano ou em atendimento humano. |
 | RF21 | Preservar o estado e o atendimento existente após períodos sem resposta do cliente, sem lembretes ou encerramento automático por inatividade. Processar a próxima mensagem conforme o estado atual, sem reiniciar o menu nem criar outra conversa ou lead apenas pelo tempo decorrido. |
 
@@ -88,7 +88,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 
 Etapas comerciais fixas: Novo → Qualificado → Em atendimento → Ganho / Perdido.
 
-A visualização principal contém as colunas **Novo**, **Qualificado**, **Em atendimento**, **Ganho** e **Perdido**, lado a lado, com no máximo um card aberto por contato. Mover para **Ganho** ou **Perdido** encerra o atendimento e leva o card para a coluna do resultado, sem ações de etapa. Um contato que retorna depois do encerramento pode ter, ao mesmo tempo, o card encerrado e o card do novo ciclo. Os resultados também continuam acessíveis pelo filtro de encerrados e pelo histórico do contato (D16 revisada).
+A visualização principal contém as colunas **Novo**, **Qualificado**, **Em atendimento**, **Ganho** e **Perdido**, lado a lado, com no máximo um card aberto por contato. Mover para **Ganho** ou **Perdido** encerra o atendimento e leva o card para a coluna do resultado, sem ações de etapa. Um contato que retorna depois do encerramento pode ter, ao mesmo tempo, o card encerrado e o card do novo ciclo. Os encerrados aparecem nas colunas **Ganho** e **Perdido** do quadro e no histórico do contato; não há filtro separado (D16 revisada).
 
 Leads em que a IA falhou ou teve baixa confiança ficam em **Novo** com um indicador **Revisar**, em vez de uma coluna própria. Assim o fluxo continua simples.
 

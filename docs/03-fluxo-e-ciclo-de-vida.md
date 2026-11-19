@@ -99,7 +99,7 @@ flowchart TD
 11. **Persistência.** O lead, os dados extraídos e o resumo são gravados. A conversa passa para "Aguardando humano".
 12. **Notificação do painel.** O backend emite um evento por SSE (D9) e o card aparece no Kanban.
 13. **Assunção e atendimento.** O atendente assume o lead no painel. A conversa passa para "Em atendimento humano" e o bot fica em silêncio. O atendente usa o botão **Abrir no WhatsApp** para abrir a conversa com o contato e responder pelo próprio WhatsApp (D13). O painel não envia mensagens manuais na v1.
-14. **Encerramento.** O atendente move o lead para Ganho ou Perdido no painel. Lead e conversa são encerrados na mesma transação, e o card passa para a coluna Ganho ou Perdido do Kanban principal, sem ações de etapa, e continua acessível pelo filtro de encerrados e pelo histórico do contato. Um retorno posterior inicia outra conversa; o registro anterior permanece encerrado (D16).
+14. **Encerramento.** O atendente move o lead para Ganho ou Perdido no painel. Lead e conversa são encerrados na mesma transação, e o card passa para a coluna Ganho ou Perdido do Kanban principal, sem ações de etapa, e continua acessível pelo histórico do contato. Um retorno posterior inicia outra conversa; o registro anterior permanece encerrado (D16).
 
 O histórico do painel mostra as mensagens registradas pelo sistema. As respostas enviadas diretamente pelo atendente no WhatsApp podem não aparecer nesse histórico, dependendo do provedor.
 
