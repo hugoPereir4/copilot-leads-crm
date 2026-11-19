@@ -95,7 +95,7 @@ flowchart TD
    - Aguardando menu: opções 1 e 2 enviam informações e uma pergunta predefinidas, passando para Aguardando detalhes. A opção 3 cria o lead em Novo, sem indicador Revisar e sem chamar a IA, passando diretamente para Aguardando humano e notificando o painel (passo 12). Opção inválida reenvia o menu; texto livre vai para a qualificação.
    - Aguardando detalhes: a resposta em texto livre alimenta a qualificação.
 9. **Qualificação pela IA.** O sistema monta o contexto (mensagens recentes e perfil do negócio), chama o LLM com o schema esperado e um tempo máximo de espera. Na clínica fictícia, a extração é administrativa: intenção, serviço declarado e prazo desejado informado. Não há inferência de tratamento ou urgência clínica (D15). Os cenários da demonstração contêm apenas dados sintéticos.
-10. **Validação da saída.** A resposta é validada em runtime (D8). Saída inválida ou com baixa confiança leva ao fallback humano.
+10. **Validação da saída.** A resposta é validada em runtime (D8). Saída inválida, campos sem evidência literal na conversa ou dados incompletos levam ao fallback humano (Revisar). Não há campo nem limiar de confiança.
 11. **Persistência.** O lead, os dados extraídos e o resumo são gravados. A conversa passa para "Aguardando humano".
 12. **Notificação do painel.** O backend emite um evento por SSE (D9) e o card aparece no Kanban.
 13. **Assunção e atendimento.** O atendente assume o lead no painel. A conversa passa para "Em atendimento humano" e o bot fica em silêncio. O atendente usa o botão **Abrir no WhatsApp** para abrir a conversa com o contato e responder pelo próprio WhatsApp (D13). O painel não envia mensagens manuais na v1.
@@ -131,7 +131,7 @@ O tempo sem resposta do cliente não é um evento de transição na v1: a conver
 | Banco indisponível no webhook | Responde erro ao provedor, que reenvia depois | A idempotência protege o reenvio |
 | Timeout ou erro da IA | Uma nova tentativa; se falhar de novo, aciona o fallback | Lead vai para revisão humana |
 | Saída da IA inválida | Mesmo tratamento do timeout | Lead vai para revisão humana |
-| Baixa confiança da IA | Lead criado com o indicador Revisar (limiar a definir) | Atendente confere os dados |
+| Saída da IA sem evidência ou incompleta | Lead em Novo com o indicador Revisar; não há limiar de confiança (D8) | Atendente confere os dados |
 | Worker cai no meio do job | Um job "processando" por tempo demais volta para "pendente" | O job é refeito sem duplicar dados |
 | Falha ao enviar o menu | Novas tentativas com intervalo crescente; falha final registrada | Problema fica visível nos logs |
 | Painel perde a conexão SSE | O navegador reconecta e o painel recarrega a lista | Nenhum evento perdido fica sem correção |
@@ -154,7 +154,7 @@ Essas opções e seus textos ficam na configuração do negócio, conforme D11. 
 
 Nas opções 1 e 2, a IA apenas extrai informações da resposta e do contexto administrativo. Uma solicitação de agendamento não confirma uma reserva: a recepção dá continuidade pelo WhatsApp.
 
-Na opção 3, os campos exclusivos da qualificação por IA permanecem sem preenchimento, sem inventar resumo ou confiança. O painel mostra os dados disponíveis do contato e o histórico registrado. A conversa aguarda a recepção; o bot fica em silêncio. A atribuição a um atendente ocorre quando ele assume o lead no painel.
+Na opção 3, os campos exclusivos da qualificação por IA permanecem sem preenchimento, sem inventar resumo ou confiança. O painel mostra os dados disponíveis do contato e o histórico registrado. A conversa aguarda a recepção; o bot fica em silêncio. Quando um atendente assume o lead no painel, o lead passa para Em atendimento, mas a atribuição a esse atendente ainda não é registrada ([backlog técnico](33-backlog-tecnico.md), item 6b).
 
 ## 7. Atendimento fora do expediente
 
