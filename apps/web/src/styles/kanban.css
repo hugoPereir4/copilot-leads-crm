@@ -99,9 +99,41 @@
 
 .lead-actions {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lead-actions-text,
+.lead-actions-icons {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.lead-actions-icons {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* Botões de ícone: área de toque de 34 px; o foco visível vem da regra global de :focus-visible. */
+.icon-button {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--color-surface-secondary);
+  color: var(--color-text);
 }
 
 .qualification-fields {
@@ -119,8 +151,7 @@
   font-size: 0.76rem;
 }
 
-.close-button,
-.history-button {
+.close-button {
   min-height: 38px;
   font-size: 0.76rem;
 }
@@ -141,21 +172,11 @@
 }
 
 .whatsapp-link {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  border-radius: 6px;
-  padding: 4px 8px;
-  color: var(--color-accent);
-  font-size: 0.76rem;
-  font-weight: 700;
-  text-decoration: none;
+  color: var(--color-whatsapp);
 }
 
 .whatsapp-link:hover {
-  background: var(--color-surface-secondary);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--color-whatsapp);
 }
 
 .history-dialog {

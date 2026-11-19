@@ -32,7 +32,8 @@ async function page({ saved = "light", blockedStorage = false, inAttendance = fa
   unauthorized = false, path = "/admin", contactName = null, extraRows = [], messages = [] } = {}) {
   const elements = new Map();
   const element = (id) => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
-  const document = { documentElement: new Element(), body: new Element(), getElementById: element, createElement: () => new Element() };
+  const document = { documentElement: new Element(), body: new Element(), getElementById: element, createElement: () => new Element(),
+    createElementNS: (namespace, tag) => Object.assign(new Element(), { namespace, tag }) };
   const storage = new Map([["copilot-leads-theme", saved]]);
   const timers = [], assigned = [], logouts = []; let calls = 0, finish, lastPost, confirmations = 0;
   let rows = [{ id: "conversation", phone: "+15550114921", contactName, status: inAttendance ? "em_atendimento_humano" : "aguardando_humano", failedJobs: 0,
@@ -98,7 +99,7 @@ test("assunção bloqueia cliques repetidos e move o card após confirmação", 
   const columns = ui.element("board").children;
   equal(nodes(columns[0]).filter((node) => node.className === "lead-card").length, 0);
   equal(nodes(columns[2]).filter((node) => node.className === "lead-card").length, 1);
-  ok(nodes(columns[2]).some((node) => node.textContent === "Abrir no WhatsApp"));
+  ok(nodes(columns[2]).some((node) => node.title === "Abrir no WhatsApp"));
 });
 
 test("falha mantém o card e informa erro acessível sem afirmar assunção", async () => {
@@ -126,7 +127,7 @@ test("encerramento confirma, bloqueia ambas as opções e preserva acesso aos en
     ui.element("show-closed").checked = true; ui.element("show-closed").events.get("change")();
     equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 1);
     equal(ui.closeButtons().length, 0); equal(ui.element("admin-title").textContent, "Leads encerrados");
-    ok(nodes(ui.element("board")).some((node) => node.textContent === "Abrir no WhatsApp"));
+    ok(nodes(ui.element("board")).some((node) => node.title === "Abrir no WhatsApp"));
   }
 });
 
@@ -216,7 +217,7 @@ test("Ganho e Perdido listam leads encerrados só com Histórico e WhatsApp", as
   equal(ganho.children[0].children[1].textContent, "2");
   for (const column of [ganho, perdido]) {
     const texts = nodes(column).map((node) => node.textContent);
-    ok(texts.includes("Histórico")); ok(texts.includes("Abrir no WhatsApp"));
+    ok(nodes(column).some((node) => node.title === "Histórico")); ok(nodes(column).some((node) => node.title === "Abrir no WhatsApp"));
     ok(!nodes(column).some((node) => /assume-button|close-button/.test(node.className)));
   }
   ok(nodes(perdido).some((node) => node.textContent === "Resultado: Perdido. Histórico preservado."));
@@ -244,4 +245,24 @@ test("Histórico abre o diálogo com foco, renderiza as mensagens, fecha e devol
   }
   const phoneButton = nodes(ui.element("board")).find((node) => node.className === "conversation-select");
   phoneButton.onclick(); equal(dialog.open, true); dialog.close(); equal(Element.focused, phoneButton);
+});
+
+test("Histórico e WhatsApp são ícones SVG com aria-label, title e sem texto visível", async () => {
+  const ui = await page({ contactName: "Perfil Sintético" });
+  const card = nodes(ui.element("board")).find((node) => node.className === "lead-card");
+  const history = nodes(card).find((node) => node.className.includes("history-button"));
+  const whatsapp = nodes(card).find((node) => node.className.includes("whatsapp-link"));
+  equal(history.getAttribute("aria-label"), "Ver histórico de Perfil Sintético, +15550114921"); equal(history.title, "Histórico");
+  equal(whatsapp.getAttribute("aria-label"), "Abrir no WhatsApp: Perfil Sintético, +15550114921"); equal(whatsapp.title, "Abrir no WhatsApp");
+  equal(whatsapp.href, "https://wa.me/15550114921"); equal(whatsapp.rel, "noopener noreferrer");
+  for (const button of [history, whatsapp]) {
+    equal(button.textContent, ""); ok(button.className.includes("icon-button"));
+    const [svg] = button.children; equal(svg.tag, "svg"); equal(svg.namespace, "http://www.w3.org/2000/svg");
+    equal(svg.getAttribute("aria-hidden"), "true"); ok(svg.children.length > 0);
+  }
+  // Ações de texto à esquerda, ícones à direita.
+  const actions = nodes(card).find((node) => node.className === "lead-actions");
+  deepEqual(actions.children.map((node) => node.className), ["lead-actions-text", "lead-actions-icons"]);
+  ok(actions.children[0].children.some((node) => node.className.includes("assume-button")));
+  deepEqual(actions.children[1].children, [history, whatsapp]);
 });

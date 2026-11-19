@@ -174,6 +174,23 @@ historyDialog.addEventListener("close", () => {
   target?.focus(); historyOpener = undefined;
 });
 
+// Ícones SVG inline, sem biblioteca: decorativos (aria-hidden); o nome acessível fica no botão/link.
+const iconPaths = {
+  history: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 7.5V12l3.2 2"],
+  whatsapp: ["M3.5 20.5l1.35-4.05A8.5 8.5 0 1 1 7.6 19.2z",
+    "M9.3 8.4c-.4.9-.2 2.1.7 3.4s2.2 2.3 3.4 2.6c.9.2 1.6-.1 2-.6l.3-.6-1.7-.9-.8.7a4.2 4.2 0 0 1-2.2-2.2l.7-.8-.9-1.7z"],
+} as const;
+function icon(name: keyof typeof iconPaths) {
+  const svgNs = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNs, "svg");
+  for (const [key, value] of [["viewBox", "0 0 24 24"], ["width", "18"], ["height", "18"], ["fill", "none"], ["stroke", "currentColor"],
+    ["stroke-width", "1.9"], ["stroke-linecap", "round"], ["stroke-linejoin", "round"], ["aria-hidden", "true"], ["focusable", "false"]]) {
+    svg.setAttribute(key!, value!);
+  }
+  for (const d of iconPaths[name]) { const path = document.createElementNS(svgNs, "path"); path.setAttribute("d", d); svg.append(path); }
+  return svg;
+}
+
 const openColumns = [["novo", "Novo"], ["qualificado", "Qualificado"], ["em_atendimento", "Em atendimento"], ["ganho", "Ganho"], ["perdido", "Perdido"]];
 const closedColumns = [["ganho", "Ganho"], ["perdido", "Perdido"]];
 
@@ -233,9 +250,14 @@ function renderBoard(rows: DemoConversation[]) {
         }
         card.append(fields);
       }
-      const link = document.createElement("a"); link.className = "whatsapp-link"; link.textContent = "Abrir no WhatsApp";
+      const who = `${row.contactName ? `${row.contactName}, ` : ""}${row.phone}`;
+      const link = document.createElement("a"); link.className = "icon-button whatsapp-link";
       link.href = `https://wa.me/${row.phone.replace(/\D/g, "")}`; link.target = "_blank"; link.rel = "noopener noreferrer";
+      link.title = "Abrir no WhatsApp"; link.setAttribute("aria-label", `Abrir no WhatsApp: ${who}`); link.append(icon("whatsapp"));
+      // Ações de texto à esquerda e ícones à direita, na mesma linha.
       const actions = document.createElement("div"); actions.className = "lead-actions";
+      const textActions = document.createElement("div"); textActions.className = "lead-actions-text";
+      const iconActions = document.createElement("div"); iconActions.className = "lead-actions-icons";
       if (row.lead && ["novo", "qualificado"].includes(row.lead.stage)
         && ["aguardando_menu", "aguardando_detalhes", "qualificando", "aguardando_humano"].includes(row.status)) {
         const leadId = row.lead.id;
@@ -244,7 +266,7 @@ function renderBoard(rows: DemoConversation[]) {
         assume.textContent = assume.disabled ? "Assumindo…" : "Assumir atendimento";
         assume.setAttribute("aria-label", `Assumir atendimento de ${row.phone}`);
         assume.onclick = () => { void assumeAttendance(leadId, assume); };
-        actions.append(assume);
+        textActions.append(assume);
       }
       if (row.lead?.stage === "em_atendimento" && row.status === "em_atendimento_humano") {
         const leadId = row.lead.id;
@@ -254,14 +276,15 @@ function renderBoard(rows: DemoConversation[]) {
           close.textContent = close.disabled ? "Encerrando…" : result === "ganho" ? "Ganho" : "Perdido";
           close.setAttribute("aria-label", `Encerrar atendimento de ${row.phone} como ${result}`);
           close.onclick = () => { void closeAttendance(leadId, result, close); };
-          actions.append(close);
+          textActions.append(close);
         }
       }
-      const historyButton = document.createElement("button"); historyButton.className = "button button-secondary history-button";
-      historyButton.type = "button"; historyButton.textContent = "Histórico"; historyButton.dataset.conversation = row.id;
-      historyButton.setAttribute("aria-label", `Ver histórico de ${row.contactName ? `${row.contactName}, ` : ""}${row.phone}`);
+      const historyButton = document.createElement("button"); historyButton.className = "icon-button history-button";
+      historyButton.type = "button"; historyButton.title = "Histórico"; historyButton.dataset.conversation = row.id;
+      historyButton.setAttribute("aria-label", `Ver histórico de ${who}`); historyButton.append(icon("history"));
       historyButton.onclick = () => { openHistory(row, historyButton); };
-      actions.append(historyButton, link);
+      iconActions.append(historyButton, link);
+      actions.append(textActions, iconActions);
       card.append(actions); cardList.append(card);
     }
     column.append(heading, cardList); board.append(column);
