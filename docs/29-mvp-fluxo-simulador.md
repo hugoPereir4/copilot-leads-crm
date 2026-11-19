@@ -13,7 +13,7 @@ Webhook → recepção transacional → job → decisão existente → preparaç
 
 ## Executar depois da revisão
 
-Não foram instaladas dependências nem executadas migrações no banco principal. A sexta migração cria `leads` e uma chave composta em `conversations`. A modelagem/DBML foi atualizada com os oito campos efetivamente implementados; qualificação, atribuição e ordenação manual continuam futuras.
+**Registro da entrega de 16/11/2026, não regra vigente:** nessa entrega não foram instaladas dependências nem executadas migrações no banco principal. A sexta migração cria `leads` e uma chave composta em `conversations`. A modelagem/DBML foi atualizada com os oito campos efetivamente implementados; qualificação, atribuição e ordenação manual continuam futuras.
 
 Com Docker Desktop aberto, na raiz:
 
