@@ -19,3 +19,47 @@
     padding: 0 12px;
   }
 }
+
+/* Bloco "Acesso de demonstração", inserido pelo servidor só quando DEMO_USERNAME e DEMO_PASSWORD existem. */
+.demo-access {
+  margin-bottom: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: var(--color-surface-secondary);
+}
+
+.demo-access h2 {
+  font-size: 0.95rem;
+}
+
+.demo-access .muted {
+  margin-top: 4px;
+  font-size: 0.82rem;
+}
+
+.demo-access-credentials {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+}
+
+.demo-access-credentials div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.demo-access-credentials dt {
+  min-width: 60px;
+  font-weight: 700;
+}
+
+.demo-access-credentials dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.demo-access-credentials code {
+  font-size: 0.9rem;
+}

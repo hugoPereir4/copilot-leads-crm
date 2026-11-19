@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readDatabaseConfig } from "./config/database.js";
 import { readHttpConfig } from "./config/http.js";
 import { createHttpApp } from "./http/app.js";
-import { readAuthConfig, AuthConfigurationError } from "./config/auth.js";
+import { readAuthConfig, readDemoAccessConfig, AuthConfigurationError } from "./config/auth.js";
 import { installPanel } from "./http/panel.js";
 import { listenHttp } from "./http/listen-http.js";
 import { createDatabasePool } from "./infrastructure/database/pool.js";
@@ -24,6 +24,8 @@ import { QualificationError } from "./modules/leads/contracts/qualification.js";
 async function main() {
   const qualificationConfig = readQualificationConfig(process.env);
   const authConfig = readAuthConfig(process.env);
+  // Só uma das duas variáveis, ou valor inválido, interrompe o startup (AuthConfigurationError, sem valores).
+  const demoAccess = readDemoAccessConfig(process.env);
   const qualifier = await createLeadQualifier(qualificationConfig, {
     // Mesma forma das linhas de diagnóstico: só campos sanitizados, nunca texto do provedor.
     onRetry: (diagnostic) => console.error(JSON.stringify({ level: "warn", event: "gemini_qualification_retry", ...diagnostic })),
@@ -44,7 +46,7 @@ async function main() {
       report: (jobId, code) => console.error(JSON.stringify({ level: "warn", code, jobId })),
     });
     const app = createHttpApp(new PostgresIncomingMessageInbox(pool), undefined,
-      (app, sendError) => { installPanel(app, sendError, pool, { auth: authConfig }); });
+      (app, sendError) => { installPanel(app, sendError, pool, { auth: authConfig, ...(demoAccess ? { demoAccess } : {}) }); });
     const server = await listenHttp(app, readHttpConfig(process.env).port);
     let stopping = false;
     const worker = (async () => {

@@ -1,7 +1,8 @@
 import { static as serveStatic, type Express, type RequestHandler } from "express";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
-import type { AuthConfig } from "../config/auth.js";
+import type { AuthConfig, DemoAccess } from "../config/auth.js";
 import { PostgresDemoReadModel } from "../infrastructure/simulator/postgres-demo-read-model.js";
 import { createAttendantAuth } from "../modules/auth/application/attendant-auth.js";
 import type { Clock, PasswordHasher } from "../modules/auth/application/ports.js";
@@ -19,6 +20,7 @@ import { PostgresHumanHandoffStore } from "../modules/leads/infrastructure/postg
 import { PostgresLeadClosureStore } from "../modules/leads/infrastructure/postgres-lead-closure-store.js";
 import { installDemoRoutes } from "./demo-routes.js";
 import type { HttpErrorResponder } from "./http-errors.js";
+import { loginPageWithDemoAccess } from "./login-page.js";
 
 export type PanelOptions = {
   auth: AuthConfig;
@@ -26,6 +28,8 @@ export type PanelOptions = {
   hasher?: PasswordHasher;
   clock?: Clock;
   log?: (event: AuthLogEvent) => void;
+  // Opcional: mostra usuário e senha de demonstração na tela de login (readDemoAccessConfig).
+  demoAccess?: DemoAccess;
 };
 
 const webFile = (path: string) => fileURLToPath(new URL(`../../../web/${path}`, import.meta.url));
@@ -44,12 +48,15 @@ export function installPanel(app: Express, sendError: HttpErrorResponder, pool: 
 
   // Páginas autenticadas não ficam no cache: depois do logout, voltar não mostra o painel.
   const noStore: RequestHandler = (_request, response, next) => { response.setHeader("Cache-Control", "no-store"); next(); };
+  // Sem acesso de demonstração, /login continua servindo o arquivo como antes.
+  const demoLoginPage = options.demoAccess ? loginPageWithDemoAccess(readFileSync(webFile("login.html"), "utf8"), options.demoAccess) : undefined;
   app.get("/", (_request, response) => { response.redirect("/simulator"); });
   app.get("/login", noStore, async (request, response, next) => {
     try {
       const session = await auth.authenticate(sessionTokenFrom(request));
       if (session.status === "autenticado") { response.redirect(303, safeNextPath(request.query.next)); return; }
-      response.sendFile(webFile("login.html"));
+      if (demoLoginPage === undefined) response.sendFile(webFile("login.html"));
+      else response.type("html").send(demoLoginPage);
     } catch (error) { next(error); }
   });
   app.get(["/simulator", "/admin"], noStore, createRequirePageSession(auth), (_request, response) => {
