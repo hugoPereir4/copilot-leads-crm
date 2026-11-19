@@ -1,162 +1,106 @@
 # Backend
 
-Esta aplicação contém o servidor Express e os módulos do monólito modular: `messaging`, `jobs`, `business-profile`, `simulator`, `leads` (assunção, encerramento e qualificação) e `auth` (login de atendentes). O worker do simulador roda no backend: `src/demo.ts` compõe API, painel, worker e recuperação de jobs. As seções abaixo são o registro das entregas na ordem em que foram feitas.
+## Papel da API
+
+O backend é um monólito modular (D1): um único processo Node.js com Express, dividido em módulos com fronteiras próprias. Cada módulo separa contratos, casos de uso (`application`), adapters de infraestrutura e rotas HTTP (D2). Ele:
+
+- recebe as mensagens do simulador por webhook e as grava numa transação, com o job de processamento (D3, D5);
+- mantém uma fila de jobs em tabela do PostgreSQL, com reserva, novas tentativas e recuperação de reservas expiradas (D4);
+- roda o worker do simulador, que decide a resposta pelo estado da conversa, monta os textos predefinidos e grava as respostas e o novo estado;
+- qualifica o texto livre com um qualificador simulado ou, se configurado, com o Gemini (D8);
+- serve o painel, o simulador e a tela de login, com as rotas de leitura, assunção e encerramento;
+- autentica atendentes por sessão no servidor (D23).
+
+A API depende só dos tipos públicos de `@copilot-leads/shared`; o pacote compartilhado não depende dela.
+
+## Estrutura
+
+Em `src/modules/`:
+
+| Módulo | Responsabilidade |
+|---|---|
+| `messaging` | Webhook e adapter do simulador, mensagem normalizada, recepção transacional, contexto da mensagem, decisão por estado, composição dos textos e plano de resposta |
+| `jobs` | Fila em tabela: reserva com `FOR UPDATE SKIP LOCKED`, conclusão, falha com nova tentativa e recuperação de reservas expiradas |
+| `business-profile` | Perfil da clínica fictícia em `config/business-profile.json`, schema Zod e cálculo de expediente |
+| `simulator` | `SimulatorProcessor` (o worker) e as portas de efeitos e de leitura do painel |
+| `leads` | Lead de recepção, qualificação (simulada ou Gemini), assunção e encerramento, com as rotas `/api/demo/leads/:id/assume` e `/close` |
+| `auth` | Atendentes, login, sessão no servidor, hash scrypt, cookie, checagem de `Origin` e guarda de sessão |
+
+Fora dos módulos:
+
+| Pasta | Conteúdo |
+|---|---|
+| `src/config/` | Leitura e validação das variáveis de ambiente com Zod (`database`, `http`, `auth`, `qualification`) |
+| `src/http/` | `app.ts` (webhook, erros padronizados e `X-Correlation-ID`), `panel.ts` (páginas, login e rotas `/api/demo/*`), `demo-routes.ts`, `login-page.ts` e `listen-http.ts` |
+| `src/infrastructure/database/` | Pool `pg` e testes de integração das migrações |
+| `src/infrastructure/simulator/` | Transação dos efeitos do worker (`postgres-simulator-effects.ts`) e leitura do painel (`postgres-demo-read-model.ts`) |
+| `src/scripts/` | Comandos de linha: banco, atendentes, simulador e diagnóstico do Gemini |
+| `migrations/` | As oito migrações SQL, aplicadas com `node-pg-migrate` |
+| `config/` | `business-profile.json`, o perfil de demonstração |
+| `examples/simulator/` | `text-message.json`, usado por `simulate:message` |
+
+## Pontos de entrada
+
+| Arquivo | O que inicia |
+|---|---|
+| `src/index.ts` (`start`) | Só a API HTTP com o webhook `POST /webhooks/simulator`, em `127.0.0.1`. Sem worker, sem telas e sem login |
+| `src/demo.ts` (`start:demo`) | API, painel (`/admin`), simulador (`/simulator`), login (`/login`), rotas `/api/demo/*` e o worker do simulador, que também recupera reservas expiradas a cada 30 s. Confere antes se as tabelas de leads, qualificação e atendentes existem |
+| `src/scripts/check-database.ts` (`db:check`) | Consulta o banco e o usuário pela conexão da aplicação |
+| `src/scripts/migrate-database.ts` (`db:migrate`) | Aplica as migrações pendentes; o histórico fica em `public.pgmigrations` |
+| `src/scripts/attendant-cli.ts` (`attendant:create`, `attendant:set-password`) | Cria um atendente ou troca a senha; a senha é lida no terminal, com um asterisco por tecla |
+| `src/scripts/attendant-seed-demo-cli.ts` (`attendant:seed-demo`) | Cria ou atualiza o atendente de demonstração a partir de `DEMO_USERNAME` e `DEMO_PASSWORD`, sem perguntar nada |
+| `src/scripts/simulate-message.ts` (`simulate:message`) | Envia `examples/simulator/text-message.json` ao webhook local |
+| `src/scripts/diagnose-gemini-cli.ts` | Diagnóstico manual do Gemini, com chamadas reais e confirmação digitada (`EXECUTAR`). Só existe como `npm run diagnose:gemini` na raiz ([documento 32](../../docs/32-qualificacao-de-leads.md)) |
+
+## Configuração
+
+Variáveis lidas pelo código em `src/config/`. Os valores de exemplo estão no `.env.example` da raiz, carregado pelos scripts com `--env-file`.
+
+| Variável | Padrão | Limites e regras | Lida por |
+|---|---|---|---|
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | — | Obrigatórias, não vazias | API, demo e scripts de banco e atendentes |
+| `POSTGRES_HOST` | `127.0.0.1` | Texto não vazio | Idem |
+| `POSTGRES_PORT` | `5432` | 1 a 65535 | Idem |
+| `API_PORT` | `3000` | 1 a 65535 | API, demo e `simulate:message` |
+| `SESSION_TTL_HOURS` | `12` | Inteiro de 1 a 24 | Demo |
+| `SESSION_COOKIE_SECURE` | `false` | `true` ou `false` | Demo |
+| `QUALIFIER_PROVIDER` | `simulated` | `simulated` ou `gemini` | Demo e diagnóstico |
+| `GEMINI_API_KEY` | — | Obrigatória com `gemini` | Demo e diagnóstico |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite` | Só esse valor é aceito | Demo e diagnóstico |
+| `QUALIFIER_TIMEOUT_MS` | `25000` | 100 a 30000; com `gemini`, mínimo 10000 | Demo e diagnóstico |
+| `QUALIFIER_MAX_CONTEXT_CHARS` | `8000` | 1000 a 20000 | Demo e diagnóstico |
+| `QUALIFIER_MAX_OUTPUT_CHARS` | `4000` | 500 a 12000; limita o texto bruto da resposta do Gemini | Demo e diagnóstico |
+| `DEMO_USERNAME`, `DEMO_PASSWORD` | — | Opcionais, as duas juntas ou nenhuma (vazio conta como ausente); usuário em `^[a-z0-9._-]{3,32}$`, senha de 12 a 128 caracteres | Demo e `attendant:seed-demo` |
+
+Mensagens de erro de configuração citam só os nomes das variáveis, nunca os valores.
+
+## Scripts
+
+Scripts de `apps/api/package.json`. Eles esperam a API já compilada em `dist/`; os scripts da raiz, descritos no [README principal](../../README.md), compilam antes de chamar estes.
+
+| Script | Finalidade |
+|---|---|
+| `build` | Compila com `tsc` para `dist/` |
+| `typecheck` | Verifica os tipos sem emitir arquivos |
+| `start` | Executa `dist/index.js`: só a API com o webhook |
+| `start:demo` | Executa `dist/demo.js`: API, telas e worker |
+| `simulate:message` | Envia o exemplo versionado ao webhook local |
+| `test` | Testes sem banco |
+| `test:integration` | Testes com PostgreSQL em bancos descartáveis |
+| `db:check` | Testa a conexão com o banco do `.env` |
+| `db:migrate` | Aplica as migrações pendentes no banco do `.env` |
+| `attendant:create` | Cria um atendente: `attendant:create -- <usuario> "<nome>"` |
+| `attendant:set-password` | Troca a senha e encerra as sessões: `attendant:set-password -- <usuario>` |
+| `attendant:seed-demo` | Cria ou atualiza o atendente de demonstração |
+
+## Testes
+
+- **`test`:** 33 arquivos com `node --test`. Cobrem configuração, contratos, casos de uso, adapters, HTTP (em porta aleatória), CLI de atendentes e leitura de senha. Não abrem banco nem precisam de `.env`. Também rodam no `npm run check` da raiz.
+- **`test:integration`:** 15 arquivos. Cobrem as migrações, a recepção, a fila de jobs, o contexto, o plano de resposta, o fluxo completo do simulador e o login no painel.
+  - **Requisitos:** um PostgreSQL local (`127.0.0.1`, `localhost` ou `::1`) em execução, como o do `compose.yaml`, e o `.env` da raiz para a conexão.
+  - **Isolamento:** cada suíte cria o próprio banco descartável, aplica as migrações nele e o apaga no fim. Nenhuma escreve no banco do projeto.
+
+## Documentação
 
-A aplicação pode depender dos contratos públicos de `@copilot-leads/shared`. Os contratos não dependem desta aplicação. Os tipos do Node estão habilitados apenas neste ambiente.
-
-`src/index.ts` compõe configuração, pool PostgreSQL, persistência e aplicação HTTP. A aplicação HTTP também pode ser construída separadamente nos testes, sem abrir banco. Os comandos de infraestrutura continuam executáveis separadamente.
-
-## Banco de dados
-
-- `src/config/database.ts`: valida as variáveis `POSTGRES_*` com Zod e retorna a configuração tipada.
-- `src/infrastructure/database/pool.ts`: cria o pool `pg`, sem conexão global aberta ao importar o arquivo.
-- `src/scripts/check-database.ts`: consulta banco e usuário pela conexão da aplicação e encerra o pool.
-- `src/scripts/migrate-database.ts`: aplica migrações SQL com `node-pg-migrate` e mantém o histórico em `public.pgmigrations`.
-- `migrations/1793750400000_create_contacts.sql`: primeira migração SQL de negócio, verificada em banco descartável e encontrada registrada no banco do projeto. `.gitkeep` permanece ignorado pelo carregador.
-- `src/infrastructure/database/contacts-migration.integration.test.ts`: teste separado que cria um banco descartável para validar essa migração; oito cenários verificados.
-- `migrations/1793750401000_create_conversations.sql`: migração da etapa 4.4, com referência a contatos e índice único parcial para conversa aberta; verificada em banco descartável e aguardando aplicação acompanhada no projeto.
-- `src/infrastructure/database/conversations-migration.integration.test.ts`: nove cenários de conversas verificados em banco descartável em 05/11/2026.
-- `migrations/1793750402000_create_messages.sql`: etapa 4.5, com referência a conversas, tipo de conteúdo e unicidade por provedor e ID externo; aguardando revisão antes da aplicação ao projeto.
-- `src/infrastructure/database/messages-migration.integration.test.ts`: dez cenários de mensagens, incluindo duplicatas concorrentes e reversão que preserva contatos e conversas.
-- `migrations/1793750403000_create_jobs.sql`: etapa 4.6, com referência a mensagens, unicidade por tipo e mensagem, estados, tentativas e índice de busca; aguardando revisão antes de aplicar ao projeto.
-- `src/infrastructure/database/jobs-migration.integration.test.ts`: onze cenários de jobs em banco descartável.
-
-Na raiz do monorepo, execute `npm run db:check` para testar a conexão, `npm run db:migrate` para aplicar migrações pendentes e `npm run check` para verificar tipos, compilação e testes. Os comandos de banco compilam a API e carregam o `.env` da raiz com a opção nativa `--env-file` do Node. Eles exigem o PostgreSQL em execução. O migrador cria sua tabela de histórico mesmo quando não há arquivos de migração.
-
-Os tipos do banco e as consultas permanecerão no backend. Os contratos consumidos pelo painel continuam em `packages/shared`. Consulte o [guia da etapa 4.2](../../docs/10-etapa-4-acesso-ao-banco.md) para revisar a entrega.
-
-Na etapa 4.3, `npm run test:integration` aplica e reverte a migração em um banco descartável, separado das tabelas do projeto. `npm run check` continua executando apenas os testes de configuração, sem aplicar SQL nem abrir conexão com o banco. O [guia da migração de contatos](../../docs/11-etapa-4-migracao-de-contatos.md) explica os arquivos e os resultados. Na revisão, não foi necessário executar `db:migrate`: a conferência de leitura encontrou a migração já registrada em `copilot_leads`.
-
-Na etapa 4.4, `test:integration` passou a incluir os arquivos de contatos e de conversas, com bancos descartáveis independentes. Essa execução conjunta passou após a correção da expectativa de `restrict_violation` no teste de exclusão de contato com histórico. `npm run check` permanece sem acesso ao banco; `db:migrate` no banco do projeto continua para depois da revisão. O [guia da migração de conversas](../../docs/12-etapa-4-migracao-de-conversas.md) explica a dependência de contatos e o adiamento de `assigned_user_id` até existir `users`.
-
-O campo `exports: {}` declara que esta aplicação não oferece uma interface de pacote para importação pelo dashboard. As fronteiras entre os futuros módulos também precisarão ser respeitadas no código e na revisão.
-
-Na etapa 4.5, `test:integration` inclui também mensagens: oito cenários de contatos, nove de conversas e dez de mensagens, mais três agrupadores, totalizando 30 registros aprovados. Cada suíte usa seu próprio banco descartável; o SQL novo não foi aplicado ao banco do projeto. Nenhuma dependência foi instalada. O [guia de mensagens](../../docs/13-etapa-4-migracao-de-mensagens.md) explica as restrições e por que o tratamento de reenvios no caso de uso ainda fica para outra entrega.
-
-Na etapa 4.6, o comando inclui onze cenários de jobs. A execução conjunta passou em 42 registros, incluindo quatro agrupadores. As quatro suítes agora fornecem um `dbClient` ao migrador e aguardam `migrationClient.end()` em `finally`, antes de remover o banco descartável. Isso corrige uma falha observada na limpeza da suíte de contatos: a versão instalada do migrador iniciava o encerramento de sua conexão sem aguardar a conclusão. O SQL das migrações anteriores e os cenários existentes não foram alterados. O [guia de jobs](../../docs/14-etapa-4-migracao-de-jobs.md) explica a correção, as restrições e o processamento ainda pendente. Nenhuma dependência foi instalada nem executado `db:migrate` no banco do projeto.
-
-## Módulo de mensageria — etapa 4.7
-
-O primeiro bloco está em `src/modules/messaging`:
-
-- `contracts/normalized-message.ts`: schema Zod e tipo derivado da mensagem normalizada, separados do payload específico de um provedor.
-- `application/incoming-message-inbox.ts`: porta de persistência e tipos do comando e resultado. A etapa 4.8 acrescenta sua implementação PostgreSQL em `infrastructure`.
-- `application/receive-message.ts`: caso de uso; solicita processamento somente para texto e depende da porta, sem importar `pg`, Express ou Zod em execução.
-- `input/receive-message.ts`: entrada interna que valida `unknown`, retorna apenas nomes de campos inválidos e chama o caso de uso para dados válidos. Ainda não é uma rota HTTP.
-
-Os testes do caso de uso e da entrada usam substitutos da porta para observar comandos, resultados e erros, sem abrir banco ou servidor. `npm run check` e `npm test` agora incluem esses testes: 16 aprovados no total, junto dos seis de configuração. Os 42 registros de integração da etapa anterior não foram repetidos nesta preparação, pois não houve alteração de SQL, acesso a banco ou infraestrutura dos testes de integração.
-
-O [guia da etapa 4.7](../../docs/15-etapa-4-contrato-de-recepcao.md) apresenta a ordem de revisão, as dependências e o que falta para receber e persistir um webhook real. Não foram instaladas dependências nem aplicadas migrações nesta etapa.
-
-## Recepção PostgreSQL — etapa 4.8
-
-- `modules/messaging/infrastructure/serialize-message-payload.ts`: valida o original como valor JSON com Zod e o serializa antes de reservar uma conexão; erros não incluem seu conteúdo.
-- `modules/messaging/infrastructure/postgres-incoming-message-inbox.ts`: implementa `IncomingMessageInbox`, recebendo o pool por construtor. Reserva um cliente e usa a mesma conexão para toda a transação, incluindo rollback e liberação.
-- `modules/messaging/infrastructure/serialize-message-payload.test.ts`: quatro testes sem banco para serialização, valores incompatíveis e erro seguro.
-- `modules/messaging/infrastructure/postgres-incoming-message-inbox.integration.test.ts`: doze cenários em banco descartável para gravação, reutilização, histórico, mídia, concorrência e rollback.
-
-Na etapa 4.8, a aplicação ainda não tinha servidor HTTP ou worker. O teste de integração conecta a entrada existente ao adaptador PostgreSQL real, aplicando as quatro migrações existentes apenas no banco criado pela própria suíte. Não foi necessário alterar a porta nem as camadas de entrada e aplicação.
-
-`npm run check` passou em tipos, compilação e 20 testes sem banco. `npm run test:integration` passou em 55 registros: os 42 anteriores e os doze cenários novos com seu agrupador. A primeira tentativa encontrou o PostgreSQL desligado; após iniciar Docker Desktop e o serviço do Compose, a execução completa e a limpeza passaram. Nenhuma dependência, variável de ambiente ou migração foi alterada. Consulte o [guia da etapa 4.8](../../docs/16-etapa-4-recepcao-postgresql.md).
-
-## Webhook local e simulador — etapa 4.9
-
-`POST /webhooks/simulator` recebe JSON do simulador, traduz para a mensagem normalizada e aguarda a confirmação da persistência antes de responder `200`. Mensagens próprias são ignoradas e não chegam ao caso de uso. Os erros usam `code`, `message`, `correlationId` e, na validação, `details.fields`, sem conteúdo original ou detalhes do PostgreSQL.
-
-A composição principal está em `src/http/app.ts`. O router do módulo fica em `modules/messaging/http/simulator-webhook-router.ts`, o adapter em `modules/messaging/adapters/simulator-message.ts` e o tratamento comum de erros em `http/http-errors.ts`. `http/listen-http.ts` abre o servidor em `127.0.0.1`; `config/http.ts` valida `API_PORT`, opcional, padrão 3000. A variável foi acrescentada somente ao `.env.example`.
-
-Na raiz, use `npm run start:api` e, em outro terminal, `npm run simulate:message`. O comando do simulador lê `examples/simulator/text-message.json` nesta aplicação, mantendo seu ID fixo para demonstrar reenvio. Antes da execução manual, as quatro migrações anteriores precisam estar aplicadas no banco configurado pelo autor. A API verifica a conexão ao iniciar, mas não aplica migrações automaticamente.
-
-Foram instalados Express `5.3.0` e os tipos `@types/express` `5.0.6`, com versões exatas e lockfile atualizado. `npm run check` passou em tipos, compilação e 43 registros sem banco, incluindo testes HTTP em porta aleatória e o cliente executável do simulador. A integração passou em 56 registros, incluindo o webhook conectado ao PostgreSQL descartável. Não foram criadas migrações nem gravados exemplos no banco do projeto durante os testes automatizados.
-
-Em 11/11/2026, o autor executou e aprovou os dez cenários manuais no Postman, incluindo três variações de payload inválido e uma verificação adicional após o erro 413. Esses envios persistiram dados sintéticos no banco do projeto; o Codex conferiu os resultados com `SELECT`, sem modificar diretamente os dados ou executar migrações nesse banco. Consulte o [guia da etapa 4.9](../../docs/17-etapa-4-webhook-simulador.md) para os resultados, a revisão e os avisos de auditoria das dependências de desenvolvimento.
-
-## Reivindicação de jobs — etapa 4.10
-
-`modules/jobs/application/job-queue.ts` define a porta de reserva e o resultado interno. O caso de uso `claim-next-job.ts` solicita apenas `processar_mensagem`; não conhece PostgreSQL ou HTTP. `modules/jobs/infrastructure/postgres-job-queue.ts` implementa a reserva com uma única instrução SQL, usando `FOR UPDATE SKIP LOCKED` e `UPDATE ... RETURNING` na mesma transação implícita.
-
-A consulta considera somente jobs pendentes, com agendamento atingido e tentativas disponíveis, e reserva no máximo um por chamada. A reserva muda o estado para `processando`, incrementa `attempts` e preenche `locked_at`. Jobs indisponíveis retornam ausência de trabalho; falhas continuam sendo propagadas. Conclusão e novas tentativas foram acrescentadas na etapa 4.11; recuperação, na etapa 4.12. O processamento automático continua pendente.
-
-O módulo ainda não está conectado ao ponto de entrada da API e não consome os jobs existentes. Não foram adicionadas dependências ou migrações. `npm run check` passou com 46 registros sem banco e `npm run test:integration` com 66 registros em bancos descartáveis. As contagens e os hashes dos registros do banco do projeto permaneceram iguais antes e depois. Consulte o [guia da etapa 4.10](../../docs/18-etapa-4-reivindicacao-de-jobs.md) para a ordem de revisão e os comandos.
-
-## Finalização e novas tentativas — etapa 4.11
-
-`modules/jobs/application/job-lifecycle.ts` define uma porta separada para finalizar tentativas. `complete-job.ts` solicita conclusão; `fail-job.ts` usa `retry-policy.ts` para classificar a decisão e calcular espera exponencial de cinco segundos, limitada a sessenta. A infraestrutura confere o limite atual do banco antes de reagendar e registra somente códigos controlados de erro.
-
-`PostgresJobQueue` implementa as duas portas. Os métodos novos exigem ID, estado `processando` e contador da tentativa atual. Se a reserva não corresponder, retornam `reserva_desatualizada` sem sobrescrever a linha. Sucesso limpa trava e erro; falha transitória com saldo volta para pendente; limite atingido ou falha definitiva encerra como `falhou`. O contador aumenta somente ao reservar.
-
-Na revisão foi acrescentada a validação defensiva de `delaySeconds` antes do SQL: com retry, o intervalo deve ser finito, maior que zero e no máximo sessenta segundos. Passaram 56 registros sem banco e 84 de integração. Não houve instalação de pacotes, novas migrações ou alterações de credenciais. A entrega foi revisada e enviada ao remoto. O [guia da etapa 4.11](../../docs/19-etapa-4-finalizacao-de-jobs.md) apresenta o fluxo de revisão e os comandos.
-
-## Recuperação de jobs interrompidos — etapa 4.12
-
-`modules/jobs/application/job-recovery.ts` define a terceira porta, separada de reserva e finalização. `recover-expired-jobs.ts` solicita recuperação de `processar_mensagem`, com prazo de 120 segundos e lote de 100. A infraestrutura valida as opções, seleciona reservas expiradas com `FOR UPDATE SKIP LOCKED` e atualiza o lote em uma única instrução.
-
-Com saldo, o mesmo job volta a `pendente` e fica disponível imediatamente; sem saldo, fica `falhou`. Os dois caminhos limpam `locked_at` e registram `processing_reservation_expired`. O contador é preservado e só aumenta na próxima reserva. Finalizações antigas deixam de corresponder ao estado ou contador após a recuperação.
-
-Na validação final passaram tipos, compilação, 59 registros sem banco e 101 de integração, incluindo o lote padrão e a fronteira exata do prazo. A entrega foi revisada e enviada ao remoto. Nenhuma dependência, migração ou credencial mudou. A operação ainda não é executada periodicamente e não está ligada ao ponto de entrada da API. O [guia da etapa 4.12](../../docs/20-etapa-4-recuperacao-de-jobs.md) apresenta a ordem de revisão e a política de conclusão tardia antes da recuperação.
-
-## Contexto da mensagem — etapa 4.13
-
-`modules/messaging/contracts/message-processing-context.ts` define o schema Zod e deriva o tipo de leitura interno. A porta `MessageProcessingContextReader` e o caso de uso `loadMessageProcessingContext` ficam na aplicação; `PostgresMessageProcessingContextReader` faz um SELECT parametrizado com JOINs por mensagem, conversa original e contato. O resultado é validado antes de entrar na aplicação, sem carregar o JSON bruto.
-
-A leitura preserva campos nulos, os seis estados, direção e remetente. Mensagem inexistente retorna `undefined`; falhas são propagadas e dados incompatíveis com o schema recebem erro sem valores sensíveis. `createdAt` representa a data de persistência. O contexto é uma fotografia e não autoriza resposta automática ou substitui controles de concorrência do futuro processador.
-
-Passaram tipos, compilação, 62 registros sem banco e 111 de integração. As contagens e hashes das tabelas do projeto permaneceram iguais, e não restaram bancos descartáveis. Não houve instalação de pacotes, novas migrações ou alterações de credenciais. O leitor ainda não está ligado à composição da API ou ao consumo da fila. O [guia da etapa 4.13](../../docs/21-etapa-4-contexto-da-mensagem.md) contém a ordem de revisão e os comandos.
-
-## Perfil configurável do negócio — etapa 4.14
-
-`config/business-profile.json` contém um perfil fictício de demonstração com nome, fuso, moeda, horários, serviços, valores em centavos, menu e textos-base. O módulo `business-profile` define o schema Zod e a porta `BusinessProfileReader`; `loadBusinessProfile` solicita a configuração sem conhecer arquivos ou banco.
-
-`JsonBusinessProfileReader` lê o arquivo por um caminho relativo ao módulo, interpreta JSON como `unknown` e valida o schema. Cada chamada faz uma nova leitura. Arquivo indisponível, JSON malformado e perfil inválido têm códigos separados, com mensagens sem conteúdo ou caminho fornecido. Não há fallback silencioso para o perfil de demonstração.
-
-O build TypeScript não copia o JSON: a pasta `config` deve acompanhar a estrutura da API. O perfil ainda não é carregado pela composição principal. Composição de mensagens, cálculo de expediente, decisões por estado e campos extras de qualificação por IA ficam para seus próprios blocos.
-
-Passaram tipos, compilação e 78 registros sem banco, incluindo 16 testes novos do contrato, aplicação e arquivos reais temporários. A integração PostgreSQL não foi repetida; seus caminhos e scripts não mudaram e não houve acesso ao banco. Nenhuma dependência, migração ou credencial mudou. O [guia da etapa 4.14](../../docs/22-etapa-4-perfil-do-negocio.md) contém os dados propostos, a ordem de revisão e os comandos.
-
-## Decisão de processamento por estado — etapa 4.15
-
-`modules/messaging/contracts/message-processing-decision.ts` define as intenções internas. `application/decide-message-processing.ts` recebe contexto, opções do perfil e indicação obrigatória de abertura pendente/enviada, retornando a ação e, quando aplicável, o estado proposto. Não realiza leituras, gravações, envios ou chamadas à IA.
-
-A regra usa o menu configurado, diferencia texto livre de escolha numérica e preserva silêncio nos estados humanos e encerrados. Em `qualificando`, retorna adiamento para não iniciar outra extração ou propor o descarte da mensagem. O tratamento desse adiamento e a fonte persistida do controle de abertura ficam para a integração com o executor.
-
-Passaram tipos, compilação e 93 registros sem banco, incluindo 15 testes novos. Não houve dependências novas, acesso ao PostgreSQL ou Docker; os testes PostgreSQL inalterados não foram repetidos. A função ainda não está ligada ao webhook, à composição principal ou ao worker. O [guia da etapa 4.15](../../docs/23-etapa-4-decisao-de-processamento.md) contém a matriz de regras, os limites e a ordem de revisão.
-
-## Composição de mensagens e expediente — etapa 4.16
-
-`modules/business-profile/application/is-business-open.ts` verifica as faixas para um instante explícito no fuso do perfil, incluindo o início e excluindo o fim. `modules/messaging/application/compose-message-response.ts` transforma a decisão e o perfil em uma lista ordenada de textos. Compõe nome/saudação, menu, serviços, preços, horários e perguntas; somente a abertura fora do expediente inclui o aviso com horários.
-
-As funções não consultam o relógio ou a infraestrutura e preservam as entradas. Dias sem faixas aparecem fechados. Preços nulos permanecem não informados; a formatação preserva centavos em todo o intervalo de inteiros seguros do contrato. Recepções, qualificações, silêncio e adiamento não produzem texto adicional.
-
-Passaram tipos, compilação e 115 registros sem banco, com 22 testes novos. Nenhuma dependência, credencial ou migração mudou; não houve acesso ao PostgreSQL ou Docker. Os testes PostgreSQL inalterados não foram repetidos. Não há ligação com webhook/worker ou envio de mensagens. O [guia da etapa 4.16](../../docs/24-etapa-4-composicao-de-mensagens.md) apresenta as regras de expediente, os limites da composição e a ordem de revisão.
-
-## Contrato do plano de resposta — etapa 4.17
-
-`modules/messaging/contracts/message-response-plan.ts` valida o rascunho: origem interna, estado esperado, ação textual, instante de referência e blocos não vazios com posições consecutivas. `MessageResponsePlanStore` define a futura gravação atômica e seus resultados. `prepareMessageResponsePlan` confere a reserva/mensagem, usa a data de persistência da mensagem como referência de expediente, compõe os textos e entrega o plano inteiro à porta.
-
-O caso de uso preserva resultados de plano existente, conflitos e adiamentos; não confirma envio ou conclusão de job. A modelagem propõe `response_plans` e `response_blocks`, diferencia abertura preparada de enviada e exige preservação do primeiro snapshot salvo. Não há implementação da porta, tabela ou migração nesta entrega.
-
-Passaram tipos, compilação e 131 registros sem banco, incluindo 16 testes novos. Os substitutos não comprovam concorrência, rollback ou idempotência PostgreSQL. Não houve acesso ao banco, Docker, dependências novas ou mudanças de credenciais. O [guia da etapa 4.17](../../docs/25-etapa-4-contrato-do-plano-de-resposta.md) apresenta o modelo proposto, os limites e o fluxo de revisão.
-
-## Migração dos planos e blocos — etapa 4.18
-
-`1794787200000_create_response_plans.sql` cria planos e blocos, adicionando chaves únicas de apoio em `messages` e `jobs` para conferir os vínculos compostos. Protege um plano por mensagem, abertura única e um pendente por conversa, além de posições e confirmações de bloco coerentes. `response_blocks.conversation_id` permite conferir também a conversa da mensagem confirmada.
-
-A suíte nova verifica as restrições, corridas de unicidade, rollback explícito, reaplicação e reversão, somente em banco descartável. Quatro suítes existentes passaram a incluir as duas tabelas na limpeza por `TRUNCATE`, sem `CASCADE` ou alterações de produção. Passaram tipos, compilação, 131 registros sem banco e 131 de integração. O banco principal manteve as mesmas contagens/hashes e quatro migrações; as novas tabelas não foram aplicadas nele. Não restaram bancos descartáveis.
-
-Não há implementação da porta, confirmação de envio ou worker nesta entrega. A migração não valida a tentativa atual, FIFO entre mensagens ou quantidade/contiguidade de todos os blocos. O [guia da etapa 4.18](../../docs/26-etapa-4-migracao-dos-planos-de-resposta.md) apresenta as garantias, os limites e a ordem de revisão.
-
-## Preparação PostgreSQL dos planos — etapa 4.19
-
-`modules/messaging/infrastructure/postgres-message-response-plan-store.ts` implementa a porta existente, validando o comando antes da conexão. A transação `READ COMMITTED` bloqueia job, conversa e mensagem nessa ordem, confere a tentativa e os vínculos, reconhece o original e só então exige as condições de uma nova preparação. Plano e todos os blocos usam o mesmo cliente; erro provoca rollback.
-
-Abertura pendente adia outra mensagem; cancelada não autoriza recriação. Menu exige abertura enviada, e outra resposta pendente também adia a preparação. Uma nova tentativa válida do mesmo job reconhece o plano original sem sobrescrever seu conteúdo, mesmo após avanço de estado/perfil. O resultado existente não autoriza envio. Os 120 segundos continuam tornando o job recuperável, sem revogação automática da tentativa.
-
-Passaram tipos, compilação, 131 registros sem banco e 155 de integração, com 23 cenários novos e seu agrupador. As sete tabelas auditadas do projeto mantiveram contagens/hashes e não restaram bancos descartáveis. Não há migração nova, dependência instalada, ligação do adapter à composição da API ou execução automática. O [guia da etapa 4.19](../../docs/27-etapa-4-preparacao-postgresql-do-plano.md) apresenta os testes, o aviso observado na suíte existente de recuperação e a ordem de revisão.
-
-## Leitura do plano persistido — etapa 4.20
-
-`MessageResponsePlanSnapshot` descreve o plano original com blocos ordenados, status, datas e confirmações. Reutiliza os campos de criação, mas valida também a representação do progresso. `MessageResponsePlanReader` define a consulta por UUID da mensagem de origem; `loadMessageResponsePlan` delega sem conhecer PostgreSQL ou recompor textos.
-
-`PostgresMessageResponsePlanReader` valida o UUID antes do SQL e lê plano/blocos numa única instrução com `LEFT JOIN` e ordenação por posição. Ausência retorna `undefined`; plano sem blocos ou incoerente rejeita com mensagem fixa; falhas SQL são propagadas. A leitura inclui enviados/cancelados e conversas encerradas, sem reservar jobs, autorizar envio ou reparar dados.
-
-Passaram tipos, compilação, 144 registros sem banco e 169 de integração, com dez testes novos de contrato, três de aplicação e 13 cenários PostgreSQL mais seu agrupador. Contagens/hashes das sete tabelas auditadas permaneceram iguais e não restaram bancos descartáveis. Nenhuma migração ou dependência mudou; o leitor ainda não está conectado ao webhook ou worker. O [guia da etapa 4.20](../../docs/28-etapa-4-leitura-do-plano-de-resposta.md) apresenta o fluxo de revisão, as regras de coerência e o aviso observado na suíte existente de reivindicação.
+- [Documentação do projeto](../../docs/), com as decisões D1 a D23 no [documento 2](../../docs/02-decisoes-de-arquitetura.md).
+- [Histórico de etapas](../../docs/36-historico-de-etapas.md), que inclui o histórico da API até a etapa 4.20, antes mantido neste arquivo.
