@@ -44,7 +44,7 @@ npm run db:migrate
 npm run start:demo
 ```
 
-Apenas a **sétima migração** deve estar pendente se as seis anteriores já foram aplicadas. Ela **não foi aplicada ao banco principal pelo Codex**. Não apaga dados existentes. A reversão, testada exclusivamente em banco descartável, remove apenas a reserva e a coluna adicionadas; não use down para desfazer dados reais de qualificação sem planejar sua preservação.
+**Cada ambiente tem o próprio banco:** a aplicação depende das migrações aplicadas no banco configurado no `.env` de cada ambiente, e o repositório não registra quais já foram aplicadas em cada um. `npm run db:migrate` aplica só as pendentes. Hoje são oito migrações; a oitava, de atendentes, veio depois desta entrega ([documento 34](34-login-de-atendentes.md)). **Registro da entrega de 17/11/2026:** na época, apenas a **sétima migração** deveria estar pendente se as seis anteriores já tivessem sido aplicadas, e ela **não foi aplicada ao banco principal pelo Codex**. Não apaga dados existentes. A reversão, testada exclusivamente em banco descartável, remove apenas a reserva e a coluna adicionadas; não use down para desfazer dados reais de qualificação sem planejar sua preservação.
 
 ## Configuração
 
