@@ -208,3 +208,15 @@ Levantadas na entrega [login de atendentes](34-login-de-atendentes.md) (D23). Fi
 - **Impacto:** nenhum com os navegadores atuais e o cookie `SameSite=Lax`. Passaria a importar se surgir um cliente que envie o cookie sem um `Origin` confiável.
 - **Situação:** registro preventivo.
 - **Próximo passo:** se esse cliente surgir, acrescentar um token sincronizador por sessão nas requisições que alteram estado.
+
+## 7. Pendências depois da v1
+
+Itens que o autor decidiu deixar para depois da v1.
+
+### 7a. Campos de qualificação na configuração do negócio
+
+- **O que é:** a configuração do negócio não tem os campos de qualificação previstos no RF14 original (intenção, serviço, prazo e resumo, como campos configuráveis).
+- **Onde:** [apps/api/config/business-profile.json](../apps/api/config/business-profile.json) e o caso de uso que lê a configuração em [apps/api/src/modules/business-profile/](../apps/api/src/modules/business-profile/) (`load-business-profile.ts`).
+- **Impacto:** a qualificação usa os campos fixos definidos no código; trocar esses campos exige alteração de código, e não só de configuração.
+- **Situação:** registrado como pendência após a v1, por decisão do autor, ao editar o RF14.
+- **Próximo passo:** decidir, depois da v1, se os campos entram na configuração ou se continuam no código.
