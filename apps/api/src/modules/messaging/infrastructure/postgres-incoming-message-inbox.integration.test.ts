@@ -292,6 +292,52 @@ test("recepção PostgreSQL em banco descartável", { timeout: 60000 }, async (t
       deepEqual(await counts(), before);
     });
 
+    await t.test("nome de perfil: grava, sobrescreve, ignora duplicata, ausência e eco, e rejeita excesso sem ecoar", async () => {
+      const server = await listenHttp(createHttpApp(inbox, () => {}), 0);
+      try {
+        const address = server.address();
+        ok(address !== null && typeof address !== "string");
+        const url = `http://127.0.0.1:${address.port}/webhooks/simulator`;
+        const from = nextPhone();
+        const payload = (profileName?: unknown, id = randomUUID()) => ({ id, from, fromMe: false, type: "text",
+          body: "Olá! Mensagem sintética.", timestamp: "2026-11-10T12:00:00Z", ...(profileName === undefined ? {} : { profileName }) });
+        const post = async (body: unknown) => {
+          const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          return { status: response.status, text: await response.text() };
+        };
+        const storedName = async () => (await pool.query<{ display_name: string | null }>(
+          "SELECT display_name FROM public.contacts WHERE phone = $1;", [from])).rows[0]?.display_name;
+
+        const first = payload("  Perfil Sintético A  ");
+        equal((await post(first)).status, 200);
+        equal(await storedName(), "Perfil Sintético A");
+
+        equal((await post(payload("Perfil Sintético B"))).status, 200);
+        equal(await storedName(), "Perfil Sintético B");
+
+        const duplicate = await post({ ...first, profileName: "Perfil Sintético C" });
+        equal(duplicate.status, 200); ok(duplicate.text.includes("duplicada"));
+        equal(await storedName(), "Perfil Sintético B");
+
+        equal((await post(payload())).status, 200);
+        equal((await post(payload("   "))).status, 200);
+        equal(await storedName(), "Perfil Sintético B");
+
+        const echo = await post({ ...payload("Perfil Sintético D"), fromMe: true });
+        equal(echo.status, 200); ok(echo.text.includes("ignorada"));
+        equal(await storedName(), "Perfil Sintético B");
+
+        const before = await counts();
+        const tooLong = "Z".repeat(81);
+        const rejected = await post(payload(tooLong));
+        equal(rejected.status, 400); ok(rejected.text.includes("profileName")); ok(!rejected.text.includes(tooLong));
+        deepEqual(await counts(), before);
+        equal(await storedName(), "Perfil Sintético B");
+      } finally {
+        await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      }
+    });
+
     await t.test("webhook HTTP conecta adapter e transação real, reconhecendo reenvio e ignorando eco", async () => {
       const server = await listenHttp(createHttpApp(inbox, () => {}), 0);
       try {

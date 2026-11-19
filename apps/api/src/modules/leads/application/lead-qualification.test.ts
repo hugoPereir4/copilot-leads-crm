@@ -328,3 +328,20 @@ test("falha, timeout e saída inválida concluem com fallback; reserva interromp
     await processor.execute(work, profile); equal(finished, 1); equal(calls, scenario === "interrompida" ? 0 : 1);
   }
 });
+
+test("contexto enviado ao qualificador e requisição Gemini não contêm o nome de perfil do contato", async () => {
+  const profileName = "Perfil Sintético Exclusivo";
+  const named: QualificationWork = { ...work, context: { ...work.context, contact: { ...work.context.contact, displayName: profileName } } };
+  const seen: string[] = [];
+  const store: QualificationExecutionStore = {
+    async begin() { return { status: "reservada", source: "simulated", previousMessages: ["Olá"] }; },
+    async finish() {},
+  };
+  await new QualifyMessage(store, { source: "simulated", async qualify(qualificationInput) {
+    seen.push(JSON.stringify(qualificationInput));
+    seen.push(JSON.stringify(geminiQualificationRequest(qualificationInput, "modelo-sintetico", new AbortController().signal)));
+    return simulated.qualify(qualificationInput);
+  } }, { timeoutMs: 1000, maxContextChars: 8000 }).execute(named, profile);
+  equal(seen.length, 2);
+  for (const serialized of seen) { ok(!serialized.includes(profileName)); ok(!serialized.includes(work.context.contact.phone)); }
+});

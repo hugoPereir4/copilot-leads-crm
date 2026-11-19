@@ -149,6 +149,20 @@ test("fluxo vertical do simulador em banco descartável", { timeout: 60000 }, as
       ok((await history.json() as unknown[]).length >= 5);
     });
 
+    await t.test("read model e API do painel devolvem contactName, nulo quando o perfil não tem nome", async () => {
+      const named = phone(), unnamed = phone();
+      const response = await fetch(`${url}/webhooks/simulator`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: randomUUID(), from: named, fromMe: false, type: "text", body: "Olá", timestamp: new Date().toISOString(),
+          profileName: "Perfil Sintético do Painel" }) });
+      equal(response.status, 200);
+      await receive(unnamed, "Olá");
+      const byPhone = (rows: { phone: string; contactName: string | null }[]) => Object.fromEntries(rows.map((row) => [row.phone, row.contactName]));
+      deepEqual(byPhone(await read.conversations()), { [named]: "Perfil Sintético do Painel", [unnamed]: null });
+      const api = await fetch(`${url}/api/demo/conversations`, authed()); equal(api.status, 200);
+      deepEqual(byPhone(await api.json() as { phone: string; contactName: string | null }[]),
+        { [named]: "Perfil Sintético do Painel", [unnamed]: null });
+    });
+
     await t.test("serviços e valores conduzem detalhes vagos à qualificação simulada com Revisar", async () => {
       for (const action of ["informar_servicos", "informar_valores_horarios"]) {
         const contact = phone(); await receive(contact, "Oi"); await drain();

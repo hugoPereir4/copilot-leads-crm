@@ -23,13 +23,13 @@ const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(setImm
 function nodes(element) { return [element, ...element.children.flatMap(nodes)]; }
 
 async function page({ saved = "light", blockedStorage = false, inAttendance = false, confirm = true, qualification = null, qualified = false,
-  unauthorized = false } = {}) {
+  unauthorized = false, path = "/admin", contactName = null } = {}) {
   const elements = new Map();
   const element = (id) => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   const document = { documentElement: new Element(), body: new Element(), getElementById: element, createElement: () => new Element() };
   const storage = new Map([["copilot-leads-theme", saved]]);
   const timers = [], assigned = [], logouts = []; let calls = 0, finish, lastPost, confirmations = 0;
-  let rows = [{ id: "conversation", phone: "+15550114921", status: inAttendance ? "em_atendimento_humano" : "aguardando_humano", failedJobs: 0,
+  let rows = [{ id: "conversation", phone: "+15550114921", contactName, status: inAttendance ? "em_atendimento_humano" : "aguardando_humano", failedJobs: 0,
     lead: { id: "lead", stage: inAttendance ? "em_atendimento" : qualified ? "qualificado" : "novo", needsReview: true, summary: qualification?.summary ?? null, qualification } }];
   const fetch = async (url, options) => {
     if (url === "/api/auth/logout") { logouts.push(options); return { ok: true, status: 204 }; }
@@ -38,8 +38,8 @@ async function page({ saved = "light", blockedStorage = false, inAttendance = fa
     if (options?.method === "POST") { calls++; lastPost = { url, ...options }; return new Promise((resolve) => { finish = resolve; }); }
     return { ok: true, status: 200, json: async () => url.endsWith("/messages") ? [] : structuredClone(rows) };
   };
-  const location = { pathname: "/admin", assign(url) { assigned.push(url); } };
-  const context = { document, location, fetch, console, setTimeout: (callback) => timers.push(callback),
+  const location = { pathname: path, assign(url) { assigned.push(url); } };
+  const context = { document, location, fetch, console, crypto: { randomUUID: () => "id-sintetico" }, setTimeout: (callback) => timers.push(callback),
     window: { confirm: () => { confirmations++; return confirm; } },
     matchMedia: () => ({ matches: true }), localStorage: {
       getItem(key) { if (blockedStorage) throw Error("Storage bloqueado"); return storage.get(key); },
@@ -158,4 +158,27 @@ test("401 em qualquer chamada redireciona uma vez para o login com a rota atual 
   deepEqual(ui.assigned, ["/login?next=%2Fadmin"]);
   equal(ui.timers.length, 0);
   equal(nodes(ui.element("board")).filter((node) => node.className === "lead-card").length, 0);
+});
+
+test("simulador envia profileName aparado só quando o campo está preenchido", async () => {
+  for (const [typed, expected] of [["  Perfil Sintético  ", "Perfil Sintético"], ["   ", undefined], ["", undefined]]) {
+    const ui = await page({ path: "/simulator" });
+    ui.element("profile-name").value = typed; ui.element("phone").value = "+15550114921"; ui.element("message").value = "Olá";
+    ui.element("message-form").events.get("submit")({ preventDefault() {} }); await flush();
+    const body = JSON.parse(ui.lastPost().body);
+    equal(ui.lastPost().url, "/webhooks/simulator");
+    equal(body.profileName, expected); equal("profileName" in body, expected !== undefined);
+  }
+});
+
+test("card mostra o nome de perfil com rótulo e mantém o telefone; sem nome, só o telefone", async () => {
+  const texts = (ui) => nodes(ui.element("board")).map((node) => node.textContent);
+  const named = await page({ contactName: "Perfil Sintético" });
+  ok(texts(named).includes("Nome do perfil do WhatsApp")); ok(texts(named).includes("Perfil Sintético"));
+  ok(texts(named).includes("+15550114921"));
+  const select = nodes(named.element("board")).find((node) => node.className === "conversation-select");
+  equal(select.textContent, "+15550114921"); equal(select.getAttribute("aria-label"), "Abrir conversa com Perfil Sintético, +15550114921");
+  const unnamed = await page();
+  ok(!texts(unnamed).includes("Nome do perfil do WhatsApp")); ok(texts(unnamed).includes("+15550114921"));
+  equal(nodes(unnamed.element("board")).filter((node) => node.className.includes("contact-fields")).length, 0);
 });

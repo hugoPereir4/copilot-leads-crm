@@ -45,3 +45,29 @@ test("exemplo versionado é aceito pelo adapter do simulador", async () => {
     new URL("../../../../examples/simulator/text-message.json", import.meta.url), "utf8"));
   equal(adaptSimulatorMessage(original).status, "normalizada");
 });
+
+test("profileName é opcional, aparado, vazio vira ausente e aceita até 80 caracteres", () => {
+  const name = (value: unknown) => {
+    const result = adaptSimulatorMessage({ ...payload, profileName: value });
+    ok(result.status === "normalizada");
+    return result.message;
+  };
+  const absent = adaptSimulatorMessage(payload);
+  ok(absent.status === "normalizada"); equal("profileName" in absent.message, false);
+  equal("profileName" in name("   "), false);
+  equal("profileName" in name(""), false);
+  equal(name("  Perfil Sintético  ").profileName, "Perfil Sintético");
+  const longest = "á".repeat(78) + "🙂🙂"; // 80 code points, 82 unidades UTF-16
+  equal(name(`  ${longest}  `).profileName, longest);
+});
+
+test("profileName com 81 caracteres ou tipo não texto é rejeitado só pelo caminho, sem ecoar o valor", () => {
+  const secret = "N".repeat(81);
+  for (const value of [secret, 42, null, ["Nome"], { name: "Nome" }]) {
+    const result = adaptSimulatorMessage({ ...payload, profileName: value });
+    deepEqual(result, { status: "invalida", fields: ["profileName"] });
+  }
+  ok(!JSON.stringify(adaptSimulatorMessage({ ...payload, profileName: secret })).includes(secret));
+  // Ecos próprios continuam ignorados sem validar nem levar o nome adiante.
+  deepEqual(adaptSimulatorMessage({ fromMe: true, profileName: secret }), { status: "ignorada", reason: "mensagem_propria" });
+});
