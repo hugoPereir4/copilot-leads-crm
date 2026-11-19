@@ -163,13 +163,13 @@ Na execução completa, em paralelo com as demais suítes, a suíte de fluxo lev
 
 1. Inicie o PostgreSQL, se necessário: `docker compose up -d --wait --wait-timeout 120 postgres`.
 2. Revise e aplique a migração nova: `npm run db:migrate`. Ela cria `attendants` e `attendant_sessions` e não altera as demais tabelas.
-3. Crie um atendente: `npm run attendant:create -- hugo "Hugo"`. Digite e confirme uma senha de 12 a 128 caracteres; cada tecla aparece como um asterisco; Backspace apaga o último. A saída mostra só `id` e `username`.
+3. Crie um atendente: `npm run attendant:create -- atendente.teste "Atendente Teste"`. Digite e confirme uma senha de 12 a 128 caracteres; cada tecla aparece como um asterisco; Backspace apaga o último. A saída mostra só `id` e `username`.
 4. Inicie a demonstração: `npm run start:demo`.
 5. Abra `http://127.0.0.1:3000/admin` (ou a porta de `API_PORT`). O navegador deve ir para `/login?next=%2Fadmin`.
-6. Tente uma senha errada: a mensagem é "Usuário ou senha inválidos." e o campo de senha fica vazio. Depois, entre com a senha certa: o painel abre e o cabeçalho mostra "Hugo".
+6. Tente uma senha errada: a mensagem é "Usuário ou senha inválidos." e o campo de senha fica vazio. Depois, entre com a senha certa: o painel abre e o cabeçalho mostra "Atendente Teste".
 7. Em `/simulator`, envie "Olá", aguarde o menu e envie "3". No `/admin`, o card Novo aparece, e **Assumir atendimento** e **Ganho/Perdido** funcionam como antes.
 8. Clique **Sair**: o navegador volta a `/login`. Abrir `/admin` de novo leva ao login.
-9. Entre de novo e deixe o painel aberto. Em outro terminal, rode `npm run attendant:set-password -- hugo` e defina uma nova senha. Em até um segundo, o painel detecta o `401` do polling e volta ao login. A senha antiga deixa de funcionar e a nova entra.
+9. Entre de novo e deixe o painel aberto. Em outro terminal, rode `npm run attendant:set-password -- atendente.teste` e defina uma nova senha. Em até um segundo, o painel detecta o `401` do polling e volta ao login. A senha antiga deixa de funcionar e a nova entra.
 
 **Nota:** o cookie de sessão é guardado por perfil do navegador. Para testar dois atendentes ao mesmo tempo, use perfis separados, ou uma janela normal e uma anônima. Janelas anônimas abertas ao mesmo tempo no mesmo navegador compartilham os cookies entre si.
 

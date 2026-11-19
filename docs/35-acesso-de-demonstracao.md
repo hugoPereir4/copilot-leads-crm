@@ -26,7 +26,7 @@ Quem avalia o projeto (por exemplo, um recrutador) entra no painel do deploy sem
 - **Seed:** `seedDemoAttendant` em `apps/api/src/scripts/attendant-admin.ts`, com as mesmas dependências injetadas (`AttendantStore`, `PasswordHasher`) das funções vizinhas.
   - Chama `createAttendant`. O caminho é decidido pelo **status** `duplicado`, nunca por texto de erro.
   - Com `duplicado`, chama `setAttendantPassword`, que troca o hash e apaga as sessões do atendente na mesma transação. Trocar `DEMO_PASSWORD` e rodar o seed de novo passa a valer na hora.
-  - **Proteção:** se o usuário existe e o nome de exibição não é "Atendente de demonstração", o seed se recusa a trocar a senha. Assim, `DEMO_USERNAME=hugo` por engano não redefine a senha de um atendente real.
+  - **Proteção:** se o usuário existe e o nome de exibição não é "Atendente de demonstração", o seed se recusa a trocar a senha. Assim, `DEMO_USERNAME=atendente.teste` por engano não redefine a senha de um atendente real.
 - **Comando:** `runSeedDemoCommand` lê o ambiente e devolve o código de saída, e `attendant-seed-demo-cli.ts` faz só a composição com PostgreSQL. O stdin não é tocado e a senha nunca é impressa; a saída mostra só `id` e `username`.
 - **Tela de login:** `apps/api/src/http/login-page.ts` insere o bloco antes do `<form id="login-form">`. O HTML é montado uma vez, quando `installPanel` é chamado; se o formulário mudar de forma e o ponto de inserção sumir, o startup falha. Todos os valores passam por escape HTML.
   - **Por que no servidor:** o repositório é público, e a senha do deploy não pode ficar no `login.html` versionado. O bloco é lido do ambiente de cada instalação.
