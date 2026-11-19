@@ -35,11 +35,11 @@ Inventário de tudo de que o projeto depende: ambiente, bibliotecas, ferramentas
 | **pino** | Logs estruturados com correlation id | **Não usado** | Não instalado. Os logs são `console` com JSON (`apps/api/src/demo.ts` usa `console.error(JSON.stringify(...))`). |
 | Hash de senha: **scrypt** do `node:crypto` | Guardar senhas dos atendentes | Núcleo, confirmado na D23 | Sem dependência nova (N = 2^17, r = 8, p = 1). Argon2 foi descartado na D23 por exigir binário nativo. Nunca armazenar senha em texto. |
 | Sessão / autenticação | Login do painel | Núcleo, confirmado na D23 | Sessão no servidor: cookie `copilot_session` `HttpOnly` com token aleatório, e só o SHA-256 do token na tabela `attendant_sessions`. Sem JWT e sem biblioteca de sessão. Detalhes no [documento 34](34-login-de-atendentes.md). |
-| Middlewares de segurança (CORS, cabeçalhos, rate limit) | Proteger a API e o endpoint do webhook | Recomendado | Opções para Express: `cors`, `helmet`, `express-rate-limit`; adoção e configuração nas entregas pertinentes. |
+| Middlewares de segurança (CORS, cabeçalhos, rate limit) | Proteger a API e o endpoint do webhook | **Não usado** | `cors`, `helmet` e `express-rate-limit` não foram instalados. Painel e API estão na mesma origem, sem CORS. Há uma checagem própria de `Origin` contra CSRF (`modules/auth/http/origin-guard.ts`) e limite de corpo no webhook (64 KiB). Não há limite de tentativas de login ([backlog técnico](33-backlog-tecnico.md), item 6a). |
 | Leitura de variáveis de ambiente | Carregar configuração | Núcleo | Node já aceita `--env-file`; ou **dotenv**. Valide as variáveis com Zod ao iniciar. |
-| **libphonenumber-js** | Normalizar telefones para formato internacional | Recomendado | Evita duplicar contatos por formatos diferentes de um mesmo número. |
+| **libphonenumber-js** | Normalizar telefones para formato internacional | **Não usado** | Não instalado. O simulador exige o telefone já no formato `+` e dígitos (regex no adapter e CHECK em `contacts`), sem normalização. |
 | SDK do provedor de IA | Chamar o LLM | Núcleo | Veja a seção 5. Esconda atrás de uma interface própria, como no adapter do WhatsApp. |
-| p-retry (ou lógica própria) | Novas tentativas com intervalo crescente | Opcional | Também dá para escrever à mão; é um bom exercício. |
+| p-retry (ou lógica própria) | Novas tentativas com intervalo crescente | **Não usado** | `p-retry` não foi instalado. A lógica é própria: `modules/jobs/application/retry-policy.ts` na fila e uma nova tentativa no adapter Gemini. |
 
 **O que não precisa de biblioteca:** requisições HTTP (o `fetch` nativo do Node basta), geração de UUID (`crypto.randomUUID`), SSE (é só HTTP com um cabeçalho específico) e o worker de jobs (um laço com consulta ao banco).
 
@@ -58,10 +58,10 @@ O painel atual usa HTML, CSS e TypeScript sem framework, compilados com `tsc`; `
 | **TanStack Query** | Cache e sincronização de dados do servidor | **Não usado** | O painel faz polling de 1 s com `fetch` (D9 revisada). |
 | **dnd-kit** | Arrastar e soltar cards entre colunas | **Não usado** | Não há arrastar e soltar; os cards mudam de coluna pelas ações Assumir, Ganho e Perdido. |
 | **Tailwind CSS** | Estilização | **Não usado** | CSS próprio em `apps/web/src/styles/`, com tokens para os temas claro e escuro. |
-| shadcn/ui ou similar | Componentes prontos (botões, modais, formulários) | Opcional | Acelera a interface, mas adiciona conceitos extras. |
-| react-hook-form | Formulário de login e filtros | Opcional | |
-| Zod | Validar respostas da API no cliente | Recomendado | Reaproveita os schemas do pacote compartilhado. |
-| lucide-react | Ícones | Opcional | |
+| shadcn/ui ou similar | Componentes prontos (botões, modais, formulários) | **Não usado** | Componentes próprios em CSS; o modal é um `<dialog>` nativo. |
+| react-hook-form | Formulário de login e filtros | **Não usado** | O login é um formulário HTML tratado em `apps/web/src/login.ts`. |
+| Zod | Validar respostas da API no cliente | **Não usado** | `apps/web` não depende de `zod`. O painel usa só os tipos de `@copilot-leads/shared`, que não tem schemas; a validação com Zod fica no backend. |
+| lucide-react | Ícones | **Não usado** | Os ícones dos cards são SVG inline em `apps/web/src/demo.ts`. |
 
 **Sem biblioteca:** `EventSource` (SSE) já vem no navegador, e formatação de datas pode usar `Intl`.
 
@@ -70,7 +70,7 @@ O painel atual usa HTML, CSS e TypeScript sem framework, compilados com `tsc`; `
 | Item | Para que serve | Observação |
 |---|---|---|
 | **npm workspaces** | Monorepo com `apps/api`, `apps/web` e `packages/shared` | Monorepo e gerenciador confirmados na D19; workspaces definidos no `package.json` da raiz. |
-| `packages/shared` | Schemas Zod e tipos de DTOs, eventos SSE e erros | Fonte única dos contratos, confirmada na D19; Zod confirmado na D21. |
+| `packages/shared` | Tipos TypeScript das requisições e respostas HTTP: `auth`, `demo`, `human-handoff`, `lead-closure` e `qualification` | Fonte única dos tipos compartilhados (D19). Não tem schemas Zod, eventos SSE nem tipos de erro; a validação com Zod (D21) fica no backend. |
 | `tsconfig` base | Configuração estrita comum | Cada app estende o arquivo base. |
 | Turborepo / Nx | Orquestração de tarefas | **Opcional e provavelmente desnecessário** para dois apps e um pacote. |
 
@@ -90,7 +90,9 @@ O painel atual usa HTML, CSS e TypeScript sem framework, compilados com `tsc`; `
 
 Independentemente da escolha, use um **chip dedicado** nos testes com número real, nunca o seu pessoal.
 
-### 5.2 API de IA (a decidir)
+### 5.2 API de IA
+
+**Implementado:** o padrão é o qualificador **simulado**, sem API externa (`QUALIFIER_PROVIDER=simulated` em `apps/api/src/config/qualification.ts`). O Google Gemini é um adapter opcional, com o SDK `@google/genai`, ativado só por `QUALIFIER_PROVIDER=gemini` (`apps/api/src/modules/leads/infrastructure/gemini-lead-qualifier.ts`). Ele fica atrás da interface `LeadQualifier`; detalhes no [documento 32](32-qualificacao-de-leads.md). As opções da tabela abaixo foram as avaliadas no planejamento.
 
 Requisitos mínimos para o seu uso: saída estruturada com JSON Schema (ou JSON confiável), controle de tempo limite, custo previsível e SDK oficial para Node.
 
@@ -122,17 +124,17 @@ Só é necessário ao usar um provedor real em desenvolvimento, porque o provedo
 
 | Ferramenta | Para que serve | Classificação |
 |---|---|---|
-| **tsx** | Executar TypeScript direto em desenvolvimento, com recarga | Recomendado |
+| **tsx** | Executar TypeScript direto em desenvolvimento, com recarga | **Não usado**: os scripts compilam com `tsc` e executam o JavaScript de `dist/` |
 | `@types/node` e tipos dos pacotes sem tipagem própria | Tipos para o compilador | Núcleo; `@types/node@24.19.2` instalado na etapa 3 |
-| **ESLint** + typescript-eslint | Regras de qualidade e proibição de `any` nas fronteiras | Núcleo |
-| **Prettier** | Formatação | Recomendado (ou Biome, que une lint e formatação) |
+| **ESLint** + typescript-eslint | Regras de qualidade e proibição de `any` nas fronteiras | **Não usado**: a verificação é o `tsc` em modo estrito (`npm run typecheck`) |
+| **Prettier** | Formatação | **Não usado** (nem Biome) |
 | **Vitest** | Testes unitários e de integração, nos dois lados | **Não usado**: os testes usam o `node:test` nativo do Node |
-| **Supertest** | Testar as rotas HTTP da aplicação Express sem manter um servidor separado | Recomendado |
+| **Supertest** | Testar as rotas HTTP da aplicação Express sem manter um servidor separado | **Não usado**: os testes HTTP sobem a aplicação em porta aleatória e usam `fetch` (por exemplo, `apps/api/src/http/app.test.ts`) |
 | **Testcontainers** | PostgreSQL real e descartável nos testes de integração | **Não usado**: cada suíte cria e apaga um banco descartável no PostgreSQL do Docker Compose |
 | React Testing Library + jsdom | Testar componentes | **Não usado**: os testes da web usam um DOM mínimo próprio, com `node:vm`, em `apps/web/scripts/` |
 | **Playwright** | Teste ponta a ponta do fluxo completo | **Não usado** |
-| Husky + lint-staged | Rodar lint e formatação antes de cada commit | Opcional |
-| Compilador de build (`tsc` ou **tsup**) | Gerar o JavaScript final do backend | Núcleo |
+| Husky + lint-staged | Rodar lint e formatação antes de cada commit | **Não usado** |
+| Compilador de build (`tsc` ou **tsup**) | Gerar o JavaScript final do backend | Núcleo: usa `tsc` em todos os pacotes; `tsup` **não usado** |
 
 Testes que valem priorizar (do documento 1): idempotência, máquina de estados e validação da saída da IA.
 
@@ -150,7 +152,7 @@ Testes que valem priorizar (do documento 1): idempotência, máquina de estados 
 
 | Item | Para que serve | Observação |
 |---|---|---|
-| Docker Compose | Subir banco, API e painel juntos com um comando | Excelente para o README do portfólio. |
+| Docker Compose | Subir o PostgreSQL local | O `compose.yaml` tem só o serviço `postgres`, com volume persistente e healthcheck. API, worker e painel rodam fora do container, com `npm run start:demo`. |
 | GitHub Actions | Integração contínua: lint, tipos e testes a cada push | **Não configurado**: o repositório não tem a pasta `.github/`. |
 | Dependabot ou Renovate | Atualização automática de dependências | **Não configurado**: o repositório não tem a pasta `.github/` nem configuração do Renovate. |
 | Hospedagem da API e do worker | Demonstração online | Opções comuns: Render, Railway, Fly.io. **Planos gratuitos mudam**: confira as condições atuais. |
