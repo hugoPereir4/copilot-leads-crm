@@ -104,8 +104,17 @@ Ainda não reproduzidos. Para os dois, o primeiro passo é um teste que reproduz
 - **O que é:** a suíte tem limite total de 60 s ([simulator-flow.integration.test.ts:37](../apps/api/src/infrastructure/simulator/simulator-flow.integration.test.ts#L37)). O `npm run test:integration` roda os arquivos em paralelo contra o mesmo container, e a suíte já levou 52,6 s.
 - **Onde:** a falha observada foi numa execução de `test:integration` na branch `fix/gemini-retry-transitorio`. A suíte estourou o limite (`test timed out after 60000ms`), o teste em andamento foi cancelado e os 26 seguintes não chegaram a rodar. Rodada sozinha, a mesma suíte passou em 19,5 s, e a execução completa seguinte passou.
 - **Impacto:** resultado intermitente na validação de integração. Uma falha por tempo pode esconder uma falha real, ou ser confundida com ela.
-- **Situação:** confirmado (falha observada uma vez, em seguida passou).
-- **Próximo passo:** resolver **antes de integrar na `main`**. Medir os tempos por teste e decidir entre dividir a suíte, ajustar o limite ou limitar a concorrência das suítes.
+- **Medição de 19/11/2026** (branch `docs/readme-principal`, commit `374a8f3`, PostgreSQL do `compose.yaml`): três execuções seguidas de `npm run test:integration`, todas aprovadas, com 230 de 230 testes.
+
+  | Execução | Início | Total do `node --test` | Suíte "fluxo vertical do simulador" | Folga até 60 s |
+  |---|---|---|---|---|
+  | 1 | 18:00:52 | 43,1 s | 38,6 s | 21,4 s |
+  | 2 | 18:01:53 | 34,9 s | 31,2 s | 28,8 s |
+  | 3 | 18:02:37 | 36,3 s | 32,8 s | 27,2 s |
+
+  As durações são as que o `node --test` informa para cada suíte; o total não inclui a compilação feita antes pelo script. As suítes rodam em paralelo, então a duração de cada uma inclui a espera pelo banco compartilhado. A primeira execução, mais lenta, também foi a de maior duração nas outras suítes.
+- **Situação:** não reproduzida nas medições de hoje. As três execuções passaram com pelo menos 21 s de folga; a maior duração da suíte (38,6 s) ficou abaixo dos 52,6 s registrados antes. A falha original continua possível em máquina mais carregada, porque o limite e a execução paralela não mudaram.
+- **Próximo passo:** acompanhar nas próximas execuções e registrar aqui qualquer nova falha por tempo, com a duração medida. Se ela se repetir, decidir entre dividir a suíte, ajustar o limite ou limitar a concorrência das suítes.
 
 ## 4. Observabilidade e qualificação
 
@@ -147,11 +156,11 @@ Registros de acompanhamento, não bugs.
 
 ### 5b. Integração na `main`
 
-- **O que é:** a `main` continua no commit inicial. Há mais de 10 branches empilhadas, nenhuma integrada.
-- **Onde:** histórico do Git.
-- **Impacto:** quanto mais branches, maior o trabalho de revisão e integração no fim.
-- **Situação:** decisão adiada.
-- **Próximo passo:** definir a estratégia no fim da v1, depois do item 3a.
+- **O que é:** a `main` está no commit inicial `9bb83ae`, só com `.gitignore`, `LICENSE` e `README.md`. As entregas foram feitas em branches empilhadas, uma sobre a outra. A branch `docs/readme-principal` contém todo esse histórico, e a `main` é ancestral dela.
+- **Onde:** histórico do Git. Em 19/11/2026, `git merge-base --is-ancestor` confirmou que todas as branches remotas empilhadas estão contidas em `docs/readme-principal`, que estava 139 commits à frente da `main`.
+- **Impacto:** enquanto a integração não acontece, a `main` não mostra o projeto, e quem abre o repositório vê só o commit inicial.
+- **Situação:** estratégia definida, integração ainda não feita: o autor vai integrar `docs/readme-principal` na `main` por fast-forward, depois de registrada a verificação do item 3a.
+- **Próximo passo:** o autor faz a integração por fast-forward e, depois dela, este item e o estado do projeto são atualizados.
 
 ## 6. Pendências do login de atendentes
 
