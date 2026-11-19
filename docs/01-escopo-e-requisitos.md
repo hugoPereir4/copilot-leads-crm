@@ -37,7 +37,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 - Menu numerado determinístico no primeiro contato.
 - Qualificação por LLM com saída estruturada e validada.
 - Kanban com colunas fixas e atualização sem recarregar a página.
-- Fallback para atendimento humano quando a IA falha ou tem baixa confiança.
+- Fallback para atendimento humano quando a IA falha ou quando a saída não traz evidência literal para os campos (D8). Não há campo nem limiar de confiança.
 - Login simples para atendentes.
 - Botão **Abrir no WhatsApp** para continuar o atendimento humano fora do painel.
 - Simulador de webhooks para desenvolvimento e demonstração.
@@ -90,7 +90,7 @@ Etapas comerciais fixas: Novo → Qualificado → Em atendimento → Ganho / Per
 
 A visualização principal contém as colunas **Novo**, **Qualificado**, **Em atendimento**, **Ganho** e **Perdido**, lado a lado, com no máximo um card aberto por contato. Mover para **Ganho** ou **Perdido** encerra o atendimento e leva o card para a coluna do resultado, sem ações de etapa. Um contato que retorna depois do encerramento pode ter, ao mesmo tempo, o card encerrado e o card do novo ciclo. Os encerrados aparecem nas colunas **Ganho** e **Perdido** do quadro e no histórico do contato; não há filtro separado (D16 revisada).
 
-Leads em que a IA falhou ou teve baixa confiança ficam em **Novo** com um indicador **Revisar**, em vez de uma coluna própria. Assim o fluxo continua simples.
+Leads em que a IA falhou ou cuja saída não comprovou os campos com evidência literal da conversa (ou ficou incompleta) ficam em **Novo** com um indicador **Revisar**, em vez de uma coluna própria (D8). Assim o fluxo continua simples.
 
 Pedidos diretos para falar com a recepção (opção 3) também entram em **Novo**, mas sem o indicador **Revisar**: dispensar a IA nesse caminho é uma escolha do fluxo, não uma falha de qualificação. O atendente assume o lead posteriormente.
 
