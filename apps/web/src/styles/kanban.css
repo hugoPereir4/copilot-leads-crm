@@ -48,7 +48,7 @@
   display: grid;
   min-height: 0;
   align-content: start;
-  gap: 9px;
+  gap: 7px;
   overflow-y: auto;
   overscroll-behavior-y: contain;
 }
@@ -57,7 +57,7 @@
   min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: 9px;
-  padding: 13px;
+  padding: 9px 8px;
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
@@ -90,18 +90,19 @@
 }
 
 .lead-summary {
-  margin: 10px 0 11px;
+  margin: 6px 0 8px;
   color: var(--color-text-muted);
   font-size: 0.8rem;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
+  line-height: 1.4;
+  overflow-wrap: break-word;
 }
 
 .lead-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 
 .lead-actions-text,
@@ -109,19 +110,20 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .lead-actions-icons {
   flex: 0 0 auto;
+  gap: 4px;
   margin-left: auto;
 }
 
-/* Botões de ícone: área de toque de 34 px; o foco visível vem da regra global de :focus-visible. */
+/* Botões de ícone: área de toque de 30 px; o foco visível vem da regra global de :focus-visible. */
 .icon-button {
   display: inline-grid;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   place-items: center;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -136,23 +138,28 @@
   color: var(--color-text);
 }
 
+/* Rótulo e valor na mesma linha; o valor quebra por palavra, não por letra. */
 .qualification-fields {
-  margin: 10px 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 8px;
+  margin: 6px 0;
   color: var(--color-text-muted);
   font-size: 0.78rem;
-  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
-.qualification-fields dt { font-weight: 700; margin-top: 4px; }
-.qualification-fields dd { margin: 0; }
+.qualification-fields dt { font-weight: 700; }
+.qualification-fields dd { min-width: 0; margin: 0; overflow-wrap: break-word; }
 
-.assume-button {
-  min-height: 38px;
-  font-size: 0.76rem;
-}
+/* O rótulo do nome do perfil é longo: fica acima do valor para não espremer o nome. */
+.contact-fields { grid-template-columns: minmax(0, 1fr); gap: 0; }
 
+.assume-button,
 .close-button {
-  min-height: 38px;
+  min-height: 32px;
+  padding: 0 9px;
+  white-space: nowrap;
   font-size: 0.76rem;
 }
 
