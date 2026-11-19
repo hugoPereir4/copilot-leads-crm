@@ -177,8 +177,8 @@
 /* /admin usa a largura total da tela. O header usa as mesmas margens laterais do quadro
    (margem da página + padding do painel + borda), para começarem e terminarem na mesma linha. */
 .dashboard-page {
-  --dashboard-page-gutter: 28px;
-  --dashboard-panel-gutter: 24px;
+  --dashboard-page-gutter: 20px;
+  --dashboard-panel-gutter: 20px;
 }
 
 .dashboard-page .page-layout {
@@ -217,7 +217,7 @@
   }
 
   .dashboard-page {
-    --dashboard-page-gutter: 20px;
+    --dashboard-page-gutter: 16px;
   }
 }
 
