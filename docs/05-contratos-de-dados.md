@@ -131,7 +131,7 @@ Este é o contrato mais importante do projeto. O schema é enviado ao LLM e depo
 | contactName | texto ou nulo | Só se o cliente informou |
 | extraFields | objeto | Campos adicionais definidos pelo perfil do negócio |
 | summary | texto | Resumo administrativo, sem diagnóstico ou recomendação clínica; tamanho máximo definido |
-| confidence | número | Entre 0 e 1 |
+| confidence | número | **Não implementado.** O contrato atual não tem campo de confiança: a revisão vem da falta de evidência (D8; [backlog técnico](33-backlog-tecnico.md), item 2b) |
 | needsHuman | booleano | A IA pode pedir revisão explícita |
 
 Pontos importantes:
@@ -139,8 +139,8 @@ Pontos importantes:
 - **Recorte da clínica fictícia (D15):** a IA organiza solicitações para a recepção, sem diagnosticar, indicar tratamento, interpretar exames ou fazer triagem clínica. A demonstração usa dados inteiramente sintéticos.
 - **Nulo explícito em vez de inventar:** o schema deve permitir "não sei". Um campo obrigatório sem opção de nulo incentiva o modelo a alucinar.
 - **O schema é parcialmente dinâmico.** A lista de serviços e os campos extras vêm do perfil do negócio (D11), então parte do schema é montada em tempo de execução. Isso é um bom exercício: o tipo estático cobre a estrutura fixa e a validação em runtime cobre os valores variáveis.
-- **Versionar o schema** junto com o prompt (campo prompt_version em ai_extractions).
-- **A confiança informada pelo modelo não é uma probabilidade calibrada.** Trate-a como um sinal auxiliar, não como garantia. Valide também com regras objetivas (campos nulos demais, resumo vazio).
+- **Versionar o schema** junto com o prompt (campo prompt_version em ai_extractions). **Não implementado:** `ai_extractions` e `prompt_version` não existem no código nem nas migrações.
+- **A confiança informada pelo modelo não é uma probabilidade calibrada.** Trate-a como um sinal auxiliar, não como garantia. Valide também com regras objetivas (campos nulos demais, resumo vazio). **Não implementado:** a implementação descartou a confiança e exige evidência literal para cada campo (D8).
 
 ## 6. Perfil do negócio
 
@@ -175,7 +175,7 @@ Sugestão: **separar o tipo do cartão (leve, para listar) do tipo do detalhe (c
 
 **Atendimento externo (D13):** o detalhe do lead deve disponibilizar o telefone normalizado do contato para o botão **Abrir no WhatsApp**. O botão abre a conversa no WhatsApp; não há operação de envio de mensagens manuais pela API do painel na v1. A operação **Assumir lead** continua responsável por registrar o handoff e silenciar o bot. O histórico retornado inclui apenas as mensagens registradas pelo sistema, sem garantia de sincronização das respostas enviadas diretamente pelo WhatsApp.
 
-**Pedido direto à recepção:** na opção 3 do menu, o card é criado em Novo, com `needsReview = false`, sem chamada à IA. Os contratos de cartão e detalhe devem aceitar ausência de qualificação: intenção, resumo, confiança e demais dados exclusivos da extração ficam nulos quando não disponíveis. A ausência não altera os requisitos do schema de resposta da IA; ela representa um caminho em que a IA não foi chamada.
+**Pedido direto à recepção:** na opção 3 do menu, o card é criado em Novo, com `needsReview = false`, sem chamada à IA. Os contratos de cartão e detalhe devem aceitar ausência de qualificação: intenção, resumo e demais dados exclusivos da extração ficam nulos quando não disponíveis. A ausência não altera os requisitos do schema de resposta da IA; ela representa um caminho em que a IA não foi chamada.
 
 **Visualização e histórico (D16 revisada):** o painel mostra Novo, Qualificado, Em atendimento, Ganho e Perdido, com no máximo um card aberto por contato. A listagem da API não mudou: ela já devolve as conversas encerradas, e o painel as coloca nas colunas Ganho e Perdido. Os encerrados aparecem nas colunas Ganho e Perdido e no histórico do contato; o painel não tem filtro separado. Mover para um desses resultados encerra também a conversa e leva o card para a coluna do resultado. Novas mensagens reutilizam o atendimento aberto; após o encerramento, iniciam outra conversa, preservando os IDs e resultados anteriores.
 
@@ -220,4 +220,4 @@ O compartilhamento se limita aos contratos: serviços de negócio, repositórios
 ## 12. Pontos em aberto
 
 - Qual o conjunto final de intenções do enum, e ele varia por negócio?
-- Tamanho máximo do resumo e limiar de confiança para acionar a revisão.
+- Tamanho máximo do resumo. (O limiar de confiança deixou de ser ponto em aberto: não há confiança no contrato implementado, D8.)
