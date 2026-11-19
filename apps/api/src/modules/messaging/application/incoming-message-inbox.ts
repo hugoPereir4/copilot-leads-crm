@@ -19,6 +19,8 @@ export type MessageReceipt = {
 // na mesma transação e reconhecer duplicatas por (provider, external_id).
 // Também deverá reutilizar o contato e sua conversa aberta, preservando ciclos
 // encerrados. Uma duplicata retorna o ID original sem repetir esses efeitos.
+// Quando a mensagem nova traz profileName, ele sobrescreve o nome do contato
+// na mesma transação; duplicatas não alteram o nome.
 export interface IncomingMessageInbox {
   register(input: MessageRegistration): Promise<MessageReceipt>;
 }

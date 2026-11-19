@@ -71,6 +71,13 @@ export class PostgresIncomingMessageInbox implements IncomingMessageInbox {
       await client.query(
         "UPDATE public.conversations SET last_message_at = GREATEST(last_message_at, $2::timestamptz) WHERE id = $1;",
         [conversationId, message.receivedAt]);
+      // Só uma mensagem nova chega aqui: duplicatas já retornaram e ecos (fromMe) são
+      // descartados no adapter. O nome mais recente sobrescreve; ausência preserva o atual.
+      // O nome é dado pessoal: não entra em logs nem em mensagens de erro.
+      if (message.profileName !== undefined) {
+        await client.query("UPDATE public.contacts SET display_name = $2 WHERE id = $1 AND display_name IS DISTINCT FROM $2;",
+          [contactId, message.profileName]);
+      }
       if (input.enqueueProcessing) {
         await client.query("INSERT INTO public.jobs (type, message_id) VALUES ('processar_mensagem', $1);", [messageId]);
       }
