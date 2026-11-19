@@ -87,6 +87,7 @@ npm run check
 | `npm run db:migrate` | Compila a API e aplica migrações pendentes; pode alterar a estrutura do banco |
 | `npm run attendant:create -- <usuario> "<nome>"` | Compila a API e cria um atendente; a senha é pedida no terminal, sem eco, e confirmada |
 | `npm run attendant:set-password -- <usuario>` | Compila a API, troca a senha do atendente e encerra todas as sessões dele |
+| `npm run attendant:seed-demo` | Compila a API e cria o atendente de demonstração com `DEMO_USERNAME` e `DEMO_PASSWORD` do `.env`; se ele já existe, troca a senha e encerra as sessões dele. Não pergunta nada no terminal |
 
 ### Login dos atendentes
 
@@ -97,6 +98,26 @@ O painel (`/admin`), o simulador (`/simulator`) e as rotas `/api/demo/*` exigem 
 3. `npm run start:demo` e abrir `http://127.0.0.1:3000/admin`, que redireciona para `/login`.
 
 Variáveis no `.env` (padrões em `.env.example`): `SESSION_TTL_HOURS` (1 a 24, padrão 12) e `SESSION_COOKIE_SECURE` (`true` ou `false`, padrão `false`). O servidor só fala HTTP em `127.0.0.1`; expor o painel fora do loopback exige HTTPS e `SESSION_COOKIE_SECURE=true`.
+
+## Rodar localmente
+
+Caminho curto para abrir o painel com o atendente de demonstração, sem criar conta. Na raiz do repositório:
+
+1. `npm ci`
+2. Copie `.env.example` para `.env`.
+3. No `.env`, preencha `POSTGRES_PASSWORD` com uma senha local qualquer e `DEMO_PASSWORD` com a senha de demonstração abaixo. Deixe `DEMO_USERNAME=demo`.
+4. `docker compose up -d postgres`
+5. `npm run db:migrate`
+6. `npm run attendant:seed-demo`
+7. `npm run start:demo`
+8. Abra `http://127.0.0.1:3000/login` e entre com o acesso de demonstração, que também aparece na própria tela de login.
+
+| Acesso de demonstração | Valor |
+|---|---|
+| Usuário | `demo` |
+| Senha | `demo-copilot-leads-2026` |
+
+**A senha desta tabela precisa ser a mesma definida como `DEMO_PASSWORD` no deploy.** Se o `DEMO_PASSWORD` do deploy mudar, atualize esta tabela e rode `npm run attendant:seed-demo` de novo no ambiente do deploy; a tela de login sempre mostra o valor do ambiente. As credenciais são públicas por design e dão acesso só a dados sintéticos. Limites e cuidados estão no [documento 35](docs/35-acesso-de-demonstracao.md).
 
 ## Estrutura e dependências
 

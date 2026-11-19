@@ -327,6 +327,8 @@ Referências: [consultas parametrizadas](https://node-postgres.com/features/quer
 - A checagem de `Origin` deixa passar requisições sem `Origin`; elas não carregam cookie de outro site, mas um cliente futuro sem `Origin` confiável exigiria token sincronizador.
 - O cookie sem `Secure` só é aceitável enquanto o servidor escuta em `127.0.0.1`.
 
+**Revisão (acesso de demonstração):** com `DEMO_USERNAME` e `DEMO_PASSWORD` definidos, um atendente de demonstração é criado ou atualizado por `npm run attendant:seed-demo`, e a tela de login mostra as credenciais, montadas no servidor a partir do ambiente. Login, sessão, hash, guarda e tabelas continuam os mesmos; sem as variáveis, nada muda. Trade-off: as credenciais são públicas por design, então qualquer visitante pode alterar os dados sintéticos do painel. Detalhes e limitações no [documento 35](35-acesso-de-demonstracao.md).
+
 ## Forma de trabalho para estudar arquitetura
 
 O objetivo é aprender arquitetura durante o desenvolvimento, com uma entrega pequena por vez e revisão individual do autor. Em cada entrega, explicar com exemplos do próprio projeto:
