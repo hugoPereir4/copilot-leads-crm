@@ -134,4 +134,4 @@ Na demonstração inicial, não é necessário conectar um número real nem envi
 
 Estes pontos foram sugeridos, mas ainda não decididos:
 
-- Tempo real com SSE ou polling, em vez de WebSocket.
+- ~~Tempo real com SSE ou polling, em vez de WebSocket.~~ **Decidido:** polling na v1, conforme a [D9 revisada](02-decisoes-de-arquitetura.md#d9-tempo-real-com-sse).

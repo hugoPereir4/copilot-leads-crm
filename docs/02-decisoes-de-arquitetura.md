@@ -103,6 +103,8 @@ O comportamento confirmado das opções do menu está no documento 3, seção 6.
 
 **Trade-off:** a comunicação é de uma via só. Para o Kanban, isso basta.
 
+**Revisão (fechamento da v1):** a v1 usa polling de 1 s no painel. Isso atende ao RF10, porque o painel se atualiza sem recarregar a página. SSE fica como evolução depois da v1.
+
 ## D10. PostgreSQL desde o início, executado localmente com Docker
 
 **Decisão confirmada em 23/10/2026.**
