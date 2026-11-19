@@ -130,7 +130,7 @@ O comportamento confirmado das opções do menu está no documento 3, seção 6.
 
 ## D11. Configuração do negócio como dados
 
-**Como funciona:** nome do negócio, serviços, horário e campos de qualificação ficam numa configuração (arquivo ou tabela), não no código. Trocar de "academia" para "curso de inglês" é trocar dados.
+**Como funciona:** nome do negócio, serviços, horário e menu ficam numa configuração (arquivo ou tabela), não no código. Trocar de "academia" para "curso de inglês" é trocar dados. Os campos de qualificação ainda não estão na configuração: são fixos no código e estão registrados como pendência depois da v1 no [backlog técnico](33-backlog-tecnico.md), item 7a.
 
 **Escolha inicial autorizada para a etapa 4.14:** um único perfil administrativo em `apps/api/config/business-profile.json`, versionado e validado com Zod. O caso de uso depende de `BusinessProfileReader`; a infraestrutura inicial lê o arquivo. Uma implementação futura poderá usar PostgreSQL preservando a porta, sem criar a tabela `business_profile` neste bloco. Os campos extras de qualificação permanecem para a integração de IA. O [documento 22](22-etapa-4-perfil-do-negocio.md) detalha o recorte e os dados fictícios para revisão.
 

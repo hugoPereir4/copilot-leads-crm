@@ -8,7 +8,7 @@ Modelo relacional mínimo para sustentar o fluxo do documento 3. Pensado para Po
 
 | Entidade | Papel | Relacionamentos |
 |---|---|---|
-| business_profile | Configuração do negócio (nome, serviços, horário, menu, campos de qualificação) | Perfil único; JSON inicial na etapa 4.14, tabela ainda planejada |
+| business_profile | Configuração do negócio (nome, serviços, horário e menu; campos de qualificação previstos, sem implementação) | Perfil único; JSON inicial na etapa 4.14, tabela ainda planejada |
 | users (previsão, sem migração) | Proposta antiga de usuários do painel, com atribuição de leads. A autenticação implementada usa `attendants` (D23) | Previsto: 1 usuário : N leads atribuídos |
 | contacts | Pessoa que escreve pelo WhatsApp | 1 contato : N conversas ao longo do tempo, no máximo uma aberta |
 | conversations | Um ciclo de atendimento com estado próprio | 1 conversa : N mensagens; 1 conversa : no máximo 1 lead, criado conforme o fluxo |
