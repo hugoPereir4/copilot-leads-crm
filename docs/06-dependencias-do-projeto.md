@@ -161,19 +161,22 @@ Para uma demonstração em vídeo, o `docker compose up` local com o simulador p
 
 Nunca versionar o arquivo `.env`. Versione apenas o `.env.example`, sem valores reais.
 
+As variáveis abaixo são as que o código lê hoje (`apps/api/src/config/` e `apps/api/src/config/auth.ts`); os valores de exemplo estão no `.env.example`.
+
 | Variável | Uso |
 |---|---|
-| DATABASE_URL | Conexão com o PostgreSQL |
-| PORT | Porta da API |
+| POSTGRES_DB, POSTGRES_USER e POSTGRES_PASSWORD | Conexão com o PostgreSQL; obrigatórias |
+| POSTGRES_HOST e POSTGRES_PORT | Endereço do banco; padrões `127.0.0.1` e `5432` |
+| API_PORT | Porta HTTP da API em `127.0.0.1`; padrão `3000` |
 | SESSION_TTL_HOURS e SESSION_COOKIE_SECURE | Validade da sessão (1 a 24 h) e atributo `Secure` do cookie. Não há segredo de assinatura: o token é aleatório e conferido no banco (D23) |
-| WEBHOOK_SECRET | Verificar que o webhook vem do provedor (se ele oferecer esse recurso) |
-| WHATSAPP_PROVIDER | Qual adapter usar (simulador, evolution etc.) |
-| Variáveis do provedor escolhido | URL base, chave e nome da instância |
-| LLM_API_KEY | Chave da API de IA |
-| LLM_MODEL | Modelo usado, mantido fora do código |
-| LLM_TIMEOUT_MS | Tempo máximo de espera da IA |
-| CONFIDENCE_THRESHOLD | Limiar de confiança para acionar a revisão |
-| BUSINESS_PROFILE_PATH | Caminho da configuração do negócio, se for arquivo |
+| QUALIFIER_PROVIDER | `simulated` (padrão, sem API externa) ou `gemini` |
+| GEMINI_API_KEY | Chave da API Gemini; obrigatória só com `QUALIFIER_PROVIDER=gemini` |
+| GEMINI_MODEL | Modelo Gemini; hoje só aceita `gemini-3.1-flash-lite` |
+| QUALIFIER_TIMEOUT_MS | Prazo total da qualificação (100 a 30000 ms, padrão 25000; mínimo 10000 com Gemini) |
+| QUALIFIER_MAX_CONTEXT_CHARS e QUALIFIER_MAX_OUTPUT_CHARS | Limites do contexto enviado e da saída aceita do qualificador |
+| DEMO_USERNAME e DEMO_PASSWORD | Acesso de demonstração, opcional; as duas juntas ou nenhuma ([documento 35](35-acesso-de-demonstracao.md)) |
+
+Não existem no código: `DATABASE_URL`, `PORT`, `WEBHOOK_SECRET`, `WHATSAPP_PROVIDER`, variáveis de um provedor real de WhatsApp, `CONFIDENCE_THRESHOLD` (não há confiança; a revisão vem da falta de evidência, D8) e `BUSINESS_PROFILE_PATH` (o perfil é lido de `apps/api/config/business-profile.json`).
 
 Valide as variáveis com Zod na inicialização, exigindo apenas as aplicáveis ao modo e aos provedores selecionados. O simulador não exige credenciais de um provedor real de WhatsApp. Se faltar uma variável obrigatória para o modo escolhido, o sistema nem sobe, e o erro é claro.
 
@@ -200,7 +203,7 @@ Instalar só o que a fase pede evita carregar bibliotecas que você ainda não e
 Acesso ao banco e migrações já foram resolvidos na D22: `pg` direto e `node-pg-migrate`. Permanecem em aberto:
 
 - ~~Sessão por cookie ou JWT?~~ Decidido na D23: sessão no servidor com cookie `HttpOnly`.
-- Qual provedor de IA?
+- ~~Qual provedor de IA?~~ O padrão é o qualificador simulado, sem API externa; o adapter Gemini (`@google/genai`) é opcional e ativado só com `QUALIFIER_PROVIDER=gemini` ([documento 32](32-qualificacao-de-leads.md)).
 - Qual provedor de WhatsApp para a etapa posterior com número real? A demonstração inicial usa o simulador (D14).
 - Biome em vez de ESLint + Prettier?
 
