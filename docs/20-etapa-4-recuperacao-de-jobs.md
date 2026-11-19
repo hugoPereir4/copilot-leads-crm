@@ -142,3 +142,7 @@ node --env-file=.env --test apps/api/dist/modules/jobs/infrastructure/postgres-j
 ## 8. Próxima parte
 
 A etapa 4.13 prepara uma primeira dependência do processador: carregar a mensagem com a conversa original e o contato. O [documento 21](21-etapa-4-contexto-da-mensagem.md) apresenta o fluxo de revisão. Ainda será necessário preparar o processamento real e a configuração de seu tempo máximo, definir ordenação por conversa e idempotência dos efeitos e então ligar reserva, processamento, finalização e recuperação ao loop do worker. O encerramento coordenado deverá impedir novas reservas e tratar o trabalho em andamento. Não ativar um handler vazio que consuma e conclua os jobs existentes.
+
+## Nota posterior (19/11/2026): o desenho mudou depois desta entrega
+
+A recuperação descrita aqui passou a rodar no worker do simulador: `apps/api/src/demo.ts` chama `recoverExpiredJobs` a cada 30 segundos. Já a conclusão do job não passa por `complete()` nem pelo caso de uso `complete-job.ts`. O worker conclui com SQL próprio, com o mesmo predicado (ID, estado `processando` e tentativa atual), dentro da transação dos efeitos (`postgres-simulator-effects.ts`) ou da qualificação (`postgres-qualification-execution-store.ts`). A observação sobre conclusão tardia continua válida para esse SQL: depois dos 120 segundos, ele ainda conclui enquanto o job estiver `processando` com a mesma tentativa. O texto anterior desta página registra a entrega como foi feita.

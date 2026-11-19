@@ -137,3 +137,7 @@ Esta entrega não adiciona endpoints ou ativa um worker. A validação do compor
 ## 8. Próxima parte
 
 A etapa 4.12 implementa a operação de recuperação de jobs interrompidos, com prazo de reserva e preservação do contador. O [documento 20](20-etapa-4-recuperacao-de-jobs.md) apresenta o fluxo de revisão. A execução periódica dessa operação e o loop do worker continuam pendentes. Antes de ativar o consumo real, detalhar tempo máximo de processamento, ordenação por conversa, envio único da abertura e idempotência dos efeitos. Nenhum handler vazio deve consumir e concluir os jobs existentes apenas para demonstrar o loop.
+
+## Nota posterior (19/11/2026): o desenho mudou depois desta entrega
+
+O worker do simulador (`apps/api/src/demo.ts` e `SimulatorProcessor`) não usa o caso de uso `complete-job.ts` nem o método `complete()` da fila. Ele conclui o job com SQL próprio, com o mesmo predicado (ID, estado `processando` e tentativa atual), **dentro da transação** que grava os efeitos (`apps/api/src/infrastructure/simulator/postgres-simulator-effects.ts`) ou o resultado da qualificação (`apps/api/src/modules/leads/infrastructure/postgres-qualification-execution-store.ts`). Assim, efeitos e conclusão são confirmados ou desfeitos juntos. `complete-job.ts` continua no código, mas só os testes o usam. As falhas seguem por `fail-job.ts`, como descrito acima. O texto anterior desta página registra a entrega como foi feita.
