@@ -193,6 +193,8 @@ O Kanban principal mostra apenas leads em **Novo**, **Qualificado** e **Em atend
 
 **Garantias:** a unicidade de conversa aberta e de lead aberto por contato deve ser protegida no banco e nos casos de uso, inclusive quando mensagens chegam simultaneamente. Encerrar o lead e a conversa ocorre na mesma transação. O filtro do painel apenas controla a visualização; os registros históricos continuam armazenados.
 
+**Revisão (painel em cinco colunas):** o Kanban principal passa a mostrar **Ganho** e **Perdido** como colunas, ao lado de **Novo**, **Qualificado** e **Em atendimento**. Os leads encerrados aparecem na coluna do resultado, sem ações de etapa; a regra de no máximo um card **aberto** por contato continua. Só a visualização mudou: a API já devolvia os encerrados, e o modelo de dados e as transações são os mesmos. O filtro de encerrados continua disponível. Trade-off: a visualização de trabalho passa a acumular os encerrados, limitada pelas 100 conversas mais recentes que a API devolve.
+
 **Trade-off:** consultas e eventos do painel precisam respeitar os filtros de abertos e encerrados. A v1 não representa oportunidades simultâneas independentes para o mesmo contato.
 
 ## D17. Recepção automática fora do expediente

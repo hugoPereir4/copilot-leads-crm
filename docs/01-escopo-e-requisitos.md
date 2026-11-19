@@ -22,7 +22,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 - O desenvolvimento e a demonstração inicial usam o **simulador**. A integração com um número real fica para uma etapa posterior, com provedor ainda a escolher (D14).
 - O cenário é uma **clínica fictícia de fisioterapia**, com foco em recepção administrativa: informações sobre serviços, valores e pedidos de agendamento (D15).
 - A demonstração usa **dados inteiramente sintéticos**, sem conversas ou dados de pacientes reais. Funcionalidades clínicas ficam fora da v1; eventual expansão será reavaliada em uma versão futura (D15).
-- Cada contato tem no máximo uma conversa e um lead abertos. O retorno após encerramento inicia uma nova conversa, preservando os atendimentos anteriores no histórico. O Kanban principal mostra apenas os leads abertos (D16).
+- Cada contato tem no máximo uma conversa e um lead abertos. O retorno após encerramento inicia uma nova conversa, preservando os atendimentos anteriores no histórico. O Kanban principal mostra as cinco etapas, inclusive os leads encerrados em Ganho e Perdido, com no máximo um card aberto por contato (D16 revisada).
 - Fora do expediente, o bot informa o horário configurado da clínica e continua com o menu e a qualificação. A solicitação aguarda atendimento humano, sem promessa de resposta imediata (D17).
 - Conversas abertas permanecem abertas quando o cliente para de responder, sem lembretes nem encerramento automático por inatividade. O retorno continua no estado atual do atendimento (D18).
 - PostgreSQL desde o início, executado localmente com Docker Compose e volume persistente. A primeira entrega de ambiente coloca apenas o banco em container (D10).
@@ -80,7 +80,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 | RF16 | Disponibilizar no painel um botão **Abrir no WhatsApp** que abre a conversa com o número do contato para o atendente responder fora do sistema. |
 | RF17 | Na opção 1 do menu, enviar a apresentação configurada dos serviços e perguntar qual interessa; na opção 2, enviar valores e horários configurados e perguntar se deseja solicitar agendamento. Qualificar a resposta em texto livre. Na opção 3, criar o lead em Novo e colocar a conversa em Aguardando humano, sem chamar a IA. |
 | RF18 | Vincular novas mensagens à conversa aberta do contato e reutilizar seu lead, quando já existir. Se não houver conversa aberta, iniciar uma nova vinculada ao mesmo contato, preservando as anteriores encerradas. |
-| RF19 | Mostrar apenas leads abertos no Kanban principal, com no máximo um card por contato. Disponibilizar filtro de encerrados e acesso ao histórico de conversas e leads do contato, com seus resultados. |
+| RF19 | Mostrar no Kanban principal as colunas Novo, Qualificado, Em atendimento, Ganho e Perdido, com no máximo um card aberto por contato; os leads encerrados aparecem nas colunas do resultado. Disponibilizar filtro de encerrados e acesso ao histórico de conversas e leads do contato, com seus resultados. |
 | RF20 | Ao iniciar uma conversa fora do expediente, enviar um aviso predefinido com o horário da clínica e continuar com o menu e a qualificação. Usar o fuso e os horários do perfil do negócio; preservar o silêncio do bot nas conversas aguardando humano ou em atendimento humano. |
 | RF21 | Preservar o estado e o atendimento existente após períodos sem resposta do cliente, sem lembretes ou encerramento automático por inatividade. Processar a próxima mensagem conforme o estado atual, sem reiniciar o menu nem criar outra conversa ou lead apenas pelo tempo decorrido. |
 
@@ -88,7 +88,7 @@ Sistema que recebe mensagens de interessados em uma clínica fictícia de fisiot
 
 Etapas comerciais fixas: Novo → Qualificado → Em atendimento → Ganho / Perdido.
 
-A visualização principal contém as colunas **Novo**, **Qualificado** e **Em atendimento**, com no máximo um card por contato. Mover para **Ganho** ou **Perdido** encerra o atendimento e retira o card da visualização principal. Os resultados continuam acessíveis pelo filtro de encerrados e pelo histórico do contato (D16).
+A visualização principal contém as colunas **Novo**, **Qualificado**, **Em atendimento**, **Ganho** e **Perdido**, lado a lado, com no máximo um card aberto por contato. Mover para **Ganho** ou **Perdido** encerra o atendimento e leva o card para a coluna do resultado, sem ações de etapa. Um contato que retorna depois do encerramento pode ter, ao mesmo tempo, o card encerrado e o card do novo ciclo. Os resultados também continuam acessíveis pelo filtro de encerrados e pelo histórico do contato (D16 revisada).
 
 Leads em que a IA falhou ou teve baixa confiança ficam em **Novo** com um indicador **Revisar**, em vez de uma coluna própria. Assim o fluxo continua simples.
 
@@ -119,7 +119,7 @@ Você consegue disparar uma conversa pelo simulador e ver, de ponta a ponta:
 5. o atendente assumindo o lead, o bot silenciando e o botão **Abrir no WhatsApp** direcionando ao número do contato;
 6. um caso de falha da IA caindo no fallback humano;
 7. cada opção do menu seguindo o comportamento confirmado, incluindo o pedido direto à recepção sem chamada à IA;
-8. mensagens sucessivas durante um atendimento mantendo o mesmo card; após o encerramento, um novo atendimento preservando o histórico sem exibir cards antigos no Kanban principal;
+8. mensagens sucessivas durante um atendimento mantendo o mesmo card; após o encerramento, um novo atendimento preservando o histórico, com o card antigo apenas na coluna do resultado (Ganho ou Perdido);
 9. uma conversa iniciada fora do expediente exibindo o aviso de horário e seguindo até a qualificação ou o encaminhamento à recepção;
 10. um período sem resposta do cliente preservando a conversa aberta e seu estado, sem lembretes; no retorno, a mensagem seguindo o atendimento existente, sem criar outro card por inatividade.
 

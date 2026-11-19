@@ -177,7 +177,7 @@ Sugestão: **separar o tipo do cartão (leve, para listar) do tipo do detalhe (c
 
 **Pedido direto à recepção:** na opção 3 do menu, o card é criado em Novo, com `needsReview = false`, sem chamada à IA. Os contratos de cartão e detalhe devem aceitar ausência de qualificação: intenção, resumo, confiança e demais dados exclusivos da extração ficam nulos quando não disponíveis. A ausência não altera os requisitos do schema de resposta da IA; ela representa um caminho em que a IA não foi chamada.
 
-**Visualização e histórico (D16):** a listagem padrão contém apenas Novo, Qualificado e Em atendimento, com no máximo um card por contato. Ganho e Perdido são consultados pelo filtro de encerrados e pelo histórico do contato. Mover para um desses resultados encerra também a conversa e retira o card da listagem padrão. Novas mensagens reutilizam o atendimento aberto; após o encerramento, iniciam outra conversa, preservando os IDs e resultados anteriores.
+**Visualização e histórico (D16 revisada):** o painel mostra Novo, Qualificado, Em atendimento, Ganho e Perdido, com no máximo um card aberto por contato. A listagem da API não mudou: ela já devolve as conversas encerradas, e o painel as coloca nas colunas Ganho e Perdido. O filtro de encerrados e o histórico do contato continuam disponíveis. Mover para um desses resultados encerra também a conversa e leva o card para a coluna do resultado. Novas mensagens reutilizam o atendimento aberto; após o encerramento, iniciam outra conversa, preservando os IDs e resultados anteriores.
 
 ## 8. Eventos em tempo real (SSE)
 
